@@ -1,5 +1,8 @@
 # Quantum Circuit Verification: Understanding the Zero-Knowledge Proof
 
+**[Read the blog post](https://chippr-robotics.github.io/quantum_proof/)**
+
+
 An educational resource explaining how Google Quantum AI used a zero-knowledge proof to validate quantum circuit resource estimates for breaking 256-bit ECDLP — without revealing the circuits themselves.
 
 ## Background
