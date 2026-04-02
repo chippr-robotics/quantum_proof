@@ -1,507 +1,674 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Understanding the Zero-Knowledge Proof for Quantum Circuit Verification</title>
-    <style>
-        :root {
-            --bg: #0d1117;
-            --surface: #161b22;
-            --border: #30363d;
-            --text: #e6edf3;
-            --muted: #8b949e;
-            --accent: #58a6ff;
-            --accent2: #bc8cff;
-            --green: #3fb950;
-            --red: #f85149;
-            --orange: #d29922;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.7;
-        }
-        .container { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum Proof — Understanding the Threat to Cryptocurrency</title>
+<style>
+:root {
+  --green-50: #f0fdf4; --green-100: #dcfce7; --green-200: #bbf7d0;
+  --green-300: #86efac; --green-400: #4ade80; --green-500: #22c55e;
+  --green-600: #16a34a; --green-700: #15803d; --green-800: #166534;
+  --green-900: #14532d; --white: #ffffff; --gray-50: #f9fafb;
+  --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+  --gray-500: #6b7280; --gray-600: #4b5563; --gray-700: #374151;
+  --gray-800: #1f2937; --gray-900: #111827;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:var(--gray-800); background:var(--white); line-height:1.7; }
+.container { max-width:1100px; margin:0 auto; padding:0 1.5rem; }
+a { color:var(--green-700); }
 
-        /* Header */
-        header {
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 2rem;
-            margin-bottom: 3rem;
-        }
-        header .tag {
-            display: inline-block;
-            background: rgba(88,166,255,0.15);
-            color: var(--accent);
-            padding: 0.25rem 0.75rem;
-            border-radius: 2rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        header h1 {
-            font-size: 2.2rem;
-            line-height: 1.25;
-            margin-bottom: 1rem;
-        }
-        header .meta {
-            color: var(--muted);
-            font-size: 0.9rem;
-        }
-        header .meta a { color: var(--accent); text-decoration: none; }
-        header .meta a:hover { text-decoration: underline; }
+/* NAV */
+nav { position:sticky; top:0; z-index:100; background:rgba(255,255,255,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--green-200); }
+nav .container { display:flex; align-items:center; justify-content:space-between; height:56px; }
+nav .logo { font-weight:800; font-size:1.1rem; color:var(--green-800); }
+nav .links { display:flex; gap:1.5rem; font-size:0.88rem; font-weight:500; }
+nav .links a { text-decoration:none; color:var(--gray-600); transition:color .2s; }
+nav .links a:hover { color:var(--green-700); }
+@media(max-width:700px){ nav .links { display:none; } }
 
-        /* Sections */
-        h2 {
-            font-size: 1.5rem;
-            margin: 2.5rem 0 1rem;
-            padding-bottom: 0.4rem;
-            border-bottom: 1px solid var(--border);
-        }
-        h3 { font-size: 1.15rem; margin: 1.8rem 0 0.8rem; color: var(--accent2); }
-        p { margin-bottom: 1rem; }
-        a { color: var(--accent); }
+/* HERO */
+.hero { position:relative; overflow:hidden; background:linear-gradient(135deg,var(--green-50) 0%,var(--white) 50%,var(--green-100) 100%); padding:6rem 0 5rem; }
+.hero h1 { font-size:clamp(2rem,5vw,3.2rem); font-weight:800; color:var(--green-900); line-height:1.18; max-width:700px; }
+.hero p.sub { font-size:1.15rem; color:var(--gray-600); margin:1.2rem 0 2rem; max-width:600px; }
+.hero .cta-row { display:flex; gap:1rem; flex-wrap:wrap; }
+.btn { display:inline-block; padding:0.7rem 1.6rem; border-radius:8px; font-weight:600; font-size:0.95rem; text-decoration:none; transition:all .2s; cursor:pointer; border:none; }
+.btn-primary { background:var(--green-600); color:var(--white); }
+.btn-primary:hover { background:var(--green-700); transform:translateY(-1px); box-shadow:0 4px 12px rgba(22,163,74,0.3); }
+.btn-outline { background:transparent; color:var(--green-700); border:2px solid var(--green-300); }
+.btn-outline:hover { background:var(--green-50); border-color:var(--green-500); }
+/* Floating grid animation */
+.hero-grid { position:absolute; top:0; right:-5%; width:55%; height:100%; opacity:0.12; pointer-events:none; }
+.hero-grid .cell { position:absolute; border:2px solid var(--green-500); border-radius:6px; animation:float 6s ease-in-out infinite; }
+@keyframes float { 0%,100%{transform:translateY(0) rotate(0deg);} 50%{transform:translateY(-18px) rotate(3deg);} }
 
-        /* Code blocks */
-        code {
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            background: var(--surface);
-            padding: 0.15rem 0.4rem;
-            border-radius: 4px;
-            font-size: 0.88em;
-        }
-        pre {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.25rem;
-            overflow-x: auto;
-            margin: 1rem 0 1.5rem;
-            font-size: 0.85rem;
-            line-height: 1.6;
-        }
-        pre code { background: none; padding: 0; }
+/* SECTIONS */
+section { padding:4.5rem 0; }
+section:nth-child(even) { background:var(--green-50); }
+.section-label { display:inline-block; background:var(--green-100); color:var(--green-700); font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; padding:0.3rem 0.9rem; border-radius:2rem; margin-bottom:1rem; }
+.section-title { font-size:clamp(1.6rem,3.5vw,2.2rem); font-weight:800; color:var(--green-900); margin-bottom:0.5rem; }
+.section-desc { color:var(--gray-600); font-size:1.05rem; max-width:650px; margin-bottom:2.5rem; }
 
-        /* Info boxes */
-        .callout {
-            border-left: 4px solid var(--accent);
-            background: rgba(88,166,255,0.07);
-            padding: 1rem 1.25rem;
-            border-radius: 0 8px 8px 0;
-            margin: 1.5rem 0;
-        }
-        .callout.warn {
-            border-left-color: var(--orange);
-            background: rgba(210,153,34,0.07);
-        }
-        .callout.success {
-            border-left-color: var(--green);
-            background: rgba(63,185,80,0.07);
-        }
-        .callout strong { display: block; margin-bottom: 0.3rem; }
+/* STAT CARDS */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1.25rem; margin:2rem 0; }
+.stat-card { background:var(--white); border:1px solid var(--green-200); border-radius:12px; padding:1.5rem; text-align:center; transition:all .3s; }
+.stat-card:hover { transform:translateY(-4px); box-shadow:0 8px 25px rgba(22,163,74,0.1); border-color:var(--green-400); }
+.stat-card .number { font-size:2.2rem; font-weight:800; color:var(--green-700); }
+.stat-card .label { font-size:0.85rem; color:var(--gray-500); margin-top:0.3rem; }
+.stat-bar { height:6px; background:var(--green-100); border-radius:3px; margin-top:0.8rem; overflow:hidden; }
+.stat-bar .fill { height:100%; background:linear-gradient(90deg,var(--green-400),var(--green-600)); border-radius:3px; width:0; transition:width 1.5s ease; }
 
-        /* Tables */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.92rem;
-        }
-        th, td {
-            text-align: left;
-            padding: 0.65rem 1rem;
-            border: 1px solid var(--border);
-        }
-        th { background: var(--surface); font-weight: 600; }
+/* TABS */
+.tabs { display:flex; gap:0; border-bottom:2px solid var(--green-200); margin-bottom:2rem; }
+.tab-btn { padding:0.75rem 1.5rem; font-size:0.92rem; font-weight:600; cursor:pointer; border:none; background:none; color:var(--gray-500); border-bottom:3px solid transparent; margin-bottom:-2px; transition:all .2s; }
+.tab-btn.active { color:var(--green-700); border-bottom-color:var(--green-600); }
+.tab-btn:hover { color:var(--green-600); }
+.tab-content { display:none; animation:fadeIn .3s ease; }
+.tab-content.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 
-        /* Diagram */
-        .diagram {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            text-align: center;
-            font-family: 'SFMono-Regular', Consolas, monospace;
-            font-size: 0.85rem;
-            line-height: 1.8;
-            overflow-x: auto;
-            white-space: pre;
-        }
+/* ACCORDION */
+.accordion { border:1px solid var(--green-200); border-radius:10px; overflow:hidden; margin-bottom:0.5rem; }
+.accordion summary { padding:1rem 1.25rem; font-weight:600; cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; background:var(--white); transition:background .2s; font-size:0.95rem; }
+.accordion summary:hover { background:var(--green-50); }
+.accordion summary::after { content:'+'; font-size:1.3rem; color:var(--green-500); font-weight:300; transition:transform .2s; }
+.accordion[open] summary::after { content:'-'; }
+.accordion .acc-body { padding:0 1.25rem 1.25rem; color:var(--gray-600); font-size:0.92rem; line-height:1.8; }
 
-        /* Math expressions */
-        .math {
-            font-family: 'Times New Roman', 'CMU Serif', serif;
-            font-style: italic;
-            font-size: 1.05em;
-        }
-        .math-block {
-            display: block;
-            text-align: center;
-            margin: 1.5rem 0;
-            font-family: 'Times New Roman', 'CMU Serif', serif;
-            font-style: italic;
-            font-size: 1.1em;
-            line-height: 2;
-        }
+/* TOGGLE SWITCH */
+.toggle-wrap { display:flex; align-items:center; gap:0.75rem; margin:1.5rem 0; }
+.toggle-label { font-size:0.9rem; font-weight:600; color:var(--gray-600); }
+.toggle-label.active { color:var(--green-700); }
+.toggle { position:relative; width:52px; height:28px; background:var(--green-200); border-radius:14px; cursor:pointer; transition:background .3s; }
+.toggle.on { background:var(--green-500); }
+.toggle .knob { position:absolute; top:3px; left:3px; width:22px; height:22px; background:var(--white); border-radius:50%; transition:transform .3s; box-shadow:0 1px 3px rgba(0,0,0,0.15); }
+.toggle.on .knob { transform:translateX(24px); }
 
-        /* Footer */
-        footer {
-            margin-top: 4rem;
-            padding-top: 2rem;
-            border-top: 1px solid var(--border);
-            color: var(--muted);
-            font-size: 0.85rem;
-        }
-        footer a { color: var(--accent); text-decoration: none; }
+/* PIPELINE */
+.pipeline { display:flex; flex-direction:column; gap:0; margin:2rem 0; }
+.pipe-step { display:flex; align-items:flex-start; gap:1.25rem; padding:1.25rem 0; }
+.pipe-icon { flex-shrink:0; width:44px; height:44px; border-radius:50%; background:var(--green-100); border:2px solid var(--green-300); display:flex; align-items:center; justify-content:center; font-size:1.1rem; font-weight:700; color:var(--green-700); position:relative; }
+.pipe-step:not(:last-child) .pipe-icon::after { content:''; position:absolute; top:44px; left:50%; transform:translateX(-50%); width:2px; height:calc(100% + 10px); background:var(--green-300); }
+.pipe-step:not(:last-child) { padding-bottom:0; }
+.pipe-text h4 { font-size:0.95rem; color:var(--green-800); margin-bottom:0.2rem; }
+.pipe-text p { font-size:0.87rem; color:var(--gray-500); }
 
-        /* Responsive */
-        @media (max-width: 640px) {
-            header h1 { font-size: 1.6rem; }
-            .container { padding: 1rem; }
-        }
-    </style>
+/* CALCULATOR */
+.calc-box { background:var(--white); border:2px solid var(--green-200); border-radius:14px; padding:2rem; max-width:550px; }
+.calc-box label { display:block; font-size:0.88rem; font-weight:600; color:var(--gray-700); margin-bottom:0.3rem; }
+.calc-box input[type=range] { width:100%; accent-color:var(--green-500); margin-bottom:0.25rem; }
+.calc-box .range-row { display:flex; justify-content:space-between; font-size:0.8rem; color:var(--gray-500); margin-bottom:1.25rem; }
+.calc-result { background:var(--green-50); border:1px solid var(--green-200); border-radius:10px; padding:1.25rem; text-align:center; margin-top:1rem; }
+.calc-result .big { font-size:2.5rem; font-weight:800; color:var(--green-700); }
+.calc-result .desc { font-size:0.85rem; color:var(--gray-500); }
+
+/* PROOF CARDS */
+.proof-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1.5rem; margin:2rem 0; }
+.proof-card { background:var(--white); border:1px solid var(--green-200); border-radius:12px; padding:1.5rem; }
+.proof-card h3 { font-size:1.05rem; color:var(--green-800); margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem; }
+.proof-card .badge { background:var(--green-100); color:var(--green-700); font-size:0.72rem; padding:0.2rem 0.6rem; border-radius:1rem; font-weight:700; }
+.proof-card table { width:100%; font-size:0.85rem; border-collapse:collapse; }
+.proof-card td { padding:0.4rem 0; border-bottom:1px solid var(--green-100); }
+.proof-card td:first-child { color:var(--gray-500); }
+.proof-card td:last-child { text-align:right; font-weight:600; color:var(--gray-800); font-family:'SFMono-Regular',Consolas,monospace; }
+.hash-text { font-family:'SFMono-Regular',Consolas,monospace; font-size:0.72rem; color:var(--gray-500); word-break:break-all; line-height:1.5; margin-top:0.75rem; background:var(--gray-50); padding:0.5rem; border-radius:6px; }
+
+/* TIMELINE */
+.timeline { position:relative; padding-left:2rem; margin:2rem 0; }
+.timeline::before { content:''; position:absolute; left:0.55rem; top:0; bottom:0; width:2px; background:var(--green-200); }
+.tl-item { position:relative; margin-bottom:1.5rem; }
+.tl-item::before { content:''; position:absolute; left:-1.65rem; top:0.35rem; width:12px; height:12px; border-radius:50%; background:var(--green-400); border:2px solid var(--white); }
+.tl-item.highlight::before { background:var(--green-600); box-shadow:0 0 0 4px var(--green-100); }
+.tl-item .year { font-size:0.78rem; font-weight:700; color:var(--green-600); }
+.tl-item .desc { font-size:0.88rem; color:var(--gray-600); }
+.tl-item .qubits { font-weight:700; color:var(--gray-800); }
+
+/* FOOTER */
+footer { background:var(--green-900); color:var(--green-200); padding:3rem 0; font-size:0.88rem; }
+footer a { color:var(--green-300); }
+footer .footer-grid { display:grid; grid-template-columns:2fr 1fr 1fr; gap:2rem; }
+footer h4 { color:var(--white); margin-bottom:0.75rem; font-size:0.95rem; }
+footer ul { list-style:none; }
+footer li { margin-bottom:0.4rem; }
+footer li a { text-decoration:none; }
+footer li a:hover { color:var(--white); }
+footer .bottom { margin-top:2rem; padding-top:1.5rem; border-top:1px solid var(--green-800); font-size:0.8rem; color:var(--green-400); }
+@media(max-width:700px){ footer .footer-grid { grid-template-columns:1fr; } }
+
+/* SCROLL ANIMATIONS */
+.reveal { opacity:0; transform:translateY(30px); transition:opacity 0.6s ease, transform 0.6s ease; }
+.reveal.visible { opacity:1; transform:translateY(0); }
+</style>
 </head>
 <body>
+
+<!-- NAV -->
+<nav>
 <div class="container">
-
-<header>
-    <span class="tag">Quantum Cryptography</span>
-    <h1>Understanding the Zero-Knowledge Proof for Quantum Circuit Verification</h1>
-    <p class="meta">
-        Based on <a href="https://quantumai.google/static/site-assets/downloads/cryptocurrency-whitepaper.pdf">"Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities"</a>
-        by Babbush, Zalcman, Gidney et al. (Google Quantum AI, 2026)
-    </p>
-</header>
-
-<h2>1. The Problem: Trust Without Disclosure</h2>
-<p>
-    Google Quantum AI claims to have compiled quantum circuits that can break 256-bit
-    Elliptic Curve Discrete Logarithm Problem (ECDLP) over the secp256k1 curve &mdash;
-    the cryptographic foundation of Bitcoin, Ethereum, and most major blockchains &mdash;
-    with dramatically fewer resources than previously published:
-</p>
-
-<table>
-    <thead>
-        <tr><th>Variant</th><th>Logical Qubits</th><th>Toffoli Gates</th></tr>
-    </thead>
-    <tbody>
-        <tr><td>Low-Qubit</td><td>&le; 1,200</td><td>&le; 90 million</td></tr>
-        <tr><td>Low-Gate</td><td>&le; 1,450</td><td>&le; 70 million</td></tr>
-    </tbody>
-</table>
-
-<p>
-    These estimates represent roughly an <strong>order-of-magnitude improvement</strong>
-    in spacetime volume over the best prior work. On a superconducting architecture with
-    10<sup>-3</sup> physical error rates, these circuits could execute in under 25 minutes
-    using fewer than half a million physical qubits.
-</p>
-
-<p>
-    But here is the tension: publishing the actual circuit details would hand adversaries a
-    blueprint for attacking cryptocurrency systems. Yet claiming improved estimates without
-    evidence is indistinguishable from FUD (Fear, Uncertainty, and Doubt). The paper resolves
-    this by applying <strong>responsible disclosure via a zero-knowledge proof</strong>.
-</p>
-
-<h2>2. What Exactly Is Being Proved?</h2>
-
-<p>
-    The zero-knowledge proof demonstrates a precise claim: the authors possess a classical
-    reversible circuit (called a <em>kickmix circuit</em>) that:
-</p>
-
-<ol style="margin: 0 0 1rem 1.5rem;">
-    <li>Correctly computes <strong>elliptic curve point addition</strong> on secp256k1</li>
-    <li>Fits within the claimed resource bounds (qubits and gates)</li>
-    <li>Passes correctness testing on 9,024 pseudo-random inputs</li>
-</ol>
-
-<div class="callout">
-    <strong>Why point addition?</strong>
-    Elliptic curve point addition is the core bottleneck of Shor's algorithm for ECDLP.
-    The full ECDLP circuit performs a sequence of <em>windowed point additions</em>
-    controlled by phase estimation registers. Given the cost of a single point addition,
-    the total ECDLP cost follows directly from known formulas.
+  <div class="logo">Quantum Proof</div>
+  <div class="links">
+    <a href="#threat">The Threat</a>
+    <a href="#attacks">Attack Types</a>
+    <a href="#resources">Resources</a>
+    <a href="#zkproof">ZK Proof</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#calculator">Calculator</a>
+    <a href="#timeline">Timeline</a>
+  </div>
 </div>
+</nav>
 
-<h3>From Point Addition to Full ECDLP Cost</h3>
-<p>
-    The total non-Clifford (Toffoli) gate count for the <span class="math">n</span>-bit ECDLP circuit is:
-</p>
-<div class="math-block">
-    ECDLP<sub>Toff</sub> = (PA<sub>Toff</sub> + 3 &times; 2<sup>w</sup>) &times; (2n/w &minus; 4)
+<!-- HERO -->
+<section class="hero">
+<div class="container" style="position:relative;z-index:1;">
+  <span class="section-label">Google Quantum AI &middot; March 2026</span>
+  <h1>The Quantum Threat to Cryptocurrency is Closer Than You Think</h1>
+  <p class="sub">Google has proven &mdash; via a zero-knowledge proof &mdash; that it possesses quantum circuits capable of breaking the cryptography protecting Bitcoin, Ethereum, and most major blockchains. Here's how it works.</p>
+  <div class="cta-row">
+    <a href="#threat" class="btn btn-primary">Explore the Threat</a>
+    <a href="https://quantumai.google/static/site-assets/downloads/cryptocurrency-whitepaper.pdf" class="btn btn-outline" target="_blank">Read the Paper</a>
+  </div>
 </div>
-<p>
-    And the total qubit count is:
-</p>
-<div class="math-block">
-    ECDLP<sub>Qubits</sub> = PA<sub>Qubits</sub> + w
+<div class="hero-grid" aria-hidden="true">
+  <div class="cell" style="width:80px;height:80px;top:12%;right:20%;animation-delay:0s;"></div>
+  <div class="cell" style="width:55px;height:55px;top:45%;right:35%;animation-delay:1.2s;"></div>
+  <div class="cell" style="width:100px;height:100px;top:60%;right:12%;animation-delay:0.6s;"></div>
+  <div class="cell" style="width:40px;height:40px;top:20%;right:50%;animation-delay:1.8s;"></div>
+  <div class="cell" style="width:70px;height:70px;top:75%;right:45%;animation-delay:0.3s;"></div>
+  <div class="cell" style="width:60px;height:60px;top:8%;right:65%;animation-delay:2.1s;"></div>
+  <div class="cell" style="width:90px;height:90px;top:40%;right:55%;animation-delay:0.9s;"></div>
 </div>
-<p>
-    where <span class="math">PA<sub>Toff</sub></span> and <span class="math">PA<sub>Qubits</sub></span>
-    are the point addition costs, and <span class="math">w</span> is the window size.
-    With the optimal window size <span class="math">w = 16</span>, the 256-bit ECDLP
-    algorithm performs <strong>28 windowed point additions</strong>
-    (2 &times; 256/16 &minus; 4 = 28).
-</p>
+</section>
 
-<h2>3. The Verification Pipeline</h2>
-
-<p>
-    The proof is constructed through a multi-layered pipeline that transforms the claim
-    "we have a good circuit" into a publicly verifiable cryptographic artifact.
-</p>
-
-<div class="diagram">
-Secret Circuit C
-       |
-       v
-+------------------+
-| SHA-256 Hash     |----> Public commitment (circuit fingerprint)
-+------------------+
-       |
-       v
-+------------------+
-| SHAKE256 XOF     |----> 9,024 pseudo-random test inputs
-| (Fiat-Shamir)    |      (deterministically derived from circuit hash)
-+------------------+
-       |
-       v
-+------------------+
-| Kickmix          |----> Simulate circuit on all test inputs
-| Simulator        |----> Count non-Clifford gates (CCX + CCZ)
-|                  |----> Verify all outputs match expected point additions
-+------------------+
-       |
-       v
-+------------------+
-| Assert Resource  |----> Qubits &le; bound, Toffoli gates &le; bound
-| Bounds           |
-+------------------+
-       |
-       v
-+------------------+
-| SP1 zkVM         |----> Arithmetize entire execution into STARK proof
-| (RISC-V)         |----> Recursive composition across shards
-+------------------+
-       |
-       v
-+------------------+
-| Groth16 SNARK    |----> Final succinct zero-knowledge proof
-| Wrapper          |----> Publicly verifiable, ~256 bytes
-+------------------+</div>
-
-<h2>4. Key Components Explained</h2>
-
-<h3>4.1 Kickmix Circuits</h3>
-<p>
-    The secret circuits are <em>kickmix circuits</em> &mdash; a specific subclass of quantum
-    circuits composed entirely of:
-</p>
-<ul style="margin: 0 0 1rem 1.5rem;">
-    <li><strong>Classical reversible logic gates</strong> (NOT, CNOT, Toffoli/CCX, CCZ)</li>
-    <li><strong>Measurement-based uncomputation (MBUC)</strong> via Pauli-X basis measurements</li>
-    <li><strong>Diagonal phasing gates</strong> for phase correction after measurement</li>
-</ul>
-<p>
-    By restricting to this gate set, the circuits never generate intractable quantum
-    entanglement and <em>can be efficiently simulated classically</em>. This is crucial: it
-    means the ZK proof verifier program can simulate the circuit inside a classical virtual
-    machine (the SP1 zkVM).
-</p>
-
-<div class="callout">
-    <strong>Measurement-Based Uncomputation (MBUC)</strong>
-    Traditional reversible computation requires running the inverse circuit U&dagger; to
-    clean up ancilla qubits, doubling the gate cost. MBUC instead measures the ancilla in
-    the Pauli-X basis. With 50% probability, the qubit is cleanly disentangled. Otherwise,
-    a phase kickback occurs that can be corrected with a cheaper phase-correction circuit.
-    This technique significantly reduces non-Clifford gate counts.
+<!-- KEY STATS -->
+<section id="threat">
+<div class="container">
+  <span class="section-label">By the Numbers</span>
+  <h2 class="section-title">The Scale of the Quantum Threat</h2>
+  <p class="section-desc">Google Quantum AI's new resource estimates represent an order-of-magnitude improvement over the best prior work, bringing cryptographically relevant quantum computers (CRQCs) dramatically closer.</p>
+  <div class="stats-grid reveal">
+    <div class="stat-card">
+      <div class="number" data-target="500000" data-prefix="<">&lt;500K</div>
+      <div class="label">Physical Qubits Required</div>
+      <div class="stat-bar"><div class="fill" data-width="28%"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="number">~9 min</div>
+      <div class="label">Primed Attack Time</div>
+      <div class="stat-bar"><div class="fill" data-width="90%"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="number">6.9M BTC</div>
+      <div class="label">Currently Vulnerable</div>
+      <div class="stat-bar"><div class="fill" data-width="45%"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="number">~41%</div>
+      <div class="label">On-Spend Attack Success (BTC)</div>
+      <div class="stat-bar"><div class="fill" data-width="41%"></div></div>
+    </div>
+  </div>
+  <p style="font-size:0.85rem;color:var(--gray-500);margin-top:1rem;">These figures assume superconducting hardware with 10<sup>-3</sup> physical error rates and planar degree-4 connectivity &mdash; consistent with a scaled-up version of Google's experimentally demonstrated quantum processors.</p>
 </div>
+</section>
 
-<h3>4.2 Fiat-Shamir Fuzz Testing</h3>
-<p>
-    The circuit need not be <em>exactly</em> correct &mdash; Shor's algorithm tolerates a
-    small fraction of incorrect outputs. If 1% of inputs produce wrong results, the algorithm
-    fails at most 1% of the time.
-</p>
-<p>
-    To prove approximate correctness, the authors use <strong>fuzz testing</strong> with the
-    <strong>Fiat-Shamir heuristic</strong>:
-</p>
-<ol style="margin: 0 0 1rem 1.5rem;">
-    <li>Seed SHAKE256 (a cryptographic extendable-output function) with the raw bytes of the secret circuit</li>
-    <li>Generate 9,024 pseudo-random test points as <span class="math">G &middot; k</span> where
-        <span class="math">G</span> is the curve generator and <span class="math">k</span> is a random 256-bit integer</li>
-    <li>Simulate the circuit on all test inputs and verify each output</li>
-</ol>
+<!-- ATTACK TYPES (Tabs) -->
+<section id="attacks" style="background:var(--green-50);">
+<div class="container">
+  <span class="section-label">Attack Vectors</span>
+  <h2 class="section-title">Three Ways Quantum Computers Attack Blockchains</h2>
+  <p class="section-desc">The paper classifies quantum attacks by execution speed and whether access to a CRQC is needed once or repeatedly.</p>
 
-<div class="callout success">
-    <strong>Why 9,024 tests provide 128-bit security</strong>
-    If the circuit were wrong on more than 1% of inputs, the probability of passing all
-    9,024 independent random tests is at most
-    (1 &minus; 0.01)<sup>9024</sup> &approx; 2<sup>-130</sup>.
-    This is astronomically unlikely &mdash; equivalent to 128+ bits of cryptographic security
-    that the circuit is at least 99% correct.
+  <div class="tabs reveal">
+    <button class="tab-btn active" onclick="switchTab(event,'on-spend')">On-Spend</button>
+    <button class="tab-btn" onclick="switchTab(event,'at-rest')">At-Rest</button>
+    <button class="tab-btn" onclick="switchTab(event,'on-setup')">On-Setup</button>
+  </div>
+
+  <div id="on-spend" class="tab-content active">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;">
+      <div>
+        <h3 style="color:var(--green-800);margin-bottom:0.75rem;">Intercept Live Transactions</h3>
+        <p style="font-size:0.92rem;color:var(--gray-600);margin-bottom:1rem;">When a user broadcasts a transaction, their public key becomes visible in the mempool. A quantum attacker must derive the private key before the transaction is confirmed on-chain.</p>
+        <p style="font-size:0.92rem;color:var(--gray-600);margin-bottom:1rem;"><strong>Time window:</strong> ~10 minutes (Bitcoin), ~12 seconds (Ethereum), ~400ms (Solana)</p>
+        <p style="font-size:0.92rem;color:var(--gray-600);">With a ~9 minute primed attack, Bitcoin transactions face a <strong>~41% interception risk</strong>. The attacker can then forge a competing transaction with a higher fee.</p>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--green-200);border-radius:12px;padding:1.5rem;">
+        <h4 style="font-size:0.85rem;color:var(--gray-500);margin-bottom:0.75rem;">VULNERABILITY BY BLOCK TIME</h4>
+        <div style="margin-bottom:0.75rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;"><span>Bitcoin (10m)</span><strong style="color:var(--green-700);">~41%</strong></div>
+          <div style="height:8px;background:var(--green-100);border-radius:4px;overflow:hidden;"><div style="width:41%;height:100%;background:var(--green-500);border-radius:4px;"></div></div>
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;"><span>Litecoin (2.5m)</span><strong style="color:var(--green-700);">~3%</strong></div>
+          <div style="height:8px;background:var(--green-100);border-radius:4px;overflow:hidden;"><div style="width:3%;height:100%;background:var(--green-500);border-radius:4px;"></div></div>
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;"><span>Zcash (75s)</span><strong style="color:var(--green-700);">&lt;0.1%</strong></div>
+          <div style="height:8px;background:var(--green-100);border-radius:4px;overflow:hidden;"><div style="width:0.5%;height:100%;background:var(--green-500);border-radius:4px;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem;"><span>Dogecoin (60s)</span><strong style="color:var(--green-700);">&lt;0.01%</strong></div>
+          <div style="height:8px;background:var(--green-100);border-radius:4px;overflow:hidden;"><div style="width:0.2%;height:100%;background:var(--green-500);border-radius:4px;"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="at-rest" class="tab-content">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;">
+      <div>
+        <h3 style="color:var(--green-800);margin-bottom:0.75rem;">Target Exposed Dormant Keys</h3>
+        <p style="font-size:0.92rem;color:var(--gray-600);margin-bottom:1rem;">Public keys recorded directly on the blockchain (e.g., P2PK, P2TR scripts) are permanently visible. The attacker has unlimited time to derive the private key.</p>
+        <p style="font-size:0.92rem;color:var(--gray-600);margin-bottom:1rem;"><strong>Vulnerable:</strong> Over 1.7 million BTC locked by P2PK scripts (Satoshi-era coins). Total quantum-vulnerable BTC across all script types: ~6.9 million.</p>
+        <p style="font-size:0.92rem;color:var(--gray-600);">Keys hidden behind hash functions (P2PKH, P2WPKH) are immune to at-rest attacks as long as they haven't been reused for spending.</p>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--green-200);border-radius:12px;padding:1.5rem;">
+        <h4 style="font-size:0.85rem;color:var(--gray-500);margin-bottom:0.75rem;">FAST-CLOCK vs SLOW-CLOCK</h4>
+        <p style="font-size:0.88rem;color:var(--gray-600);margin-bottom:1rem;"><strong style="color:var(--green-700);">Fast-clock</strong> architectures (superconducting, photonic, silicon spin) have fast gates and short error correction cycles. At-rest and on-spend attacks become viable at roughly the same time.</p>
+        <p style="font-size:0.88rem;color:var(--gray-600);"><strong style="color:var(--green-700);">Slow-clock</strong> architectures (neutral atom, ion trap) have 100-1000x slower operations. At-rest attacks become viable well before on-spend attacks.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="on-setup" class="tab-content">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;">
+      <div>
+        <h3 style="color:var(--green-800);margin-bottom:0.75rem;">Backdoor Protocol Parameters</h3>
+        <p style="font-size:0.92rem;color:var(--gray-600);margin-bottom:1rem;">Some protocols rely on "trusted setup" ceremonies that generate public parameters while discarding secret "toxic waste." A CRQC can recover this toxic waste, creating a <strong>reusable classical backdoor</strong>.</p>
+        <p style="font-size:0.92rem;color:var(--gray-600);margin-bottom:1rem;">This is the most insidious attack: the quantum computation is done once, offline, and subsequent exploits use only classical computers.</p>
+        <p style="font-size:0.92rem;color:var(--gray-600);"><strong>Vulnerable:</strong> Ethereum's Data Availability Sampling, Tornado Cash, certain zk-rollups. <strong>Immune:</strong> Bitcoin (no trusted setup).</p>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--green-200);border-radius:12px;padding:1.5rem;">
+        <h4 style="font-size:0.85rem;color:var(--gray-500);margin-bottom:0.75rem;">WHY ON-SETUP IS UNIQUELY DANGEROUS</h4>
+        <div style="font-size:0.88rem;color:var(--gray-600);">
+          <p style="margin-bottom:0.75rem;"><span style="font-size:1.2rem;">1.</span> <strong>One-time quantum cost</strong> &mdash; Break the trusted setup once</p>
+          <p style="margin-bottom:0.75rem;"><span style="font-size:1.2rem;">2.</span> <strong>Reusable exploit</strong> &mdash; Classical backdoor works forever</p>
+          <p style="margin-bottom:0.75rem;"><span style="font-size:1.2rem;">3.</span> <strong>Undetectable</strong> &mdash; Exploits look like valid transactions</p>
+          <p><span style="font-size:1.2rem;">4.</span> <strong>Forge validity proofs</strong> &mdash; Create money, drain pools, bypass checks</p>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+</section>
 
-<p>
-    The Fiat-Shamir transform is critical because the test inputs are <em>deterministically
-    derived from the circuit itself</em>. This prevents the prover from crafting a circuit
-    that only works on pre-selected inputs.
-</p>
+<!-- RESOURCE EXPLORER (Toggle) -->
+<section id="resources">
+<div class="container">
+  <span class="section-label">Circuit Resources</span>
+  <h2 class="section-title">Two Circuit Variants, One Devastating Result</h2>
+  <p class="section-desc">The paper presents two optimized quantum circuits trading off qubit count against gate count. Toggle between them to explore the tradeoffs.</p>
 
-<h3>4.3 SP1 zkVM Execution</h3>
-<p>
-    The entire verification program &mdash; the kickmix simulator, Fiat-Shamir test
-    generation, secp256k1 point addition logic, and resource counting &mdash; is implemented
-    in standard Rust and compiled to <strong>RISC-V bytecode</strong> by the
-    <a href="https://github.com/succinctlabs/sp1">SP1 zero-knowledge virtual machine</a>.
-</p>
-<p>
-    Inside the zkVM, the guest program performs four tasks:
-</p>
-<ol style="margin: 0 0 1rem 1.5rem;">
-    <li><strong>Commit:</strong> Compute SHA-256 hash of the input circuit and publish it as a public output, along with the resource bounds</li>
-    <li><strong>Generate tests:</strong> Use SHAKE256 XOF seeded with the circuit bytes to produce 9,024 Fiat-Shamir test inputs</li>
-    <li><strong>Simulate &amp; verify:</strong> Run the kickmix simulator on all test cases, recording non-Clifford gate counts</li>
-    <li><strong>Assert bounds:</strong> Check that the circuit's qubit count and average Toffoli count satisfy the claimed limits</li>
-</ol>
-<p>
-    SP1 records the CPU state at every clock cycle, divides the multi-billion-cycle execution
-    into shards (~2<sup>22</sup> RISC-V instructions each), generates a STARK proof per
-    shard, and uses <strong>recursive proof composition</strong> to compress them into a
-    single proof.
-</p>
+  <div class="toggle-wrap reveal">
+    <span class="toggle-label active" id="lbl-lq">Low-Qubit</span>
+    <div class="toggle" id="variant-toggle" onclick="toggleVariant()"><div class="knob"></div></div>
+    <span class="toggle-label" id="lbl-lg">Low-Gate</span>
+  </div>
 
-<h3>4.4 Groth16 SNARK Wrapper</h3>
-<p>
-    The compressed STARK proof is then wrapped in a <strong>Groth16 zk-SNARK</strong> to
-    achieve two critical properties:
-</p>
-<ul style="margin: 0 0 1rem 1.5rem;">
-    <li><strong>Zero-Knowledge:</strong> The proof reveals nothing about the secret circuit beyond what is stated (individual STARK proofs in SP1 do not currently satisfy the ZK property on their own)</li>
-    <li><strong>Succinctness:</strong> The final proof is compact and fast to verify</li>
-</ul>
+  <div class="stats-grid reveal" id="resource-stats">
+    <div class="stat-card">
+      <div class="number" id="res-qubits">1,200</div>
+      <div class="label">Logical Qubits</div>
+    </div>
+    <div class="stat-card">
+      <div class="number" id="res-toffoli">90M</div>
+      <div class="label">Toffoli Gates</div>
+    </div>
+    <div class="stat-card">
+      <div class="number" id="res-time">~23 min</div>
+      <div class="label">Full Solve Time</div>
+    </div>
+    <div class="stat-card">
+      <div class="number" id="res-primed">~12 min</div>
+      <div class="label">Primed Attack</div>
+    </div>
+  </div>
 
-<div class="callout warn">
-    <strong>A practical irony</strong>
-    The Groth16 SNARK relies on pairing-friendly elliptic curves, making its soundness
-    inherently vulnerable to the very quantum attacks analyzed in the paper. A sufficiently
-    large quantum computer could forge this proof. However, since CRQCs do not yet exist,
-    the proof's soundness remains intact today.
+  <div class="reveal" style="margin-top:2rem;">
+    <h3 style="font-size:1rem;color:var(--green-800);margin-bottom:1rem;">How Point Addition Scales to Full ECDLP</h3>
+    <details class="accordion">
+      <summary>The Math: From Subroutine to Full Algorithm</summary>
+      <div class="acc-body">
+        <p>The ZK proof attests to the cost of <strong>elliptic curve point addition</strong> &mdash; the core bottleneck. The full ECDLP algorithm cost follows from:</p>
+        <p style="font-family:serif;font-style:italic;text-align:center;font-size:1.1rem;margin:1rem 0;">ECDLP<sub>Toff</sub> = (PA<sub>Toff</sub> + 3 &times; 2<sup>w</sup>) &times; (2n/w &minus; 4)</p>
+        <p style="font-family:serif;font-style:italic;text-align:center;font-size:1.1rem;margin:0 0 1rem;">ECDLP<sub>Qubits</sub> = PA<sub>Qubits</sub> + w</p>
+        <p>With optimal window size <em>w</em>=16 and <em>n</em>=256 bits, the algorithm performs <strong>28 windowed point additions</strong> (2&times;256/16 &minus; 4 = 28). This means:</p>
+        <p><strong>Low-Qubit:</strong> (2,700,000 + 196,608) &times; 28 &asymp; 81M Toffoli gates on 1,175+16 = 1,191 qubits</p>
+        <p><strong>Low-Gate:</strong> (2,100,000 + 196,608) &times; 28 &asymp; 64M Toffoli gates on 1,425+16 = 1,441 qubits</p>
+      </div>
+    </details>
+    <details class="accordion">
+      <summary>What Are Kickmix Circuits?</summary>
+      <div class="acc-body">
+        <p><strong>Kickmix circuits</strong> are a specific subclass of quantum circuits composed entirely of classical reversible logic gates, measurement-based uncomputation (MBUC) via Pauli-X basis measurements, and diagonal phasing gates. By restricting to this gate set, the circuits never generate intractable quantum entanglement and <strong>can be efficiently simulated classically</strong>.</p>
+        <p>This is crucial: it means the ZK proof verifier can simulate the circuit inside a classical virtual machine (the SP1 zkVM) without needing a quantum computer.</p>
+        <p>MBUC replaces the traditional approach of running the inverse circuit U&dagger; to clean up ancilla qubits (which would double gate costs). Instead, measuring in the X basis either cleanly disentangles the qubit (50% chance) or introduces a correctable phase kickback.</p>
+      </div>
+    </details>
+    <details class="accordion">
+      <summary>Physical Qubit Overhead</summary>
+      <div class="acc-body">
+        <p>Logical qubits must be encoded in many physical qubits using quantum error correction (the surface code). The paper assumes:</p>
+        <ul style="margin:0.5rem 0 0.5rem 1.25rem;">
+          <li>Planar degree-4 connectivity (standard superconducting chip layout)</li>
+          <li>10<sup>-3</sup> physical error rates (demonstrated by Google experimentally)</li>
+          <li>Dense "yoke"-based qubit storage for efficient logical qubit packing</li>
+          <li>Reaction-limited execution at 10&mu;s control system reaction time</li>
+        </ul>
+        <p>Result: fewer than <strong>500,000 physical qubits</strong> &mdash; a ~20x reduction over the best prior estimate of ~9 million (Litinski, 2023).</p>
+      </div>
+    </details>
+  </div>
 </div>
+</section>
 
-<h2>5. The Two ZK Proof Statements</h2>
+<!-- ZK PROOF -->
+<section id="zkproof" style="background:var(--green-50);">
+<div class="container">
+  <span class="section-label">Zero-Knowledge Proof</span>
+  <h2 class="section-title">Proving the Circuit Exists &mdash; Without Revealing It</h2>
+  <p class="section-desc">Publishing attack circuits would be irresponsible. Claiming results without evidence is unscientific. The solution: a cryptographic zero-knowledge proof via the SP1 zkVM and Groth16 SNARK.</p>
 
-<h3>Low-Qubit Variant</h3>
-<table>
-    <tr><th>Property</th><th>Value</th></tr>
-    <tr><td>Non-Clifford Gates (CCX + CCZ)</td><td>&le; 2,700,000</td></tr>
-    <tr><td>Logical Qubits</td><td>&le; 1,175</td></tr>
-    <tr><td>Total Operations</td><td>&le; 17,000,000</td></tr>
-    <tr><td>Test Cases Passed</td><td>9,024 / 9,024</td></tr>
-    <tr>
-        <td>Circuit SHA-256</td>
-        <td style="word-break: break-all;"><code>0xcc8f532ffea1583ceed3c9af75de3263ebaddd5fdf3cddfb3dea848b94d0396a</code></td>
-    </tr>
-</table>
-<p>
-    Full ECDLP cost: (2,700,000 + 3 &times; 2<sup>16</sup>) &times; 28 &approx;
-    <strong>81 million Toffoli gates</strong> on <strong>1,175 + 16 = 1,191 logical qubits</strong>.
-    The paper rounds to &le; 1,200 qubits and &le; 90 million Toffoli gates.
-</p>
+  <div class="reveal">
+    <h3 style="font-size:1rem;color:var(--green-800);margin-bottom:0.5rem;">What does the proof guarantee?</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.25rem 0 2rem;">
+      <div style="background:var(--white);border-left:4px solid var(--green-500);padding:1rem 1.25rem;border-radius:0 8px 8px 0;">
+        <h4 style="font-size:0.85rem;color:var(--green-700);margin-bottom:0.4rem;">PROVEN</h4>
+        <ul style="font-size:0.88rem;color:var(--gray-600);margin-left:1rem;">
+          <li>A specific circuit exists (committed via SHA-256)</li>
+          <li>It correctly computes secp256k1 point addition</li>
+          <li>Passes 9,024 random tests (&ge;99% correct)</li>
+          <li>Fits within claimed qubit and gate bounds</li>
+        </ul>
+      </div>
+      <div style="background:var(--white);border-left:4px solid var(--gray-300);padding:1rem 1.25rem;border-radius:0 8px 8px 0;">
+        <h4 style="font-size:0.85rem;color:var(--gray-500);margin-bottom:0.4rem;">NOT PROVEN</h4>
+        <ul style="font-size:0.88rem;color:var(--gray-500);margin-left:1rem;">
+          <li>That the circuit is optimal</li>
+          <li>That hardware exists to run it today</li>
+          <li>Any internal details of the circuit</li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
-<h3>Low-Gate Variant</h3>
-<table>
-    <tr><th>Property</th><th>Value</th></tr>
-    <tr><td>Non-Clifford Gates (CCX + CCZ)</td><td>&le; 2,100,000</td></tr>
-    <tr><td>Logical Qubits</td><td>&le; 1,425</td></tr>
-    <tr><td>Total Operations</td><td>&le; 17,000,000</td></tr>
-    <tr><td>Test Cases Passed</td><td>9,024 / 9,024</td></tr>
-    <tr>
-        <td>Circuit SHA-256</td>
-        <td style="word-break: break-all;"><code>0x24f5758f2216aa87aa2806af32a0db788767b873cf6869510cca3d893b3f8a69</code></td>
-    </tr>
-</table>
-<p>
-    Full ECDLP cost: (2,100,000 + 3 &times; 2<sup>16</sup>) &times; 28 &approx;
-    <strong>64 million Toffoli gates</strong> on <strong>1,425 + 16 = 1,441 logical qubits</strong>.
-    The paper rounds to &le; 1,450 qubits and &le; 70 million Toffoli gates.
-</p>
+  <details class="accordion reveal">
+    <summary>Why 9,024 Tests Provide 128-bit Security</summary>
+    <div class="acc-body">
+      <p>Shor's algorithm tolerates a small fraction of incorrect outputs. If &le;1% of inputs produce wrong results, the algorithm succeeds &ge;99% of the time.</p>
+      <p>If the circuit were wrong on &gt;1% of inputs, the probability it passes all 9,024 independent random tests is:</p>
+      <p style="text-align:center;font-family:serif;font-style:italic;font-size:1.1rem;margin:1rem 0;">(1 &minus; 0.01)<sup>9,024</sup> &asymp; 2<sup>&minus;130</sup></p>
+      <p>This is astronomically unlikely &mdash; equivalent to <strong>130 bits of cryptographic security</strong>, exceeding the standard 128-bit threshold. The test inputs are derived from the circuit itself via the <strong>Fiat-Shamir heuristic</strong> (SHAKE256 seeded with the circuit bytes), preventing cherry-picking.</p>
+    </div>
+  </details>
 
-<p>
-    Both variants share the same <strong>Verification Key</strong>:
-    <code>0x00ca4af6cb15dbd83ec3eaab3a0664023828d90a98e650d2d340712f5f3eb0d4</code>
-</p>
+  <h3 style="font-size:1rem;color:var(--green-800);margin:2rem 0 1rem;">The Two Proof Statements</h3>
+  <div class="proof-cards reveal">
+    <div class="proof-card">
+      <h3><span class="badge">STATEMENT 1</span> Low-Qubit Variant</h3>
+      <table>
+        <tr><td>Non-Clifford Gates</td><td>&le; 2,700,000</td></tr>
+        <tr><td>Logical Qubits</td><td>&le; 1,175</td></tr>
+        <tr><td>Total Operations</td><td>&le; 17,000,000</td></tr>
+        <tr><td>Tests Passed</td><td>9,024 / 9,024</td></tr>
+      </table>
+      <div class="hash-text">
+        <strong style="color:var(--gray-700);">SHA-256:</strong><br>
+        0xcc8f532ffea1583ceed3c9af75de3263<br>ebaddd5fdf3cddfb3dea848b94d0396a
+      </div>
+    </div>
+    <div class="proof-card">
+      <h3><span class="badge">STATEMENT 2</span> Low-Gate Variant</h3>
+      <table>
+        <tr><td>Non-Clifford Gates</td><td>&le; 2,100,000</td></tr>
+        <tr><td>Logical Qubits</td><td>&le; 1,425</td></tr>
+        <tr><td>Total Operations</td><td>&le; 17,000,000</td></tr>
+        <tr><td>Tests Passed</td><td>9,024 / 9,024</td></tr>
+      </table>
+      <div class="hash-text">
+        <strong style="color:var(--gray-700);">SHA-256:</strong><br>
+        0x24f5758f2216aa87aa2806af32a0db78<br>8767b873cf6869510cca3d893b3f8a69
+      </div>
+    </div>
+  </div>
+  <div class="hash-text reveal" style="max-width:550px;">
+    <strong style="color:var(--gray-700);">Shared Verification Key:</strong><br>
+    0x00ca4af6cb15dbd83ec3eaab3a0664023828d90a98e650d2d340712f5f3eb0d4
+  </div>
 
-<h2>6. What Does This Mean for Cryptocurrencies?</h2>
+  <div style="margin-top:2rem;background:var(--white);border:1px solid var(--green-200);border-radius:10px;padding:1.25rem;" class="reveal">
+    <p style="font-size:0.9rem;color:var(--gray-600);"><strong style="color:var(--green-700);">A practical irony:</strong> The Groth16 SNARK relies on pairing-friendly elliptic curves, making its soundness inherently vulnerable to the very quantum attacks analyzed in the paper. A sufficiently powerful quantum computer could forge this proof. However, since CRQCs do not yet exist, the proof's soundness remains intact today.</p>
+  </div>
+</div>
+</section>
 
-<p>
-    Using standard superconducting hardware assumptions (planar degree-4 connectivity,
-    10<sup>-3</sup> error rates, 10&mu;s control reaction time):
-</p>
+<!-- PIPELINE -->
+<section id="pipeline">
+<div class="container">
+  <span class="section-label">Verification Pipeline</span>
+  <h2 class="section-title">How the Zero-Knowledge Proof is Constructed</h2>
+  <p class="section-desc">A multi-layered pipeline transforms "we have a good circuit" into a publicly verifiable cryptographic artifact &mdash; without leaking the circuit.</p>
 
-<table>
-    <thead>
-        <tr><th>Metric</th><th>Estimate</th></tr>
-    </thead>
-    <tbody>
-        <tr><td>Physical qubits required</td><td>&lt; 500,000</td></tr>
-        <tr><td>Full ECDLP solve time</td><td>18&ndash;23 minutes</td></tr>
-        <tr><td>"Primed" on-spend attack time</td><td>~9 minutes</td></tr>
-        <tr><td>Reduction vs. prior estimates</td><td>~20x fewer physical qubits</td></tr>
-    </tbody>
-</table>
+  <div class="pipeline reveal">
+    <div class="pipe-step">
+      <div class="pipe-icon">1</div>
+      <div class="pipe-text">
+        <h4>SHA-256 Commitment</h4>
+        <p>The secret circuit is hashed to produce a unique digital fingerprint. This commits the prover to a specific circuit without revealing it.</p>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-icon">2</div>
+      <div class="pipe-text">
+        <h4>Fiat-Shamir Test Generation</h4>
+        <p>SHAKE256 extendable-output function is seeded with the circuit hash to deterministically generate 9,024 pseudo-random test inputs. The circuit determines its own tests &mdash; no cherry-picking possible.</p>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-icon">3</div>
+      <div class="pipe-text">
+        <h4>Kickmix Simulation &amp; Verification</h4>
+        <p>The classically-simulable kickmix circuit is executed on all 9,024 test inputs. Each output is verified against the expected secp256k1 point addition result. Non-Clifford gates are counted.</p>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-icon">4</div>
+      <div class="pipe-text">
+        <h4>Resource Bound Assertion</h4>
+        <p>The program asserts that the circuit's qubit count and average Toffoli count satisfy the claimed upper bounds.</p>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-icon">5</div>
+      <div class="pipe-text">
+        <h4>SP1 zkVM Arithmetization</h4>
+        <p>The entire Rust program runs inside the SP1 RISC-V virtual machine. SP1 records every CPU cycle, divides execution into ~2<sup>22</sup>-instruction shards, and generates a STARK proof per shard with recursive composition.</p>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-icon">6</div>
+      <div class="pipe-text">
+        <h4>Groth16 SNARK Wrapper</h4>
+        <p>The compressed STARK is wrapped in a Groth16 zk-SNARK, adding the zero-knowledge property (STARKs alone don't hide the witness in SP1) and producing a succinct, publicly verifiable proof.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
 
-<p>
-    The ~9-minute attack time is close to Bitcoin's 10-minute average block time,
-    giving on-spend attacks a <strong>~41% success probability</strong> against Bitcoin
-    transactions under idealized conditions. Shorter block-time chains fare better:
-    Litecoin (~3%), Zcash (&lt;0.1%), Dogecoin (&lt;0.01%).
-</p>
+<!-- CALCULATOR -->
+<section id="calculator" style="background:var(--green-50);">
+<div class="container">
+  <span class="section-label">Interactive</span>
+  <h2 class="section-title">Attack Success Calculator</h2>
+  <p class="section-desc">Model the probability that a quantum attacker can break a key before a transaction is confirmed. Block mining follows an exponential distribution.</p>
 
-<h2>7. Explore Further</h2>
+  <div class="calc-box reveal">
+    <label for="attack-slider">Quantum Attack Time: <strong id="attack-val">9</strong> minutes</label>
+    <input type="range" id="attack-slider" min="1" max="60" value="9" oninput="updateCalc()">
+    <div class="range-row"><span>1 min</span><span>60 min</span></div>
 
-<p>
-    To walk through the mathematics of the ZK verification step by step, check out the
-    companion <a href="notebook/quantum_verification_walkthrough.ipynb">Jupyter notebook</a>
-    included in this repository. It covers:
-</p>
-<ul style="margin: 0 0 1rem 1.5rem;">
-    <li>secp256k1 elliptic curve point addition</li>
-    <li>The Fiat-Shamir heuristic and fuzz testing math</li>
-    <li>Resource cost derivations from point addition to full ECDLP</li>
-    <li>Physical resource estimation for superconducting architectures</li>
-</ul>
+    <label for="block-slider">Average Block Time: <strong id="block-val">10</strong> minutes</label>
+    <input type="range" id="block-slider" min="0.5" max="30" value="10" step="0.5" oninput="updateCalc()">
+    <div class="range-row"><span>0.5 min</span><span>30 min</span></div>
 
-<h2>References</h2>
-<ul style="margin: 0 0 1rem 1.5rem; font-size: 0.9rem;">
-    <li>Babbush, Zalcman, Gidney et al. "Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities: Resource Estimates and Mitigations" (2026). <a href="https://quantumai.google/static/site-assets/downloads/cryptocurrency-whitepaper.pdf">PDF</a></li>
-    <li>Shor, P. "Algorithms for quantum computation: discrete logarithms and factoring" (1994)</li>
-    <li>Groth, J. "On the Size of Pairing-based Non-interactive Arguments" (2016)</li>
-    <li>Succinct Labs. <a href="https://github.com/succinctlabs/sp1">SP1: The zero-knowledge virtual machine (zkVM)</a></li>
-    <li>Fiat, A. &amp; Shamir, A. "How to prove yourself: Practical solutions to identification and signature problems" (1986)</li>
-    <li>Litinski, D. "How to compute a 256-bit elliptic curve private key with only 50 million Toffoli gates" (2023)</li>
-</ul>
+    <div class="calc-result">
+      <div class="big" id="calc-prob">40.7%</div>
+      <div class="desc">Probability that the block takes longer than the attack<br>
+      <span style="font-family:serif;font-style:italic;" id="calc-formula">P = e<sup>&minus;9/10</sup> = 0.407</span></div>
+    </div>
+  </div>
+</div>
+</section>
 
+<!-- TIMELINE -->
+<section id="timeline">
+<div class="container">
+  <span class="section-label">Historical Context</span>
+  <h2 class="section-title">The Shrinking Cost of Breaking ECDLP</h2>
+  <p class="section-desc">Resource estimates for quantum attacks on elliptic curve cryptography have dropped dramatically. "Attacks always get better."</p>
+
+  <div class="timeline reveal">
+    <div class="tl-item">
+      <div class="year">2004</div>
+      <div class="desc">Proos &amp; Zalka &mdash; <span class="qubits">~6,000 logical qubits</span>, trillions of gates</div>
+    </div>
+    <div class="tl-item">
+      <div class="year">2017</div>
+      <div class="desc">Roetteler et al. &mdash; <span class="qubits">~2,500 logical qubits</span>, billions of Toffoli gates</div>
+    </div>
+    <div class="tl-item">
+      <div class="year">2020</div>
+      <div class="desc">H&auml;ner et al. &mdash; <span class="qubits">~2,300 logical qubits</span>, further gate reductions</div>
+    </div>
+    <div class="tl-item">
+      <div class="year">2023 (a)</div>
+      <div class="desc">Gouzien &amp; Sangouard &mdash; <span class="qubits">~2,000 logical qubits</span></div>
+    </div>
+    <div class="tl-item">
+      <div class="year">2023 (b)</div>
+      <div class="desc">Litinski &mdash; <span class="qubits">~2,500 qubits</span>, ~200M Toffoli gates. ~9M physical qubits (photonic)</div>
+    </div>
+    <div class="tl-item">
+      <div class="year">2026</div>
+      <div class="desc">Chevignard et al. &mdash; <span class="qubits">~1,100 logical qubits</span> but &gt;100 billion Toffoli gates</div>
+    </div>
+    <div class="tl-item highlight">
+      <div class="year">2026 &mdash; This Work</div>
+      <div class="desc">Google Quantum AI &mdash; <span class="qubits">&le;1,200 qubits &amp; 90M gates</span> or <span class="qubits">&le;1,450 qubits &amp; 70M gates</span>. &lt;500K physical qubits. ~10x improvement in spacetime volume.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- EXPLORE FURTHER -->
+<section style="background:linear-gradient(135deg,var(--green-100) 0%,var(--green-50) 100%);">
+<div class="container" style="text-align:center;padding:3.5rem 0;">
+  <h2 class="section-title" style="margin-bottom:1rem;">Dive Deeper</h2>
+  <p style="color:var(--gray-600);max-width:500px;margin:0 auto 2rem;">Walk through the mathematics of the verification step by step in our interactive Jupyter notebook.</p>
+  <div class="cta-row" style="justify-content:center;">
+    <a href="notebook/quantum_verification_walkthrough.ipynb" class="btn btn-primary">Open the Notebook</a>
+    <a href="https://quantumai.google/static/site-assets/downloads/cryptocurrency-whitepaper.pdf" class="btn btn-outline" target="_blank">Read the Full Paper</a>
+  </div>
+</div>
+</section>
+
+<!-- FOOTER -->
 <footer>
-    <p>
-        This page is part of the <a href="https://github.com/chippr-robotics/quantum_proof">quantum_proof</a> repository.
-        It is intended as an educational resource explaining the verification methodology
-        from the Google Quantum AI whitepaper. The authors of this page are not affiliated
-        with Google Quantum AI.
-    </p>
+<div class="container">
+  <div class="footer-grid">
+    <div>
+      <h4>Quantum Proof</h4>
+      <p>An educational resource explaining the zero-knowledge proof methodology from Google Quantum AI's 2026 whitepaper on cryptocurrency quantum vulnerabilities. Not affiliated with or endorsed by Google.</p>
+    </div>
+    <div>
+      <h4>Resources</h4>
+      <ul>
+        <li><a href="https://quantumai.google/static/site-assets/downloads/cryptocurrency-whitepaper.pdf" target="_blank">Original Paper (PDF)</a></li>
+        <li><a href="notebook/quantum_verification_walkthrough.ipynb">Jupyter Notebook</a></li>
+        <li><a href="https://github.com/chippr-robotics/quantum_proof" target="_blank">GitHub Repository</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Key References</h4>
+      <ul>
+        <li><a href="https://github.com/succinctlabs/sp1" target="_blank">SP1 zkVM</a></li>
+        <li>Groth16 (2016)</li>
+        <li>Shor's Algorithm (1994)</li>
+        <li>Fiat-Shamir Heuristic (1986)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="bottom">Based on "Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities" by Babbush, Zalcman, Gidney et al. (Google Quantum AI, 2026). This page is for educational purposes only.</div>
+</div>
 </footer>
 
-</div>
+<script>
+// --- Tab switching ---
+function switchTab(e, id) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(id).classList.add('active');
+}
+
+// --- Variant toggle ---
+let isLowGate = false;
+const variants = {
+  lq: { qubits:'1,200', toffoli:'90M', time:'~23 min', primed:'~12 min' },
+  lg: { qubits:'1,450', toffoli:'70M', time:'~18 min', primed:'~9 min' }
+};
+function toggleVariant() {
+  isLowGate = !isLowGate;
+  const tog = document.getElementById('variant-toggle');
+  const v = isLowGate ? variants.lg : variants.lq;
+  tog.classList.toggle('on', isLowGate);
+  document.getElementById('lbl-lq').classList.toggle('active', !isLowGate);
+  document.getElementById('lbl-lg').classList.toggle('active', isLowGate);
+  document.getElementById('res-qubits').textContent = v.qubits;
+  document.getElementById('res-toffoli').textContent = v.toffoli;
+  document.getElementById('res-time').textContent = v.time;
+  document.getElementById('res-primed').textContent = v.primed;
+}
+
+// --- Calculator ---
+function updateCalc() {
+  const a = parseFloat(document.getElementById('attack-slider').value);
+  const b = parseFloat(document.getElementById('block-slider').value);
+  document.getElementById('attack-val').textContent = a;
+  document.getElementById('block-val').textContent = b;
+  const p = Math.exp(-a / b);
+  document.getElementById('calc-prob').textContent = (p * 100).toFixed(1) + '%';
+  document.getElementById('calc-formula').innerHTML =
+    'P = e<sup>&minus;' + a + '/' + b + '</sup> = ' + p.toFixed(4);
+}
+
+// --- Scroll reveal ---
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      // Animate stat bars
+      entry.target.querySelectorAll('.stat-bar .fill').forEach(bar => {
+        bar.style.width = bar.dataset.width;
+      });
+    }
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// --- Smooth scroll for nav ---
+document.querySelectorAll('nav a[href^="#"]').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
 </body>
 </html>
