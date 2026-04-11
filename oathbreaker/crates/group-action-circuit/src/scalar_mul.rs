@@ -193,27 +193,49 @@ impl WindowedScalarMul {
                                 counter.record_gate(&g);
                                 qrom_gates.push(g);
                             } else {
-                                // Represent the w-qubit controlled NOT via a Toffoli
-                                // chain (resource model approximation).
-                                let ctrl1 = window_start;
-                                let ctrl2 = window_start + 1;
-                                let g = Gate::Toffoli {
-                                    control1: ctrl1,
-                                    control2: ctrl2,
-                                    target: lookup_x.offset + bit,
+                                // For w > 1 controls on a single target, use a Toffoli
+                                // ladder with an ancilla (Barenco et al. 1995, Lemma 7.2).
+                                // The ancilla is ec_workspace.offset (reused as scratch).
+                                let anc = ec_workspace.offset;
+                                // Toffoli(c[0], c[1], anc): anc ^= c[0] AND c[1]
+                                let g_anc = Gate::Toffoli {
+                                    control1: window_start,
+                                    control2: window_start + 1,
+                                    target: anc,
                                 };
-                                counter.record_gate(&g);
-                                qrom_gates.push(g);
-                                // Additional Toffoli pairs for remaining controls
+                                counter.record_gate(&g_anc);
+                                qrom_gates.push(g_anc);
+
+                                // For each additional control c[2..w]:
+                                // Toffoli(anc, c[k], anc_next) — chain into target
                                 for k in 2..w {
-                                    let g2 = Gate::Toffoli {
-                                        control1: window_start + k,
-                                        control2: lookup_x.offset + bit,
+                                    let g_chain = Gate::Toffoli {
+                                        control1: anc,
+                                        control2: window_start + k,
                                         target: lookup_x.offset + bit,
                                     };
-                                    counter.record_gate(&g2);
-                                    qrom_gates.push(g2);
+                                    counter.record_gate(&g_chain);
+                                    qrom_gates.push(g_chain);
                                 }
+
+                                // For w == 2 the Toffoli itself acts as the target flip
+                                if w == 2 {
+                                    let g_flip = Gate::Cnot {
+                                        control: anc,
+                                        target: lookup_x.offset + bit,
+                                    };
+                                    counter.record_gate(&g_flip);
+                                    qrom_gates.push(g_flip);
+                                }
+
+                                // Uncompute anc
+                                let g_anc_unc = Gate::Toffoli {
+                                    control1: window_start,
+                                    control2: window_start + 1,
+                                    target: anc,
+                                };
+                                counter.record_gate(&g_anc_unc);
+                                qrom_gates.push(g_anc_unc);
                             }
                         }
                         if (y_val >> bit) & 1 == 1 {
@@ -225,24 +247,41 @@ impl WindowedScalarMul {
                                 counter.record_gate(&g);
                                 qrom_gates.push(g);
                             } else {
-                                let ctrl1 = window_start;
-                                let ctrl2 = window_start + 1;
-                                let g = Gate::Toffoli {
-                                    control1: ctrl1,
-                                    control2: ctrl2,
-                                    target: lookup_y.offset + bit,
+                                let anc = ec_workspace.offset;
+                                let g_anc = Gate::Toffoli {
+                                    control1: window_start,
+                                    control2: window_start + 1,
+                                    target: anc,
                                 };
-                                counter.record_gate(&g);
-                                qrom_gates.push(g);
+                                counter.record_gate(&g_anc);
+                                qrom_gates.push(g_anc);
+
                                 for k in 2..w {
-                                    let g2 = Gate::Toffoli {
-                                        control1: window_start + k,
-                                        control2: lookup_y.offset + bit,
+                                    let g_chain = Gate::Toffoli {
+                                        control1: anc,
+                                        control2: window_start + k,
                                         target: lookup_y.offset + bit,
                                     };
-                                    counter.record_gate(&g2);
-                                    qrom_gates.push(g2);
+                                    counter.record_gate(&g_chain);
+                                    qrom_gates.push(g_chain);
                                 }
+
+                                if w == 2 {
+                                    let g_flip = Gate::Cnot {
+                                        control: anc,
+                                        target: lookup_y.offset + bit,
+                                    };
+                                    counter.record_gate(&g_flip);
+                                    qrom_gates.push(g_flip);
+                                }
+
+                                let g_anc_unc = Gate::Toffoli {
+                                    control1: window_start,
+                                    control2: window_start + 1,
+                                    target: anc,
+                                };
+                                counter.record_gate(&g_anc_unc);
+                                qrom_gates.push(g_anc_unc);
                             }
                         }
                     }

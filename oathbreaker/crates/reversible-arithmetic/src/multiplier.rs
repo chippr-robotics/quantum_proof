@@ -147,10 +147,18 @@ impl ReversibleMultiplier {
             // Contribution +2^(k+32) mod p — add to low register at bit k+32
             // (only valid when k+32 < n, i.e. k < 32 for 64-bit)
             if k + 32 < n {
-                // Conditional increment of acc[k+32..n] controlled on acc[n+k].
-                // Carry chain: Toffoli(h, acc[k+32+i], carry) for carry propagation.
-                for carry_step in 0..(n - k - 32) {
+                // Step 1: Flip bit k+32 (the +2^(k+32) increment), controlled on h.
+                // This is the base CNOT that adds 2^(k+32) when there is no carry.
+                let g_flip = Gate::Cnot { control: h, target: acc_offset + k + 32 };
+                counter.record_gate(&g_flip);
+                reduce_gates.push(g_flip);
+
+                // Step 2: Carry propagation for higher bits (when acc[k+32] was already 1).
+                // Conditional increment of acc[k+33..n] when carry propagates from bit k+32.
+                let carry_len = n - k - 32 - 1; // number of bits above k+32 within low half
+                for carry_step in 0..carry_len {
                     let pos = acc_offset + k + 32 + carry_step;
+                    // Compute carry: carry_bit ^= h AND pos
                     let g_carry = Gate::Toffoli {
                         control1: h,
                         control2: pos,
@@ -159,10 +167,12 @@ impl ReversibleMultiplier {
                     counter.record_gate(&g_carry);
                     reduce_gates.push(g_carry);
 
+                    // Propagate carry to pos+1
                     let g_sum = Gate::Cnot { control: carry_bit, target: pos + 1 };
                     counter.record_gate(&g_sum);
                     reduce_gates.push(g_sum);
 
+                    // Uncompute carry_bit
                     let g_uncarry = Gate::Toffoli {
                         control1: h,
                         control2: pos,
@@ -170,11 +180,6 @@ impl ReversibleMultiplier {
                     };
                     counter.record_gate(&g_uncarry);
                     reduce_gates.push(g_uncarry);
-
-                    // Also flip bit k+32 (the +2^(k+32) increment)
-                    let g_flip = Gate::Cnot { control: h, target: acc_offset + k + 32 };
-                    counter.record_gate(&g_flip);
-                    reduce_gates.push(g_flip);
                 }
             }
 

@@ -1,3 +1,4 @@
+use crate::adder::CuccaroAdder;
 use crate::gates::Gate;
 use crate::resource_counter::ResourceCounter;
 
@@ -88,64 +89,59 @@ impl ReversibleEcAdd {
         counter.allocate_ancilla(9 * n + 2);
 
         // ── Step 1: Δx = x₂ - x₁ ────────────────────────────────────────────────
-        // Copy x₂ into Δx, then subtract x₁ (arithmetic, not XOR).
-        // In GF(p), subtraction a−b = a + (−b) = a + (p − b).
-        // We compute Δx = x₂ − x₁ as:
-        //   a) Δx ← x₂  (CNOT copy; Δx starts at 0)
-        //   b) Δx += (−x₁) mod p  ≡  Δx += p − x₁
-        //      This is done as: NOT each bit of Δx where x₁ has a 1 (XOR with x₁),
-        //      then add 1 to complete the two's-complement negation, then add the
-        //      Cuccaro adder carries.  Here we use the adder to add the bit-complement
-        //      of x₁ (i.e. NOT x₁) and then add 1 via the carry_bit.
-        //      Simplified for resource model: copy x₂, then XOR x₁ (tracked separately).
+        // Δx = x₂ + (−x₁) = x₂ + NOT(x₁) + 1  (two's complement in GF(2^n))
+        //
+        // Circuit:
+        //   a) Load NOT(x₁) into Δx:
+        //      - NOT every bit of Δx (from 0 → all-ones register)
+        //      - CNOT(x₁[i], Δx[i]) for each i → Δx = all-ones XOR x₁ = NOT(x₁)
+        //   b) Set carry_bit = 1 (NOT gate)
+        //   c) CuccaroAdder(x₂, Δx, carry_bit) with carry-in = 1:
+        //        Δx += x₂ + 1 = NOT(x₁) + x₂ + 1 = x₂ - x₁ (mod 2^n) ✓
+        //      The Cuccaro adder returns carry_bit to its initial value (1) after the sweep.
+        //   d) NOT carry_bit (restore carry_bit to 0).
+        //
+        // All gates are valid (no self-referential Toffoli).
         let mut step1_gates: Vec<Gate> = Vec::new();
-        // a) Δx ← x₂
+        // a1) NOT all bits of Δx (initialise from 0 to all-ones)
         for i in 0..n {
-            let g = Gate::Cnot { control: x2_offset + i, target: dx_off + i };
+            let g = Gate::Not { target: dx_off + i };
             counter.record_gate(&g);
             step1_gates.push(g);
         }
-        // b) Δx -= x₁  (add two's-complement of x₁: XOR x₁ bits, then add 1)
-        //    Step b1: XOR x₁ into Δx (flips bits where x₁ is 1; equivalent to Δx ← Δx XOR x₁)
+        // a2) CNOT(x₁, Δx) → Δx = NOT(x₁)
         for i in 0..n {
             let g = Gate::Cnot { control: x1_offset + i, target: dx_off + i };
             counter.record_gate(&g);
             step1_gates.push(g);
         }
-        //    Step b2: Add 1 to Δx via carry-chain (completing two's complement).
-        //    Set carry_bit = 1, then propagate through Δx using Cuccaro forward sweep.
+        // b) carry_bit ← 1
         {
             let g = Gate::Not { target: carry_bit };
             counter.record_gate(&g);
             step1_gates.push(g);
-            // Carry-propagation: Toffoli chain flips bits until carry_bit = 0.
-            for i in 0..n {
-                let g_cnot = Gate::Cnot { control: carry_bit, target: dx_off + i };
-                counter.record_gate(&g_cnot);
-                step1_gates.push(g_cnot);
-                // Compute new carry: Toffoli(dx_off+i before flip, carry_bit, carry_bit)
-                // Since all gates here are self-inverse, we use a simplified model
-                // that counts the gates correctly for resource estimation.
-                let g_tof = Gate::Toffoli {
-                    control1: carry_bit,
-                    control2: dx_off + i,
-                    target: carry_bit,
-                };
-                counter.record_gate(&g_tof);
-                step1_gates.push(g_tof);
-            }
+        }
+        // c) Δx += x₂ + carry_in(=1) = Δx + x₂ + 1 = NOT(x₁) + x₂ + 1 = x₂ - x₁
+        {
+            let adder = CuccaroAdder::new(n);
+            step1_gates.extend(adder.forward_gates(x2_offset, dx_off, carry_bit, counter));
+        }
+        // d) NOT carry_bit (restore to 0)
+        {
+            let g = Gate::Not { target: carry_bit };
+            counter.record_gate(&g);
+            step1_gates.push(g);
         }
         gates.extend(step1_gates.clone());
 
         // ── Step 2: Δy = y₂ - y₁ ────────────────────────────────────────────────
+        // Same two's-complement approach.
         let mut step2_gates: Vec<Gate> = Vec::new();
-        // a) Δy ← y₂
         for i in 0..n {
-            let g = Gate::Cnot { control: y2_offset + i, target: dy_off + i };
+            let g = Gate::Not { target: dy_off + i };
             counter.record_gate(&g);
             step2_gates.push(g);
         }
-        // b) Δy -= y₁  (XOR + add 1 for two's complement)
         for i in 0..n {
             let g = Gate::Cnot { control: y1_offset + i, target: dy_off + i };
             counter.record_gate(&g);
@@ -155,18 +151,15 @@ impl ReversibleEcAdd {
             let g = Gate::Not { target: carry_bit };
             counter.record_gate(&g);
             step2_gates.push(g);
-            for i in 0..n {
-                let g_cnot = Gate::Cnot { control: carry_bit, target: dy_off + i };
-                counter.record_gate(&g_cnot);
-                step2_gates.push(g_cnot);
-                let g_tof = Gate::Toffoli {
-                    control1: carry_bit,
-                    control2: dy_off + i,
-                    target: carry_bit,
-                };
-                counter.record_gate(&g_tof);
-                step2_gates.push(g_tof);
-            }
+        }
+        {
+            let adder = CuccaroAdder::new(n);
+            step2_gates.extend(adder.forward_gates(y2_offset, dy_off, carry_bit, counter));
+        }
+        {
+            let g = Gate::Not { target: carry_bit };
+            counter.record_gate(&g);
+            step2_gates.push(g);
         }
         gates.extend(step2_gates.clone());
 
