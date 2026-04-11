@@ -1,4 +1,4 @@
-use crate::shor::ShorCircuit;
+use crate::double_scalar::GroupActionCircuit;
 use reversible_arithmetic::gates::Gate;
 
 /// Export the circuit in OpenQASM 3.0 format for quantum hardware execution.
@@ -8,20 +8,19 @@ use reversible_arithmetic::gates::Gate;
 /// - Cirq (Google)
 /// - Other OpenQASM-compatible toolchains
 ///
-/// Note: The QFT component uses Hadamard and controlled-rotation gates
+/// Note: The QFT component (v2) uses Hadamard and controlled-rotation gates
 /// which are natively supported in QASM. The reversible arithmetic
 /// (Toffoli, CNOT, NOT) maps directly to QASM gates.
-pub fn export_qasm(circuit: &ShorCircuit) -> String {
+pub fn export_qasm(circuit: &GroupActionCircuit) -> String {
     let mut qasm = String::new();
 
     qasm.push_str("OPENQASM 3.0;\n");
     qasm.push_str("include \"stdgates.inc\";\n\n");
+    qasm.push_str("// Oathbreaker: Oath-64 coherent group-action circuit\n");
+    qasm.push_str("// Computes |a⟩|b⟩|O⟩ → |a⟩|b⟩|[a]G + [b]Q⟩\n");
     qasm.push_str(&format!(
-        "// Oathbreaker: Oath-64 ECDLP circuit over GF(2^64 - 2^32 + 1)\n"
-    ));
-    qasm.push_str(&format!(
-        "// Field bits: {}, Window size: {}\n",
-        circuit.curve.field_bits, circuit.window_size
+        "// Field: GF(2^64 - 2^32 + 1), Window size: {}\n",
+        circuit.window_size
     ));
     qasm.push_str(&format!(
         "// Total qubits: {}, Toffoli gates: {}\n\n",
@@ -53,12 +52,19 @@ pub fn export_qasm(circuit: &ShorCircuit) -> String {
         }
     }
 
-    // TODO: Emit QFT gates (Hadamard + controlled rotations)
+    // QFT stub comment (v2)
+    qasm.push_str("\n// QFT on exponent registers (deferred to v2)\n");
+    qasm.push_str(&format!(
+        "// Estimated QFT gates: {} (Hadamard: {}, Rotations: {})\n",
+        circuit.qft_estimate.total_gates,
+        circuit.qft_estimate.hadamard_count,
+        circuit.qft_estimate.controlled_rotation_count,
+    ));
 
     qasm
 }
 
 /// Export circuit statistics as a JSON string for analysis tools.
-pub fn export_stats_json(circuit: &ShorCircuit) -> String {
+pub fn export_stats_json(circuit: &GroupActionCircuit) -> String {
     serde_json::to_string_pretty(&circuit.summary()).unwrap_or_default()
 }

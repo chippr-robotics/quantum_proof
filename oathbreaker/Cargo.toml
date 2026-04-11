@@ -4,7 +4,7 @@ members = [
     "crates/goldilocks-field",
     "crates/ec-goldilocks",
     "crates/reversible-arithmetic",
-    "crates/shor-circuit",
+    "crates/group-action-circuit",
     "crates/sp1-program",
     "crates/sp1-host",
     "crates/benchmark",
@@ -20,7 +20,7 @@ repository = "https://github.com/chippr-robotics/quantum_proof"
 goldilocks-field = { path = "crates/goldilocks-field" }
 ec-goldilocks = { path = "crates/ec-goldilocks" }
 reversible-arithmetic = { path = "crates/reversible-arithmetic" }
-shor-circuit = { path = "crates/shor-circuit" }
+group-action-circuit = { path = "crates/group-action-circuit" }
 sha2 = "0.10"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }

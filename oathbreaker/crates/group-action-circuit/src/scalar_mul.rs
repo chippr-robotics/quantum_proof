@@ -5,13 +5,16 @@ use reversible_arithmetic::resource_counter::ResourceCounter;
 
 /// Windowed double-and-add scalar multiplication (reversible).
 ///
+/// Used for both halves of the coherent group-action map:
+/// - [a]G controlled by exponent register a
+/// - [b]Q controlled by exponent register b
+///
 /// Instead of bit-by-bit double-and-add, processes the scalar in w-bit windows:
-/// - Precompute table of [0]G, [1]G, ..., [2^w - 1]G
+/// - Precompute table of [0]P, [1]P, ..., [2^w - 1]P for base point P
 /// - Process scalar in w-bit windows: 64/w iterations instead of 64
 /// - Each iteration: w point doublings + 1 table lookup + 1 conditional point addition
 ///
-/// Google used w=16 for secp256k1 (256/16 = 16 windowed additions).
-/// For 64-bit we'd use w=8 or w=16.
+/// Google used w=16 for secp256k1. For Oath-64 (64-bit), w=8 is reasonable.
 pub struct WindowedScalarMul {
     /// Window size in bits.
     pub window_size: usize,
@@ -38,7 +41,7 @@ impl WindowedScalarMul {
 
     /// Generate the complete gate sequence for windowed scalar multiplication.
     ///
-    /// This is the main loop of the Shor circuit:
+    /// This is the main loop for one half of the group-action circuit:
     /// ```text
     /// for window_idx in 0..num_windows:
     ///     // w doublings

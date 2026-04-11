@@ -7,9 +7,9 @@
 // sp1_zkvm::entrypoint!(main);
 
 use ec_goldilocks::curve::{AffinePoint, CurveParams};
-use shor_circuit::build_shor_circuit;
+use group_action_circuit::build_group_action_circuit;
 
-/// Window size for the Shor circuit.
+/// Window size for the group-action circuit.
 const WINDOW_SIZE: usize = 8;
 
 fn main() {
@@ -18,10 +18,10 @@ fn main() {
 
     // --- Read inputs from host ---
     // let curve_params: CurveParams = sp1_zkvm::io::read();
-    // let test_cases: Vec<(u64, AffinePoint)> = sp1_zkvm::io::read();
+    // let test_cases: Vec<TestCase> = sp1_zkvm::io::read();
 
-    // --- Build the Shor circuit ---
-    // let circuit = build_shor_circuit(&curve_params, WINDOW_SIZE);
+    // --- Build the group-action circuit ---
+    // let circuit = build_group_action_circuit(&curve_params, WINDOW_SIZE);
 
     // --- Commit circuit resource counts (this is what we're proving) ---
     // sp1_zkvm::io::commit(&circuit.qubit_count());
@@ -29,10 +29,17 @@ fn main() {
     // sp1_zkvm::io::commit(&circuit.cnot_count());
     // sp1_zkvm::io::commit(&circuit.depth());
 
-    // --- Run circuit on each test case, verify output ---
-    // for (k, expected_q) in &test_cases {
-    //     let result = circuit.execute_classical(*k);
-    //     assert_eq!(result, *expected_q, "Circuit output mismatch for k={}", k);
+    // --- Execute circuit on each test case, verify against classical reference ---
+    // for case in &test_cases {
+    //     // Classical reference: [a]G + [b]Q
+    //     let expected = ec_goldilocks::double_scalar_mul(
+    //         case.a, &curve_params.generator,
+    //         case.b, &case.target_q,
+    //         &curve_params,
+    //     );
+    //     // Circuit execution on basis state
+    //     let result = circuit.execute_classical(case.a, case.b, &case.target_q);
+    //     assert_eq!(result, expected, "Circuit output mismatch");
     // }
 
     // --- Commit hash of the circuit (for identification) ---

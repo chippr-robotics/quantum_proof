@@ -16,28 +16,35 @@ const WINDOW_SIZE: usize = 8;
 fn main() {
     println!("=== Oathbreaker SP1 Host ===\n");
 
-    // --- Load curve parameters ---
-    // TODO: Load Oath-64 curve from sage/curve_params.json once generated
-    // let curve = load_curve_params("curve_params.json");
+    // --- Load Oath-64 curve parameters ---
+    // TODO: Load from sage/oath64_params.json once generated
+    // let curve = load_curve_params("oath64_params.json");
     println!("[1/5] Loading Oath-64 curve parameters... (awaiting Sage generation)");
 
-    // --- Generate test cases ---
+    // --- Generate test cases for double-scalar verification ---
     println!("[2/5] Generating {} random test cases...", NUM_TEST_CASES);
+    // Each test case: (a, b, k, Q=[k]G, expected=[a]G+[b]Q)
     // let mut rng = rand::thread_rng();
-    // let test_cases: Vec<(u64, AffinePoint)> = (0..NUM_TEST_CASES)
+    // let test_cases: Vec<TestCase> = (0..NUM_TEST_CASES)
     //     .map(|_| {
+    //         let a: u64 = rng.gen_range(1..curve.order);
+    //         let b: u64 = rng.gen_range(1..curve.order);
     //         let k: u64 = rng.gen_range(1..curve.order);
     //         let q = scalar_mul(k, &curve.generator, &curve);
-    //         (k, q)
+    //         let expected = ec_goldilocks::double_scalar_mul(
+    //             a, &curve.generator, b, &q, &curve,
+    //         );
+    //         TestCase { a, b, target_q: q, expected }
     //     })
     //     .collect();
 
-    // --- Verify via Pollard's rho ---
-    println!("[3/5] Cross-verifying with Pollard's rho...");
-    // for (k, q) in test_cases.iter().take(10) {
-    //     let k_recovered = ecdlp::pollard_rho(&curve.generator, q, &curve)
+    // --- Verify via Pollard's rho on a subset ---
+    println!("[3/5] Cross-verifying ECDLP instances with Pollard's rho...");
+    // for case in test_cases.iter().take(10) {
+    //     let k_recovered = ecdlp::pollard_rho(&curve.generator, &case.target_q, &curve)
     //         .expect("Pollard's rho failed");
-    //     assert_eq!(*k, k_recovered, "Pollard's rho mismatch");
+    //     let q_check = scalar_mul(k_recovered, &curve.generator, &curve);
+    //     assert_eq!(q_check, case.target_q, "Pollard's rho mismatch");
     // }
 
     // --- Generate SP1 proof ---
@@ -58,9 +65,9 @@ fn main() {
 
     // --- Write artifacts ---
     println!("[5/5] Writing proof artifacts...");
-    // std::fs::write("proofs/oathbreaker_proof.bin", proof.bytes())
+    // std::fs::write("proofs/oath64_proof.bin", proof.bytes())
     //     .expect("Failed to write proof");
-    // std::fs::write("proofs/verification_key.bin", vk.bytes())
+    // std::fs::write("proofs/oath64_vk.bin", vk.bytes())
     //     .expect("Failed to write verification key");
 
     println!("\nSP1 host stub — awaiting SP1 toolchain installation");

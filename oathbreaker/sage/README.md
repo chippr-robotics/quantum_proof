@@ -21,7 +21,7 @@ sage validate_params.sage
 
 ## Output
 
-`curve_params.json` — contains:
+`oath64_params.json` — contains:
 - `a`, `b`: Weierstrass coefficients
 - `p`: Field prime (2^64 - 2^32 + 1)
 - `order`: Group order (#E(GF(p)))

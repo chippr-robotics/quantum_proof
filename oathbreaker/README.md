@@ -1,4 +1,7 @@
-# Oathbreaker: Full End-to-End Shor Circuit for ECDLP
+# Oathbreaker
+
+## Open Reversible Circuit Framework for ECDLP over the Goldilocks Field
+### With zk-Proven Execution Trace and Resource Benchmarking
 
 **Project: Chippr Robotics LLC — Open Source Research**
 **Status: Design Plan — April 2026**
@@ -7,64 +10,68 @@
 
 ## Overview
 
-A complete implementation of Shor's algorithm for solving the Elliptic Curve
-Discrete Logarithm Problem (ECDLP) on the **Oath-64** curve — a toy elliptic curve
-over the Goldilocks field (p = 2^64 - 2^32 + 1).
+A reversible circuit framework capturing the arithmetic and coherent group-action
+components required by Shor's algorithm for ECDLP, on the **Oath-64** curve — a
+toy elliptic curve over the Goldilocks field (p = 2^64 - 2^32 + 1).
 
-This is a full end-to-end quantum circuit description — not a quantum execution —
-that implements Shor's algorithm for ECDLP, proven correct via SP1 zkVM
-(Groth16 SNARK), and independently verified against classically-computed ground
-truth via Pollard's rho.
+The circuit implements the coherent double-scalar map **[a]G + [b]Q** — the
+computationally dominant component (>99% of qubits and gates) of Shor's ECDLP
+algorithm. Proven correct via SP1 zkVM (Groth16 SNARK) and independently verified
+against classical ground truth via Pollard's rho.
 
 ## What This Is
 
-- A complete, transparent, open-source Shor circuit for ECDLP
+- A reversible circuit + classical simulator of quantum arithmetic subroutines
+- The coherent group-action map [a]G + [b]Q, resource-counted and QASM-exportable
 - Classically verifiable: the same ECDLP can be solved via Pollard's rho
-- Proven correct via SP1 Groth16 SNARK
-- A ready-to-execute quantum benchmark for future hardware
+- Proven correct via SP1 Groth16 SNARK (execution trace, not quantum simulation)
+- A quantum hardware benchmark candidate (the Oathbreaker Scale)
 
 ## What This Is NOT
 
-- Not a quantum computer execution (no hardware exists to run this at scale)
-- Not an attack tool (64-bit curves have ~32-bit security, trivially breakable classically)
-- Not a reproduction of Google's withheld secp256k1 circuits
-
-## Why This Matters
-
-1. **Extends Google's methodology**: Google proved only the point addition subroutine. This proves the full Shor circuit end-to-end.
-2. **Classically verifiable**: Unlike Google's 256-bit proof, we can independently solve the same ECDLP via Pollard's rho and confirm the circuit produces the correct answer.
-3. **Transparent**: Fully open-source circuit, unlike Google's opaque ZK-only disclosure.
-4. **Native prover performance**: SP1 operates natively over the Goldilocks field — no multi-limb emulation overhead.
-5. **Quantum benchmark candidate**: The circuit description is a ready-to-execute program for future quantum hardware.
+- Not a quantum computer execution (no hardware exists at 64-bit scale)
+- Not an attack tool (64-bit curves have ~32-bit security, trivially breakable)
+- Not a full Shor implementation in v1 (QFT + measurement deferred to v2)
+- Not a reproduction of withheld industrial circuits, but an open analogue
 
 ## The Oathbreaker Scale
 
 Score your quantum computer by which Oath curve it can crack:
 
-| Level | Curve | Security | Classical Solve Time | Target |
-|-------|-------|----------|---------------------|--------|
-| Oath-8 | 8-bit | ~4-bit | Instant | Proof of concept |
-| Oath-16 | 16-bit | ~8-bit | Instant | Near-term devices |
-| Oath-32 | 32-bit | ~16-bit | Milliseconds | Medium-term milestone |
-| **Oath-64** | **64-bit** | **~32-bit** | **Minutes (Pollard rho)** | **Full benchmark** |
+| Tier | Field | Est. Qubits | Est. Toffoli | Classical Difficulty | Target Era |
+|------|-------|-------------|-------------|---------------------|-----------|
+| Oath-8 | 8-bit | ~20 | ~2K | Trivial | 2026-2027 |
+| Oath-16 | 16-bit | ~50 | ~15K | Trivial | 2027-2028 |
+| Oath-32 | 32-bit | ~120 | ~300K | Easy (~seconds) | 2029-2031 |
+| **Oath-64** | **64-bit** | **~300** | **~5M** | **Hours (Pollard rho)** | **2032-2035** |
 
 ## Architecture
 
 ```
 oathbreaker/
 ├── crates/
-│   ├── goldilocks-field/         # GF(p) arithmetic, p = 2^64 - 2^32 + 1
-│   ├── ec-goldilocks/            # Elliptic curve over GF(p) + ECDLP solvers
-│   ├── reversible-arithmetic/    # Reversible (quantum-compatible) gates
-│   ├── shor-circuit/             # Full Shor's algorithm circuit assembly
-│   ├── sp1-program/              # SP1 guest program (proven inside zkVM)
-│   ├── sp1-host/                 # SP1 host: proof generation + verification
-│   └── benchmark/                # Resource counting + scaling projections
-├── sage/                         # SageMath Oath-64 curve generation scripts
-├── proofs/                       # Generated proof artifacts
-├── docs/                         # Technical paper and documentation
-└── scripts/                      # Pipeline and export scripts
+│   ├── goldilocks-field/           # GF(p) arithmetic, p = 2^64 - 2^32 + 1
+│   ├── ec-goldilocks/              # EC ops + double-scalar mul + ECDLP solvers
+│   ├── reversible-arithmetic/      # Reversible gates, adders, multipliers, EC ops
+│   ├── group-action-circuit/       # Coherent [a]G + [b]Q circuit assembly
+│   ├── sp1-program/                # SP1 guest program (proven inside zkVM)
+│   ├── sp1-host/                   # SP1 host: proof generation + verification
+│   └── benchmark/                  # Resource counting, Oath-N tiers, comparisons
+├── sage/                           # SageMath Oath-64 curve generation scripts
+├── proofs/                         # Generated proof artifacts
+├── docs/                           # Paper, architecture, limitations, benchmarking
+└── scripts/                        # Pipeline and export scripts
 ```
+
+## v1 Scope
+
+**Implements**: Reversible field arithmetic, reversible EC point add/double, coherent
+double-scalar map [a]G + [b]Q, resource counting, ZK proof of execution trace.
+
+**Defers to v2**: Dual-register QFT, quantum measurement simulation, classical
+post-processing (lattice recovery of k from measured exponents).
+
+See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for full scope details.
 
 ## Building
 
@@ -78,20 +85,6 @@ cargo build --workspace
 cargo test --workspace
 ```
 
-## Full Pipeline
-
-```bash
-./scripts/full_pipeline.sh
-```
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## References
-
-1. Babbush, Zalcman, Gidney et al., "Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities", arXiv:2603.28846 (March 2026)
-2. Chevignard, Fouque, Schrottenloher, "Quantum circuits for ECDLP", EUROCRYPT 2026
-3. Roetteler, Naehrig, Svore, Lauter, "Quantum Resource Estimates for Computing Elliptic Curve Discrete Logarithms", ASIACRYPT 2017
-4. Litinski, "How to compute a 256-bit elliptic curve private key with only 50 million Toffoli gates", 2023
-5. Cuccaro, Draper, Kutin, Moulton, "A new quantum ripple-carry addition circuit", arXiv:quant-ph/0410184

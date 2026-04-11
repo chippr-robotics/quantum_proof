@@ -13,7 +13,7 @@ p = 2^64 - 2^32 + 1
 F = GF(p)
 
 # Load parameters
-with open('curve_params.json', 'r') as f:
+with open('oath64_params.json', 'r') as f:
     params = json.load(f)
 
 a = F(params['a'])

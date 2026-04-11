@@ -1,6 +1,6 @@
 [package]
 name = "sp1-program"
-description = "SP1 guest program: Shor circuit execution proven inside the zkVM"
+description = "SP1 guest program: group-action circuit execution proven inside the zkVM"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,6 +12,6 @@ license.workspace = true
 goldilocks-field = { workspace = true }
 ec-goldilocks = { workspace = true }
 reversible-arithmetic = { workspace = true }
-shor-circuit = { workspace = true }
+group-action-circuit = { workspace = true }
 serde = { workspace = true }
 sha2 = { workspace = true }

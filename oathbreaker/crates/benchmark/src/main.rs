@@ -1,14 +1,15 @@
 mod comparison;
 mod counter;
+mod oath_tiers;
 mod scaling;
 
 fn main() {
     println!("=== Oathbreaker Benchmark Suite ===\n");
 
-    // TODO: Build the circuit with real parameters and measure resources.
+    // TODO: Build the circuit with real Oath-64 parameters and measure resources.
     //
-    // let curve = load_curve_params("curve_params.json");
-    // let circuit = shor_circuit::build_shor_circuit(&curve, 8);
+    // let curve = load_curve_params("oath64_params.json");
+    // let circuit = group_action_circuit::build_group_action_circuit(&curve, 8);
     // counter::print_resource_table(&circuit);
     //
     // let projections = scaling::project_scaling(
@@ -25,9 +26,12 @@ fn main() {
 
     println!("Benchmark suite stub — awaiting circuit implementation.\n");
     println!("Once the reversible arithmetic is complete:");
-    println!("  cargo run --release -p benchmark");
+    println!("  cargo run --release -p benchmark\n");
 
-    // For now, print the comparison table with prior work
+    // Print the Oath-N tier definitions
+    oath_tiers::print_oath_tiers();
+
+    // Print comparison to prior work
     println!();
     comparison::print_comparison_table(None);
 }

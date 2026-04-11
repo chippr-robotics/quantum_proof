@@ -1,6 +1,6 @@
 [package]
-name = "shor-circuit"
-description = "Full Shor's algorithm circuit assembly for ECDLP over the Goldilocks field"
+name = "group-action-circuit"
+description = "Coherent double-scalar group-action map [a]G + [b]Q for Shor's ECDLP algorithm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,4 +1,5 @@
 pub mod curve;
+pub mod double_scalar_mul;
 pub mod ecdlp;
 pub mod point_ops;
 
@@ -6,3 +7,4 @@ pub mod point_ops;
 mod tests;
 
 pub use curve::{AffinePoint, CurveParams, JacobianPoint};
+pub use double_scalar_mul::double_scalar_mul;

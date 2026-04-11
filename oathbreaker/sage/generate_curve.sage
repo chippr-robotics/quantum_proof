@@ -10,7 +10,7 @@
 #
 # Usage: sage generate_curve.sage
 #
-# Output: curve_params.json
+# Output: oath64_params.json
 
 import json
 import sys
@@ -85,9 +85,9 @@ for a_int in range(1, 100):
             print()
 
             # Write output
-            with open('curve_params.json', 'w') as f:
+            with open('oath64_params.json', 'w') as f:
                 json.dump(result, f, indent=2)
-            print(f"Parameters written to curve_params.json")
+            print(f"Parameters written to oath64_params.json")
             found = True
             break
     if found:
