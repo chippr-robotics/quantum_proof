@@ -105,4 +105,103 @@ mod tests {
     fn test_infinity_negation() {
         assert_eq!(AffinePoint::Infinity.neg(), AffinePoint::Infinity);
     }
+
+    #[test]
+    fn test_jacobian_scalar_mul_matches_affine() {
+        // Verify that Jacobian scalar multiplication produces the same
+        // results as affine scalar multiplication for various scalars.
+        let curve = test_curve();
+        let g = &curve.generator;
+
+        // Test several scalar values
+        for k in [1u64, 2, 3, 5, 7, 10, 42, 100, 255, 1000] {
+            let affine_result = scalar_mul(k, g, &curve);
+            let jacobian_result = crate::point_ops::scalar_mul_jacobian(k, g, &curve);
+            assert_eq!(
+                affine_result, jacobian_result,
+                "Jacobian and affine scalar mul disagree for k={}",
+                k
+            );
+        }
+    }
+
+    #[test]
+    fn test_jacobian_mixed_add_matches_affine() {
+        // Verify Jacobian mixed addition against affine reference.
+        use crate::curve::JacobianPoint;
+        use crate::point_ops::{jacobian_mixed_add, point_double};
+
+        let curve = test_curve();
+        let g = &curve.generator;
+
+        // Compute 2G via affine doubling
+        let two_g_affine = point_double(g, &curve);
+
+        // Compute 2G via Jacobian: start with G in Jacobian, add G (affine)
+        let g_jac = JacobianPoint::from_affine(g);
+        let two_g_jac = jacobian_mixed_add(&g_jac, g, &curve);
+        let two_g_from_jac = two_g_jac.to_affine();
+
+        assert_eq!(
+            two_g_affine, two_g_from_jac,
+            "Jacobian mixed add (G + G) should equal affine doubling (2G)"
+        );
+
+        // Compute 3G = 2G + G via both methods
+        let three_g_affine = point_add(g, &two_g_affine, &curve);
+        let three_g_jac = jacobian_mixed_add(&two_g_jac, g, &curve);
+        let three_g_from_jac = three_g_jac.to_affine();
+
+        assert_eq!(
+            three_g_affine, three_g_from_jac,
+            "Jacobian mixed add (2G + G) should equal affine add"
+        );
+    }
+
+    #[test]
+    fn test_jacobian_double_matches_affine() {
+        use crate::curve::JacobianPoint;
+        use crate::point_ops::{jacobian_double, point_double};
+
+        let curve = test_curve();
+        let g = &curve.generator;
+
+        // Compute 2G via affine
+        let two_g_affine = point_double(g, &curve);
+
+        // Compute 2G via Jacobian
+        let g_jac = JacobianPoint::from_affine(g);
+        let two_g_jac = jacobian_double(&g_jac, &curve);
+        let two_g_from_jac = two_g_jac.to_affine();
+
+        assert_eq!(
+            two_g_affine, two_g_from_jac,
+            "Jacobian doubling should match affine doubling"
+        );
+
+        // Compute 4G = 2(2G) via both methods
+        let four_g_affine = point_double(&two_g_affine, &curve);
+        let four_g_jac = jacobian_double(&two_g_jac, &curve);
+        let four_g_from_jac = four_g_jac.to_affine();
+
+        assert_eq!(
+            four_g_affine, four_g_from_jac,
+            "Jacobian double(2G) should match affine double(2G)"
+        );
+    }
+
+    #[test]
+    fn test_on_curve_verification() {
+        let curve = test_curve();
+        let g = &curve.generator;
+
+        // Generator should be on the curve
+        assert!(g.is_on_curve(&curve), "Generator should be on curve");
+
+        // Scalar multiples should also be on curve
+        for k in [2u64, 3, 5, 10] {
+            let p = scalar_mul(k, g, &curve);
+            assert!(p.is_on_curve(&curve), "[{}]G should be on curve", k);
+        }
+    }
 }

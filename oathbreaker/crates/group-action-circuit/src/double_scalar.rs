@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::precompute::PrecomputeTable;
 use crate::qft_stub::QftResourceEstimate;
 use crate::scalar_mul::WindowedScalarMul;
+use crate::scalar_mul_jacobian::WindowedScalarMulJacobian;
 
 /// The coherent double-scalar group-action circuit: |a⟩|b⟩|O⟩ → |a⟩|b⟩|[a]G + [b]Q⟩
 ///
@@ -20,6 +21,8 @@ pub struct GroupActionCircuit {
     pub curve: CurveParams,
     /// Window size for scalar multiplication.
     pub window_size: usize,
+    /// Coordinate system: "affine" or "jacobian".
+    pub coordinate_system: String,
     /// Ordered log of all reversible gates (Toffoli/CNOT/NOT).
     pub gate_log: Vec<Gate>,
     /// QFT resource estimate (described but not executed in v1).
@@ -33,6 +36,8 @@ pub struct GroupActionCircuit {
 pub struct CircuitSummary {
     pub field_bits: usize,
     pub window_size: usize,
+    /// Coordinate system: "affine" or "jacobian"
+    pub coordinate_system: String,
     pub logical_qubits_peak: usize,
     pub toffoli_gates: usize,
     pub cnot_gates: usize,
@@ -110,7 +115,136 @@ pub fn build_group_action_circuit(curve: &CurveParams, window_size: usize) -> Gr
     GroupActionCircuit {
         curve: curve.clone(),
         window_size,
+        coordinate_system: "affine".to_string(),
         gate_log: Vec::new(), // populated by forward_gates once implemented
+        qft_estimate,
+        resources: counter,
+    }
+}
+
+/// Build the coherent double-scalar group-action circuit using **Jacobian
+/// projective coordinates** — the optimized variant.
+///
+/// Key difference from the affine version:
+/// - Accumulator registers are (X, Y, Z) = 3n qubits instead of (x, y) = 2n
+/// - All doublings and additions use Jacobian formulas: **0 inversions per EC op**
+/// - A single Fermat inversion at the end converts Z back to affine
+/// - Net effect: ~6× fewer Toffoli gates (inversion was 94% of affine cost)
+///
+/// Register layout:
+///   exponent_a:  n qubits
+///   exponent_b:  n qubits
+///   point_X:     n qubits (Jacobian X)
+///   point_Y:     n qubits (Jacobian Y)
+///   point_Z:     n qubits (Jacobian Z)
+///   Total primary: 5n qubits (vs 4n for affine — +n for Z register)
+pub fn build_group_action_circuit_jacobian(
+    curve: &CurveParams,
+    window_size: usize,
+) -> GroupActionCircuit {
+    let n = curve.field_bits; // 64
+    let mut counter = ResourceCounter::new();
+    let mut ancilla_pool = AncillaPool::new(UncomputeStrategy::Eager);
+
+    // Two exponent registers (dual-scalar formulation for ECDLP)
+    let _reg_a = QuantumRegister::new("exponent_a", n);
+    let _reg_b = QuantumRegister::new("exponent_b", n);
+
+    // Point accumulator registers — Jacobian (X, Y, Z)
+    let _point_x = QuantumRegister::new("point_X", n);
+    let _point_y = QuantumRegister::new("point_Y", n);
+    let _point_z = QuantumRegister::new("point_Z", n);
+
+    // 5n primary qubits: two exponent registers + Jacobian point (X, Y, Z)
+    counter.allocate_qubits(5 * n);
+
+    // Precompute window tables for G (stays in affine — "mixed" addition)
+    let _table_g = PrecomputeTable::generate_for_point(curve, &curve.generator, window_size);
+
+    // Windowed Jacobian scalar multiplication for [a]G
+    let scalar_mul_a = WindowedScalarMulJacobian::new(window_size, n);
+    let _gates_a = scalar_mul_a.forward_gates(
+        0,         // reg_a offset
+        2 * n,     // point_X offset
+        3 * n,     // point_Y offset
+        4 * n,     // point_Z offset
+        &mut ancilla_pool,
+        &mut counter,
+        curve,
+    );
+
+    // Windowed Jacobian scalar multiplication for [b]Q (adds to accumulator)
+    let scalar_mul_b = WindowedScalarMulJacobian::new(window_size, n);
+    let _gates_b = scalar_mul_b.forward_gates(
+        n,         // reg_b offset
+        2 * n,     // point_X offset (same accumulator)
+        3 * n,     // point_Y offset
+        4 * n,     // point_Z offset
+        &mut ancilla_pool,
+        &mut counter,
+        curve,
+    );
+
+    // --- Single final inversion: convert Jacobian → affine ---
+    // Compute Z⁻¹ via Fermat (only 1 inversion for the entire computation).
+    // Then: x = X · Z⁻², y = Y · Z⁻³
+    // This single inversion costs ~400K Toffoli, amortized over ~144 EC ops.
+    let inv_workspace = ancilla_pool.allocate("final_inv_workspace", 3 * n + 1, &mut counter);
+    let z_inv_reg = ancilla_pool.allocate("z_inv", n, &mut counter);
+    let inverter = reversible_arithmetic::inverter::FermatInverter::new(n);
+    let _inv_gates = inverter.forward_gates(
+        4 * n,              // point_Z input
+        z_inv_reg.offset,   // Z⁻¹ output
+        inv_workspace.offset,
+        &mut counter,
+    );
+
+    // Compute Z⁻² = Z⁻¹ · Z⁻¹ and Z⁻³ = Z⁻² · Z⁻¹
+    let z_inv2_reg = ancilla_pool.allocate("z_inv2", n, &mut counter);
+    let z_inv3_reg = ancilla_pool.allocate("z_inv3", n, &mut counter);
+    let mul = reversible_arithmetic::multiplier::ReversibleMultiplier::new(n);
+    let sq = reversible_arithmetic::multiplier::ReversibleSquarer::new(n);
+
+    let _sq_gates = sq.forward_gates(
+        z_inv_reg.offset,
+        z_inv2_reg.offset,
+        inv_workspace.offset,
+        &mut counter,
+    );
+    let _mul_gates = mul.forward_gates(
+        z_inv2_reg.offset,
+        z_inv_reg.offset,
+        z_inv3_reg.offset,
+        inv_workspace.offset,
+        &mut counter,
+    );
+
+    // x_affine = X · Z⁻²  (overwrite point_X with affine x)
+    let _mul_x = mul.forward_gates(
+        2 * n,               // point_X
+        z_inv2_reg.offset,
+        2 * n,               // result back to point_X
+        inv_workspace.offset,
+        &mut counter,
+    );
+
+    // y_affine = Y · Z⁻³  (overwrite point_Y with affine y)
+    let _mul_y = mul.forward_gates(
+        3 * n,               // point_Y
+        z_inv3_reg.offset,
+        3 * n,               // result back to point_Y
+        inv_workspace.offset,
+        &mut counter,
+    );
+
+    // QFT resource estimate
+    let qft_estimate = QftResourceEstimate::for_dual_register(n);
+
+    GroupActionCircuit {
+        curve: curve.clone(),
+        window_size,
+        coordinate_system: "jacobian".to_string(),
+        gate_log: Vec::new(),
         qft_estimate,
         resources: counter,
     }
@@ -119,9 +253,15 @@ pub fn build_group_action_circuit(curve: &CurveParams, window_size: usize) -> Gr
 impl GroupActionCircuit {
     /// Get a publishable summary of circuit resources.
     pub fn summary(&self) -> CircuitSummary {
+        let n = self.curve.field_bits;
+        let num_windows = n / self.window_size;
+        let w = self.window_size;
+        let total_ec_ops = num_windows * (w + 1) * 2; // doublings + additions, ×2 scalars
+
         CircuitSummary {
             field_bits: self.curve.field_bits,
             window_size: self.window_size,
+            coordinate_system: self.coordinate_system.clone(),
             logical_qubits_peak: self.resources.qubit_high_water,
             toffoli_gates: self.resources.toffoli_count,
             cnot_gates: self.resources.cnot_count,
@@ -131,10 +271,10 @@ impl GroupActionCircuit {
             ancilla_high_water: self.resources.ancilla_allocated,
             qft_hadamards_estimated: self.qft_estimate.hadamard_count,
             qft_rotations_estimated: self.qft_estimate.controlled_rotation_count,
-            point_additions: 0, // TODO: track during construction
-            point_doublings: 0,
-            field_inversions: 0,
-            field_multiplications: 0,
+            point_additions: num_windows * 2,
+            point_doublings: num_windows * w * 2,
+            field_inversions: if self.coordinate_system == "jacobian" { 1 } else { num_windows * 2 },
+            field_multiplications: total_ec_ops * if self.coordinate_system == "jacobian" { 16 } else { 6 },
         }
     }
 

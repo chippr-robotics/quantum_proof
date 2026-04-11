@@ -1,7 +1,9 @@
 pub mod adder;
 pub mod ancilla;
 pub mod ec_add_affine;
+pub mod ec_add_jacobian;
 pub mod ec_double_affine;
+pub mod ec_double_jacobian;
 pub mod gates;
 pub mod inverter;
 pub mod multiplier;
