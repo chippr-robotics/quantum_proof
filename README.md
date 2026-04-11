@@ -1,9 +1,11 @@
-# Quantum Circuit Verification: Understanding the Zero-Knowledge Proof
+# Quantum Circuit Verification & the Oathbreaker Framework
 
 **[Read the blog post](https://chippr-robotics.github.io/quantum_proof/)**
 
+This repository contains two complementary projects:
 
-An educational resource explaining how Google Quantum AI used a zero-knowledge proof to validate quantum circuit resource estimates for breaking 256-bit ECDLP — without revealing the circuits themselves.
+1. **Educational explainer** of Google Quantum AI's March 2026 zero-knowledge proof for ECDLP circuit resource estimates
+2. **Oathbreaker** — a fully open-source reversible circuit framework implementing the coherent group-action map for Shor's ECDLP algorithm over the Goldilocks field, with Jacobian projective coordinates, classical verification, and a standardized quantum hardware benchmark (the Oathbreaker Scale)
 
 ## Background
 
@@ -26,8 +28,37 @@ quantum_proof/
 ├── notebook/
 │   └── quantum_verification_walkthrough.ipynb   # Interactive Jupyter walkthrough
 ├── cryptocurrency-whitepaper.pdf                # Source paper (Google Quantum AI)
-└── README.md                                    # This file
+├── oathbreaker/                                # Reversible circuit framework
+│   ├── crates/
+│   │   ├── goldilocks-field/                   # GF(p) arithmetic, p = 2^64 - 2^32 + 1
+│   │   ├── ec-goldilocks/                      # EC ops, Jacobian + affine, ECDLP solvers
+│   │   ├── reversible-arithmetic/              # Reversible gates, adders, multipliers, EC ops
+│   │   ├── group-action-circuit/               # Coherent [a]G + [b]Q circuit assembly
+│   │   ├── benchmark/                          # Resource counting, Oath-N tiers, comparisons
+│   │   ├── sp1-program/                        # SP1 guest program (proven inside zkVM)
+│   │   └── sp1-host/                           # SP1 host: proof generation + verification
+│   ├── sage/                                   # SageMath curve generation scripts
+│   ├── proofs/                                 # Generated proof artifacts
+│   ├── docs/                                   # Architecture, benchmarking, limitations
+│   └── README.md                               # Oathbreaker project documentation
+├── .github/workflows/                          # CI: unit tests, functional tests, code quality
+└── README.md                                   # This file
 ```
+
+### Oathbreaker Framework (`oathbreaker/`)
+
+A fully implemented reversible circuit framework for Shor's ECDLP algorithm on the **Oath-64** curve (Goldilocks field, p = 2^64 - 2^32 + 1). The framework implements every layer of the circuit stack:
+
+- **Goldilocks field arithmetic** — addition, multiplication, inversion, square root (Tonelli-Shanks), with property-based testing of all field axioms
+- **Elliptic curve operations** — point addition, doubling, and scalar multiplication in both affine and Jacobian projective coordinates
+- **Reversible circuit primitives** — NOT/CNOT/Toffoli gates, Cuccaro ripple-carry adder, schoolbook multiplier, Fermat and binary GCD inverters
+- **Reversible EC operations** — point addition and doubling in both affine and Jacobian coordinates, with full intermediate uncomputation
+- **Circuit assembly** — windowed scalar multiplication, precomputed lookup tables, coherent double-scalar map [a]G + [b]Q
+- **Classical verification** — Pollard's rho ECDLP solver for independent ground-truth checking
+
+38 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
+
+See [oathbreaker/README.md](oathbreaker/README.md) for full details.
 
 ### Blog Post (`index.html`)
 
@@ -57,6 +88,29 @@ pip install jupyter numpy matplotlib
 jupyter notebook notebook/quantum_verification_walkthrough.ipynb
 ```
 
+## Building & Testing
+
+```bash
+# Build the oathbreaker workspace
+cd oathbreaker && cargo build --workspace
+
+# Run all tests (38 tests across 4 core crates)
+cargo test --workspace
+
+# Run the benchmark suite
+cargo run --release -p benchmark
+```
+
+## Continuous Integration
+
+Three GitHub Actions workflows enforce correctness at every layer:
+
+| Workflow | What it checks |
+|----------|---------------|
+| **Unit Tests** | Per-crate isolation testing + property-based tests (1024 cases/property) |
+| **Functional Tests** | Workspace integration, dependency-chain validation, benchmark execution, SP1 compilation |
+| **Code Quality** | `rustfmt` formatting, `clippy` linting (strict on core crates), `cargo doc` build |
+
 ## Key Concepts
 
 - **ECDLP**: The Elliptic Curve Discrete Logarithm Problem — given points G and Q = kG, find k. This is the cryptographic foundation of Bitcoin, Ethereum, and most major blockchains.
@@ -65,6 +119,8 @@ jupyter notebook notebook/quantum_verification_walkthrough.ipynb
 - **Fiat-Shamir Heuristic**: A technique that derives challenge values from the prover's own commitment, converting an interactive proof into a non-interactive one.
 - **SP1 zkVM**: A zero-knowledge virtual machine that executes RISC-V programs and generates cryptographic proofs of correct execution.
 - **Groth16 SNARK**: A succinct non-interactive argument of knowledge that provides zero-knowledge and fast verification.
+- **Jacobian Projective Coordinates**: A coordinate system for elliptic curves that eliminates per-operation modular inversions, reducing gate cost by ~6x compared to affine coordinates.
+- **The Oathbreaker Scale**: A standardized quantum hardware benchmark — score a quantum computer by which Oath-N curve it can crack.
 
 ## References
 

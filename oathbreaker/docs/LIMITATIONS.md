@@ -26,15 +26,16 @@ No quantum computer currently exists that can execute this circuit. The circuit 
 
 ### Resource projections are estimates
 Scaling projections from 64-bit to 256-bit are based on asymptotic scaling laws (O(n) qubits, O(n^3) Toffoli). Actual 256-bit circuits would differ due to:
-- Optimization techniques not yet applied (projective coordinates, binary GCD inversion)
+- Optimization techniques not yet applied (Karatsuba multiplication)
 - Constant factor improvements in industrial implementations
 - Hardware-specific compilation optimizations
 
 ### Fermat inversion is suboptimal
-The v1 implementation uses Fermat's little theorem for modular inversion, contributing O(n^3) gates. Known optimizations include:
-- **Projective coordinates**: Eliminate per-addition inversion entirely (likely Google's approach)
-- **Binary GCD / Kaliski inversion**: O(n^2) reversible gates
-- **Karatsuba multiplication**: Reduce per-multiply cost from O(n^2) to O(n^1.585)
+The v1 implementation uses Fermat's little theorem for the single final inversion
+(Jacobian Z → affine conversion), contributing O(n^3) gates. Known optimizations include:
+- **Projective coordinates**: Implemented in v1 — Jacobian projective coordinates eliminate all per-addition inversions, reducing the total from ~128 inversions (affine) to exactly 1 (final affine conversion)
+- **Binary GCD / Kaliski inversion**: O(n^2) reversible gates — implemented as an alternative inverter, though Fermat remains the default
+- **Karatsuba multiplication**: Reduce per-multiply cost from O(n^2) to O(n^1.585) — not yet implemented
 
 ### Comparison to Google is approximate
 Google's March 2026 paper discloses resource estimates but not the circuit itself. Our comparison is based on published numbers and scaling projections. Google's implementation uses unknown optimizations that may significantly reduce gate counts.

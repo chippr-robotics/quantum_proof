@@ -8,12 +8,16 @@ Score your quantum computer by which Oath curve it can crack.
 
 ## Tier Definitions
 
+Revised estimates based on Jacobian projective coordinate circuit (mixed addition,
+0 per-op inversions, single final Fermat inversion). Qubit counts include exponent
+registers, Jacobian accumulator (X,Y,Z), and arithmetic ancillae.
+
 | Tier | Field Size | Est. Logical Qubits | Est. Toffoli | Classical Difficulty | Target Hardware Era |
 |------|-----------|---------------------|-------------|---------------------|-------------------|
-| **Oath-8** | ~8 bit | ~20 | ~2,000 | Trivial (by hand) | 2026-2027 |
-| **Oath-16** | ~16 bit | ~50 | ~15,000 | Trivial (milliseconds) | 2027-2028 |
-| **Oath-32** | ~32 bit | ~120 | ~300,000 | Easy (~seconds) | 2029-2031 |
-| **Oath-64** | 64 bit | ~300 | ~5,000,000 | Moderate (~hours Pollard rho) | 2032-2035 |
+| **Oath-8** | ~8 bit | ~35 | ~8,000 | Trivial (by hand) | 2026-2027 |
+| **Oath-16** | ~16 bit | ~100 | ~120,000 | Trivial (milliseconds) | 2027-2028 |
+| **Oath-32** | ~32 bit | ~280 | ~3,000,000 | Easy (~seconds) | 2029-2031 |
+| **Oath-64** | 64 bit | ~700 | ~17,000,000 | Moderate (~hours Pollard rho) | 2032-2035 |
 
 ## Scoring Rules
 
