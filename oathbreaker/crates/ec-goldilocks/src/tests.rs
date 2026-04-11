@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod ec_tests {
     use crate::curve::{AffinePoint, CurveParams};
     use crate::point_ops::{point_add, scalar_mul};
     use goldilocks_field::GoldilocksField;
@@ -23,12 +23,18 @@ mod tests {
         let gy_sq = gx * gx * gx + a * gx + b; // y² = 3
 
         // Use Tonelli-Shanks to compute sqrt(3) mod p.
-        let gy = gy_sq.sqrt().expect("y² = 3 should be a quadratic residue mod p");
+        let gy = gy_sq
+            .sqrt()
+            .expect("y² = 3 should be a quadratic residue mod p");
         debug_assert_eq!(gy * gy, gy_sq, "sqrt verification failed");
 
         let generator = AffinePoint::Finite { x: gx, y: gy };
         debug_assert!(generator.is_on_curve(&CurveParams {
-            a, b, order: 0, generator: AffinePoint::Infinity, field_bits: 64,
+            a,
+            b,
+            order: 0,
+            generator: AffinePoint::Infinity,
+            field_bits: 64,
         }));
 
         // Order placeholder — real value from Sage's E.order().

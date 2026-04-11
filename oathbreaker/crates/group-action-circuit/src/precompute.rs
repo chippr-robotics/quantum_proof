@@ -3,7 +3,7 @@ use ec_goldilocks::point_ops::scalar_mul;
 
 /// Precomputed table of curve points for windowed scalar multiplication.
 ///
-/// For window size w, precomputes [0]P, [1]P, [2]P, ..., [2^w - 1]P
+/// For window size w, precomputes \[0\]P, \[1\]P, \[2\]P, ..., \[2^w - 1\]P
 /// for an arbitrary base point P. These are baked into the circuit as
 /// constants — they're parameter-dependent and known at construction time.
 ///
@@ -12,7 +12,7 @@ use ec_goldilocks::point_ops::scalar_mul;
 /// - One for the target point Q (known at proof time per instance)
 #[derive(Clone, Debug)]
 pub struct PrecomputeTable {
-    /// The precomputed points: table[i] = [i]P.
+    /// The precomputed points: `table[i]` = \[i\]P.
     pub points: Vec<AffinePoint>,
     /// Window size that generated this table.
     pub window_size: usize,

@@ -1,15 +1,15 @@
 use crate::curve::{AffinePoint, CurveParams};
 use crate::point_ops::{point_add, scalar_mul};
 
-/// Compute the double-scalar multiplication [a]G + [b]Q.
+/// Compute the double-scalar multiplication \[a\]G + \[b\]Q.
 ///
 /// This is the classical reference implementation for verifying the
 /// coherent group-action circuit. The circuit must produce identical
 /// results on all basis-state inputs.
 ///
 /// In Shor's ECDLP algorithm, this is the group homomorphism:
-///   f(a, b) = [a]G + [b]Q
-/// where G is the generator and Q = [k]G is the target public key.
+///   f(a, b) = \[a\]G + \[b\]Q
+/// where G is the generator and Q = \[k\]G is the target public key.
 pub fn double_scalar_mul(
     a: u64,
     generator: &AffinePoint,
@@ -24,9 +24,6 @@ pub fn double_scalar_mul(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::curve::CurveParams;
-    use goldilocks_field::GoldilocksField;
 
     #[test]
     fn test_double_scalar_identity_cases() {

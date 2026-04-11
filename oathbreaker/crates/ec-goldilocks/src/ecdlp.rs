@@ -2,7 +2,7 @@ use crate::curve::{AffinePoint, CurveParams};
 use crate::point_ops::{point_add, scalar_mul};
 use std::collections::HashMap;
 
-/// Solve the ECDLP: given G and Q = [k]G, find k.
+/// Solve the ECDLP: given G and Q = \[k\]G, find k.
 ///
 /// Uses Pollard's rho algorithm: O(sqrt(n)) time, O(1) space.
 /// This is the primary solver for the Goldilocks curve (~2^32 iterations).
@@ -11,7 +11,7 @@ pub fn pollard_rho(
     _target: &AffinePoint,
     _curve: &CurveParams,
 ) -> Option<u64> {
-        // Pollard's rho with Floyd's cycle detection.
+    // Pollard's rho with Floyd's cycle detection.
     //
     // Given G (generator) and Q = [k]G (target), find k.
     //
@@ -152,7 +152,7 @@ pub fn baby_step_giant_step(
     None
 }
 
-/// Solve the ECDLP via brute force: iterate [1]G, [2]G, ... until match.
+/// Solve the ECDLP via brute force: iterate \[1\]G, \[2\]G, ... until match.
 ///
 /// O(n) time. Only feasible for small scalars or testing.
 pub fn brute_force(

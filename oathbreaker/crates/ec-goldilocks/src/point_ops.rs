@@ -11,10 +11,7 @@ pub fn point_add(p: &AffinePoint, q: &AffinePoint, curve: &CurveParams) -> Affin
     match (p, q) {
         (AffinePoint::Infinity, _) => *q,
         (_, AffinePoint::Infinity) => *p,
-        (
-            AffinePoint::Finite { x: x1, y: y1 },
-            AffinePoint::Finite { x: x2, y: y2 },
-        ) => {
+        (AffinePoint::Finite { x: x1, y: y1 }, AffinePoint::Finite { x: x2, y: y2 }) => {
             if x1 == x2 {
                 if y1 == y2 {
                     // P == Q, use doubling
@@ -65,7 +62,7 @@ pub fn point_double(p: &AffinePoint, curve: &CurveParams) -> AffinePoint {
     }
 }
 
-/// Scalar multiplication via double-and-add: compute [k]P.
+/// Scalar multiplication via double-and-add: compute \[k\]P.
 pub fn scalar_mul(k: u64, p: &AffinePoint, curve: &CurveParams) -> AffinePoint {
     if k == 0 {
         return AffinePoint::Infinity;
@@ -122,7 +119,11 @@ pub fn jacobian_double(p: &JacobianPoint, curve: &CurveParams) -> JacobianPoint 
     // Z3 = 2 · Y1 · Z1
     let z3 = two * p.y * p.z;
 
-    JacobianPoint { x: x3, y: y3, z: z3 }
+    JacobianPoint {
+        x: x3,
+        y: y3,
+        z: z3,
+    }
 }
 
 /// Mixed Jacobian–affine point addition.
@@ -146,7 +147,7 @@ pub fn jacobian_mixed_add(
         return JacobianPoint::from_affine(q);
     }
     match q {
-        AffinePoint::Infinity => return *p,
+        AffinePoint::Infinity => *p,
         AffinePoint::Finite { x: x2, y: y2 } => {
             // Z1² and Z1³
             let z1_sq = p.z * p.z;
@@ -189,7 +190,11 @@ pub fn jacobian_mixed_add(
             // Z3 = Z1 · H
             let z3 = p.z * h;
 
-            JacobianPoint { x: x3, y: y3, z: z3 }
+            JacobianPoint {
+                x: x3,
+                y: y3,
+                z: z3,
+            }
         }
     }
 }

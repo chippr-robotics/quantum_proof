@@ -134,9 +134,9 @@ impl GoldilocksField {
         debug_assert_eq!(z.legendre(), -1, "z must be a quadratic non-residue");
 
         let mut m = s;
-        let mut c = z.pow(q);                // z^Q
-        let mut t = self.pow(q);             // n^Q
-        let mut r = self.pow((q + 1) / 2);   // n^((Q+1)/2)
+        let mut c = z.pow(q); // z^Q
+        let mut t = self.pow(q); // n^Q
+        let mut r = self.pow(q.div_ceil(2)); // n^((Q+1)/2)
 
         loop {
             if t.0 == 0 {

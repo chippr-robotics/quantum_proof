@@ -38,6 +38,7 @@ impl ReversibleEcAdd {
     ///
     /// The workspace requires approximately 5n qubits for intermediates,
     /// plus whatever the inversion subroutine needs internally.
+    #[allow(clippy::too_many_arguments)]
     pub fn forward_gates(
         &self,
         x1_offset: usize,
@@ -77,14 +78,14 @@ impl ReversibleEcAdd {
         let n = self.n;
         let mut gates = Vec::new();
 
-        let dx_off      = workspace_offset;
-        let dy_off      = workspace_offset + n;
-        let dx_inv_off  = workspace_offset + 2 * n;
-        let lambda_off  = workspace_offset + 3 * n;
+        let dx_off = workspace_offset;
+        let dy_off = workspace_offset + n;
+        let dx_inv_off = workspace_offset + 2 * n;
+        let lambda_off = workspace_offset + 3 * n;
         let lambda_sq_off = workspace_offset + 4 * n;
-        let temp_off    = workspace_offset + 5 * n;
-        let arith_work  = workspace_offset + 6 * n;
-        let carry_bit   = workspace_offset + 9 * n + 1;
+        let temp_off = workspace_offset + 5 * n;
+        let arith_work = workspace_offset + 6 * n;
+        let carry_bit = workspace_offset + 9 * n + 1;
 
         counter.allocate_ancilla(9 * n + 2);
 
@@ -111,7 +112,10 @@ impl ReversibleEcAdd {
         }
         // a2) CNOT(x₁, Δx) → Δx = NOT(x₁)
         for i in 0..n {
-            let g = Gate::Cnot { control: x1_offset + i, target: dx_off + i };
+            let g = Gate::Cnot {
+                control: x1_offset + i,
+                target: dx_off + i,
+            };
             counter.record_gate(&g);
             step1_gates.push(g);
         }
@@ -143,7 +147,10 @@ impl ReversibleEcAdd {
             step2_gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: y1_offset + i, target: dy_off + i };
+            let g = Gate::Cnot {
+                control: y1_offset + i,
+                target: dy_off + i,
+            };
             counter.record_gate(&g);
             step2_gates.push(g);
         }
@@ -181,17 +188,26 @@ impl ReversibleEcAdd {
         // ── Step 6: x₃ = λ² XOR x₁ XOR x₂ ───────────────────────────────────────
         // (XOR-based difference; arithmetic subtraction is a future improvement)
         for i in 0..n {
-            let g = Gate::Cnot { control: lambda_sq_off + i, target: x3_offset + i };
+            let g = Gate::Cnot {
+                control: lambda_sq_off + i,
+                target: x3_offset + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: x1_offset + i, target: x3_offset + i };
+            let g = Gate::Cnot {
+                control: x1_offset + i,
+                target: x3_offset + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: x2_offset + i, target: x3_offset + i };
+            let g = Gate::Cnot {
+                control: x2_offset + i,
+                target: x3_offset + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -199,23 +215,33 @@ impl ReversibleEcAdd {
         // ── Step 7: y₃ = λ·(x₁ XOR x₃) XOR y₁ ───────────────────────────────────
         let mut step7_temp_gates: Vec<Gate> = Vec::new();
         for i in 0..n {
-            let g = Gate::Cnot { control: x1_offset + i, target: temp_off + i };
+            let g = Gate::Cnot {
+                control: x1_offset + i,
+                target: temp_off + i,
+            };
             counter.record_gate(&g);
             step7_temp_gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: x3_offset + i, target: temp_off + i };
+            let g = Gate::Cnot {
+                control: x3_offset + i,
+                target: temp_off + i,
+            };
             counter.record_gate(&g);
             step7_temp_gates.push(g);
         }
         gates.extend(step7_temp_gates.clone());
 
         let mul2 = crate::multiplier::ReversibleMultiplier::new(n);
-        let step7_mul_gates = mul2.forward_gates(lambda_off, temp_off, y3_offset, arith_work, counter);
+        let step7_mul_gates =
+            mul2.forward_gates(lambda_off, temp_off, y3_offset, arith_work, counter);
         gates.extend(step7_mul_gates.clone());
 
         for i in 0..n {
-            let g = Gate::Cnot { control: y1_offset + i, target: y3_offset + i };
+            let g = Gate::Cnot {
+                control: y1_offset + i,
+                target: y3_offset + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }

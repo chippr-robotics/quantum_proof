@@ -9,6 +9,6 @@ pub mod scalar_mul_jacobian;
 mod tests;
 
 pub use double_scalar::{
-    build_group_action_circuit, build_group_action_circuit_jacobian,
-    CircuitSummary, GroupActionCircuit,
+    build_group_action_circuit, build_group_action_circuit_jacobian, CircuitSummary,
+    GroupActionCircuit,
 };
