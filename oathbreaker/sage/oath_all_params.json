@@ -1,0 +1,50 @@
+{
+  "Oath-8": {
+    "a": 1,
+    "b": 4,
+    "p": 251,
+    "order": 271,
+    "generator_x": 0,
+    "generator_y": 2,
+    "embedding_degree": 270,
+    "discriminant": 52,
+    "tier": "Oath-8",
+    "field_bits": 8
+  },
+  "Oath-16": {
+    "a": 1,
+    "b": 35,
+    "p": 65521,
+    "order": 65761,
+    "generator_x": 0,
+    "generator_y": 22627,
+    "embedding_degree": 2740,
+    "discriminant": 60425,
+    "tier": "Oath-16",
+    "field_bits": 16
+  },
+  "Oath-32": {
+    "a": 1,
+    "b": 13,
+    "p": 4294967291,
+    "order": 4295040499,
+    "generator_x": 0,
+    "generator_y": 929806792,
+    "embedding_degree": 306788607,
+    "discriminant": 4294894219,
+    "tier": "Oath-32",
+    "field_bits": 32
+  },
+  "Oath-64": {
+    "a": 1,
+    "b": 38,
+    "p": 18446744069414584321,
+    "order": 18446744077729562113,
+    "generator_x": 1,
+    "generator_y": 4519977769586765578,
+    "embedding_degree": 9223372038864781056,
+    "discriminant": 18446744069413960449,
+    "tier": "Oath-64",
+    "field_bits": 64
+  }
+}

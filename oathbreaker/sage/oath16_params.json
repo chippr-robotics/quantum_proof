@@ -1,0 +1,12 @@
+{
+  "a": 1,
+  "b": 35,
+  "p": 65521,
+  "order": 65761,
+  "generator_x": 0,
+  "generator_y": 22627,
+  "embedding_degree": 2740,
+  "discriminant": 60425,
+  "tier": "Oath-16",
+  "field_bits": 16
+}
