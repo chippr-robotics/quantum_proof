@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod circuit_tests {
     use crate::qft_stub::QftResourceEstimate;
 
     #[test]

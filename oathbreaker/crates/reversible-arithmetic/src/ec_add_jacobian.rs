@@ -74,16 +74,16 @@ impl ReversibleJacobianMixedAdd {
         let mut gates = Vec::new();
 
         // Workspace sub-register offsets
-        let z1_sq   = workspace_offset;
-        let z1_cu   = workspace_offset + n;
-        let u2_off  = workspace_offset + 2 * n;
-        let s2_off  = workspace_offset + 3 * n;
-        let h_off   = workspace_offset + 4 * n;
-        let r_off   = workspace_offset + 5 * n;
-        let h_sq    = workspace_offset + 6 * n;
-        let h_cu    = workspace_offset + 7 * n;
-        let x1h2    = workspace_offset + 8 * n;
-        let r_sq    = workspace_offset + 9 * n;
+        let z1_sq = workspace_offset;
+        let z1_cu = workspace_offset + n;
+        let u2_off = workspace_offset + 2 * n;
+        let s2_off = workspace_offset + 3 * n;
+        let h_off = workspace_offset + 4 * n;
+        let r_off = workspace_offset + 5 * n;
+        let h_sq = workspace_offset + 6 * n;
+        let h_cu = workspace_offset + 7 * n;
+        let x1h2 = workspace_offset + 8 * n;
+        let r_sq = workspace_offset + 9 * n;
         let mul_work = workspace_offset + 10 * n;
 
         counter.allocate_ancilla(13 * n + 1);
@@ -111,24 +111,36 @@ impl ReversibleJacobianMixedAdd {
 
         // 5. H = U₂ - X₁  (reversible XOR subtraction)
         for i in 0..n {
-            let g = Gate::Cnot { control: u2_off + i, target: h_off + i };
+            let g = Gate::Cnot {
+                control: u2_off + i,
+                target: h_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: acc_x + i, target: h_off + i };
+            let g = Gate::Cnot {
+                control: acc_x + i,
+                target: h_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
 
         // 6. R = S₂ - Y₁
         for i in 0..n {
-            let g = Gate::Cnot { control: s2_off + i, target: r_off + i };
+            let g = Gate::Cnot {
+                control: s2_off + i,
+                target: r_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: acc_y + i, target: r_off + i };
+            let g = Gate::Cnot {
+                control: acc_y + i,
+                target: r_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -152,22 +164,34 @@ impl ReversibleJacobianMixedAdd {
         // 11. X₃ = R² - H³ - 2·X₁·H²
         // out_x = R² ⊕ H³ ⊕ X₁·H² ⊕ X₁·H²
         for i in 0..n {
-            let g = Gate::Cnot { control: r_sq + i, target: out_x + i };
+            let g = Gate::Cnot {
+                control: r_sq + i,
+                target: out_x + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: h_cu + i, target: out_x + i };
+            let g = Gate::Cnot {
+                control: h_cu + i,
+                target: out_x + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: x1h2 + i, target: out_x + i };
+            let g = Gate::Cnot {
+                control: x1h2 + i,
+                target: out_x + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: x1h2 + i, target: out_x + i };
+            let g = Gate::Cnot {
+                control: x1h2 + i,
+                target: out_x + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -175,20 +199,29 @@ impl ReversibleJacobianMixedAdd {
         // 12. Y₃ = R·(X₁·H² - X₃) - Y₁·H³
         // temp1 = X₁·H² - X₃ (reuse r_sq as temp since we're done with it)
         let temp1 = r_sq; // reuse
-        // Clear r_sq first (reverse the copy)
+                          // Clear r_sq first (reverse the copy)
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: r_off + i, target: temp1 + i };
+            let g = Gate::Cnot {
+                control: r_off + i,
+                target: temp1 + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         // temp1 = X₁·H² ⊕ X₃
         for i in 0..n {
-            let g = Gate::Cnot { control: x1h2 + i, target: temp1 + i };
+            let g = Gate::Cnot {
+                control: x1h2 + i,
+                target: temp1 + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: out_x + i, target: temp1 + i };
+            let g = Gate::Cnot {
+                control: out_x + i,
+                target: temp1 + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -202,14 +235,17 @@ impl ReversibleJacobianMixedAdd {
         // For simplicity, subtract Y₁·H³ by computing it into a temp and XOR
         // We need another workspace slot — reuse z1_cu area temporarily
         let y1h3_temp = z1_cu; // will need to restore later for uncompute
-        // Save z1_cu state first (push to stack conceptually)
-        // Actually, since uncomputation will handle this, just compute Y₁·H³
-        // directly into out_y via controlled multiply (simplified)
-        // For gate-level model: compute Y₁·H³ and XOR into out_y
+                               // Save z1_cu state first (push to stack conceptually)
+                               // Actually, since uncomputation will handle this, just compute Y₁·H³
+                               // directly into out_y via controlled multiply (simplified)
+                               // For gate-level model: compute Y₁·H³ and XOR into out_y
         let g = mul.forward_gates(acc_y, h_cu, y1h3_temp, mul_work, counter);
         gates.extend(g);
         for i in 0..n {
-            let g = Gate::Cnot { control: y1h3_temp + i, target: out_y + i };
+            let g = Gate::Cnot {
+                control: y1h3_temp + i,
+                target: out_y + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -234,36 +270,54 @@ impl ReversibleJacobianMixedAdd {
 
         // Uncompute temp1
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: out_x + i, target: temp1 + i };
+            let g = Gate::Cnot {
+                control: out_x + i,
+                target: temp1 + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: x1h2 + i, target: temp1 + i };
+            let g = Gate::Cnot {
+                control: x1h2 + i,
+                target: temp1 + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
 
         // Uncompute R
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: acc_y + i, target: r_off + i };
+            let g = Gate::Cnot {
+                control: acc_y + i,
+                target: r_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: s2_off + i, target: r_off + i };
+            let g = Gate::Cnot {
+                control: s2_off + i,
+                target: r_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
 
         // Uncompute H
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: acc_x + i, target: h_off + i };
+            let g = Gate::Cnot {
+                control: acc_x + i,
+                target: h_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: u2_off + i, target: h_off + i };
+            let g = Gate::Cnot {
+                control: u2_off + i,
+                target: h_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }

@@ -6,11 +6,11 @@ use reversible_arithmetic::resource_counter::ResourceCounter;
 /// Windowed double-and-add scalar multiplication (reversible).
 ///
 /// Used for both halves of the coherent group-action map:
-/// - [a]G controlled by exponent register a
-/// - [b]Q controlled by exponent register b
+/// - \[a\]G controlled by exponent register a
+/// - \[b\]Q controlled by exponent register b
 ///
 /// Instead of bit-by-bit double-and-add, processes the scalar in w-bit windows:
-/// - Precompute table of [0]P, [1]P, ..., [2^w - 1]P for base point P
+/// - Precompute table of \[0\]P, \[1\]P, ..., \[2^w - 1\]P for base point P
 /// - Process scalar in w-bit windows: 64/w iterations instead of 64
 /// - Each iteration: w point doublings + 1 table lookup + 1 conditional point addition
 ///
@@ -25,7 +25,7 @@ pub struct WindowedScalarMul {
 impl WindowedScalarMul {
     pub fn new(window_size: usize, scalar_bits: usize) -> Self {
         assert!(
-            scalar_bits % window_size == 0,
+            scalar_bits.is_multiple_of(window_size),
             "Scalar bits must be divisible by window size"
         );
         Self {
@@ -98,11 +98,8 @@ impl WindowedScalarMul {
         let ec_add_out_y = ancilla_pool.allocate("ec_add_out_y", n, counter);
 
         // Precompute table (classical — baked into circuit as constants)
-        let precomp = crate::precompute::PrecomputeTable::generate_for_point(
-            _curve,
-            &_curve.generator,
-            w,
-        );
+        let precomp =
+            crate::precompute::PrecomputeTable::generate_for_point(_curve, &_curve.generator, w);
 
         for window_idx in 0..num_windows {
             // --- Step 1: w point doublings of the accumulator ---
@@ -122,9 +119,18 @@ impl WindowedScalarMul {
                 // Swap result back to accumulator: acc ← temp, clear temp.
                 for i in 0..n {
                     // CNOT swap: a ^= b; b ^= a; a ^= b
-                    let g1 = Gate::Cnot { control: dbl_temp_x.offset + i, target: point_x_offset + i };
-                    let g2 = Gate::Cnot { control: point_x_offset + i, target: dbl_temp_x.offset + i };
-                    let g3 = Gate::Cnot { control: dbl_temp_x.offset + i, target: point_x_offset + i };
+                    let g1 = Gate::Cnot {
+                        control: dbl_temp_x.offset + i,
+                        target: point_x_offset + i,
+                    };
+                    let g2 = Gate::Cnot {
+                        control: point_x_offset + i,
+                        target: dbl_temp_x.offset + i,
+                    };
+                    let g3 = Gate::Cnot {
+                        control: dbl_temp_x.offset + i,
+                        target: point_x_offset + i,
+                    };
                     counter.record_gate(&g1);
                     counter.record_gate(&g2);
                     counter.record_gate(&g3);
@@ -133,9 +139,18 @@ impl WindowedScalarMul {
                     gates.push(g3);
                 }
                 for i in 0..n {
-                    let g1 = Gate::Cnot { control: dbl_temp_y.offset + i, target: point_y_offset + i };
-                    let g2 = Gate::Cnot { control: point_y_offset + i, target: dbl_temp_y.offset + i };
-                    let g3 = Gate::Cnot { control: dbl_temp_y.offset + i, target: point_y_offset + i };
+                    let g1 = Gate::Cnot {
+                        control: dbl_temp_y.offset + i,
+                        target: point_y_offset + i,
+                    };
+                    let g2 = Gate::Cnot {
+                        control: point_y_offset + i,
+                        target: dbl_temp_y.offset + i,
+                    };
+                    let g3 = Gate::Cnot {
+                        control: dbl_temp_y.offset + i,
+                        target: point_y_offset + i,
+                    };
                     counter.record_gate(&g1);
                     counter.record_gate(&g2);
                     counter.record_gate(&g3);
@@ -172,7 +187,9 @@ impl WindowedScalarMul {
                     // Apply X to window bits where entry_idx has 0 (control-on-0 gadget).
                     for k in 0..w {
                         if (entry_idx >> k) & 1 == 0 {
-                            let g = Gate::Not { target: window_start + k };
+                            let g = Gate::Not {
+                                target: window_start + k,
+                            };
                             counter.record_gate(&g);
                             qrom_gates.push(g);
                         }
@@ -289,7 +306,9 @@ impl WindowedScalarMul {
                     // Undo the X gadget on 0-controlled bits (restore window register).
                     for k in 0..w {
                         if (entry_idx >> k) & 1 == 0 {
-                            let g = Gate::Not { target: window_start + k };
+                            let g = Gate::Not {
+                                target: window_start + k,
+                            };
                             counter.record_gate(&g);
                             qrom_gates.push(g);
                         }
@@ -306,10 +325,10 @@ impl WindowedScalarMul {
             // avoid aliasing the accumulator inputs with the adder outputs.
             let adder = reversible_arithmetic::ec_add_affine::ReversibleEcAdd::new(n);
             let add_gates = adder.forward_gates(
-                point_x_offset,   // x₁: accumulator input
-                point_y_offset,   // y₁: accumulator input
-                lookup_x.offset,  // x₂: table lookup result
-                lookup_y.offset,  // y₂: table lookup result
+                point_x_offset,      // x₁: accumulator input
+                point_y_offset,      // y₁: accumulator input
+                lookup_x.offset,     // x₂: table lookup result
+                lookup_y.offset,     // y₂: table lookup result
                 ec_add_out_x.offset, // x₃: result (distinct register)
                 ec_add_out_y.offset, // y₃: result (distinct register)
                 ec_workspace.offset,
@@ -319,9 +338,18 @@ impl WindowedScalarMul {
 
             // Swap result into the accumulator and clear ec_add_out registers.
             for i in 0..n {
-                let g1 = Gate::Cnot { control: ec_add_out_x.offset + i, target: point_x_offset + i };
-                let g2 = Gate::Cnot { control: point_x_offset + i, target: ec_add_out_x.offset + i };
-                let g3 = Gate::Cnot { control: ec_add_out_x.offset + i, target: point_x_offset + i };
+                let g1 = Gate::Cnot {
+                    control: ec_add_out_x.offset + i,
+                    target: point_x_offset + i,
+                };
+                let g2 = Gate::Cnot {
+                    control: point_x_offset + i,
+                    target: ec_add_out_x.offset + i,
+                };
+                let g3 = Gate::Cnot {
+                    control: ec_add_out_x.offset + i,
+                    target: point_x_offset + i,
+                };
                 counter.record_gate(&g1);
                 counter.record_gate(&g2);
                 counter.record_gate(&g3);
@@ -330,9 +358,18 @@ impl WindowedScalarMul {
                 gates.push(g3);
             }
             for i in 0..n {
-                let g1 = Gate::Cnot { control: ec_add_out_y.offset + i, target: point_y_offset + i };
-                let g2 = Gate::Cnot { control: point_y_offset + i, target: ec_add_out_y.offset + i };
-                let g3 = Gate::Cnot { control: ec_add_out_y.offset + i, target: point_y_offset + i };
+                let g1 = Gate::Cnot {
+                    control: ec_add_out_y.offset + i,
+                    target: point_y_offset + i,
+                };
+                let g2 = Gate::Cnot {
+                    control: point_y_offset + i,
+                    target: ec_add_out_y.offset + i,
+                };
+                let g3 = Gate::Cnot {
+                    control: ec_add_out_y.offset + i,
+                    target: point_y_offset + i,
+                };
                 counter.record_gate(&g1);
                 counter.record_gate(&g2);
                 counter.record_gate(&g3);

@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod reversible_tests {
     use crate::gates::Gate;
     use crate::register::QuantumRegister;
     use crate::resource_counter::ResourceCounter;
@@ -120,7 +120,12 @@ mod tests {
         ];
 
         for gate in &gates {
-            assert_eq!(gate.inverse(), *gate, "Gate should be self-inverse: {:?}", gate);
+            assert_eq!(
+                gate.inverse(),
+                *gate,
+                "Gate should be self-inverse: {:?}",
+                gate
+            );
         }
     }
 }

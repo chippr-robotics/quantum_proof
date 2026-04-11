@@ -103,9 +103,9 @@ impl ReversibleMultiplier {
             let add_width = n; // add all n bits of pp into acc[i..i+n]
             let adder = CuccaroAdder::new(add_width);
             let add_gates = adder.forward_gates(
-                pp_offset,       // 'a' input: partial-product row (preserved by adder)
-                acc_offset + i,  // 'b' input / output: accumulator at column i
-                carry_bit,       // ancilla carry (starts and ends at 0)
+                pp_offset,      // 'a' input: partial-product row (preserved by adder)
+                acc_offset + i, // 'b' input / output: accumulator at column i
+                carry_bit,      // ancilla carry (starts and ends at 0)
                 counter,
             );
             forward_gates_list.extend(add_gates);
@@ -149,7 +149,10 @@ impl ReversibleMultiplier {
             if k + 32 < n {
                 // Step 1: Flip bit k+32 (the +2^(k+32) increment), controlled on h.
                 // This is the base CNOT that adds 2^(k+32) when there is no carry.
-                let g_flip = Gate::Cnot { control: h, target: acc_offset + k + 32 };
+                let g_flip = Gate::Cnot {
+                    control: h,
+                    target: acc_offset + k + 32,
+                };
                 counter.record_gate(&g_flip);
                 reduce_gates.push(g_flip);
 
@@ -168,7 +171,10 @@ impl ReversibleMultiplier {
                     reduce_gates.push(g_carry);
 
                     // Propagate carry to pos+1
-                    let g_sum = Gate::Cnot { control: carry_bit, target: pos + 1 };
+                    let g_sum = Gate::Cnot {
+                        control: carry_bit,
+                        target: pos + 1,
+                    };
                     counter.record_gate(&g_sum);
                     reduce_gates.push(g_sum);
 
@@ -189,7 +195,10 @@ impl ReversibleMultiplier {
             // then borrow-propagate if acc[k] was 0).
             {
                 let pos_k = acc_offset + k;
-                let g_flip = Gate::Cnot { control: h, target: pos_k };
+                let g_flip = Gate::Cnot {
+                    control: h,
+                    target: pos_k,
+                };
                 counter.record_gate(&g_flip);
                 reduce_gates.push(g_flip);
 
@@ -280,6 +289,12 @@ impl ReversibleSquarer {
         // gate count by ~25% (each a[i]*a[j] term appears twice, so only
         // one Toffoli + doubling is needed instead of two Toffoli gates).
         let mul = ReversibleMultiplier::new(self.n);
-        mul.forward_gates(input_offset, input_offset, result_offset, workspace_offset, counter)
+        mul.forward_gates(
+            input_offset,
+            input_offset,
+            result_offset,
+            workspace_offset,
+            counter,
+        )
     }
 }

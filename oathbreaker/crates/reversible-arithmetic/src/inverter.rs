@@ -86,9 +86,18 @@ impl FermatInverter {
             // Swap acc and sq_work: acc now has the squared value
             for i in 0..n {
                 // CNOT swap pattern: a^=b, b^=a, a^=b
-                let g1 = Gate::Cnot { control: sq_work + i, target: acc_reg + i };
-                let g2 = Gate::Cnot { control: acc_reg + i, target: sq_work + i };
-                let g3 = Gate::Cnot { control: sq_work + i, target: acc_reg + i };
+                let g1 = Gate::Cnot {
+                    control: sq_work + i,
+                    target: acc_reg + i,
+                };
+                let g2 = Gate::Cnot {
+                    control: acc_reg + i,
+                    target: sq_work + i,
+                };
+                let g3 = Gate::Cnot {
+                    control: sq_work + i,
+                    target: acc_reg + i,
+                };
                 counter.record_gate(&g1);
                 counter.record_gate(&g2);
                 counter.record_gate(&g3);
@@ -102,7 +111,10 @@ impl FermatInverter {
             // Since we swapped, sq_work has old acc^2 XOR'd state.
             // For cleanliness, we zero it via CNOT from the known state.
             for i in 0..n {
-                let g = Gate::Cnot { control: acc_reg + i, target: sq_work + i };
+                let g = Gate::Cnot {
+                    control: acc_reg + i,
+                    target: sq_work + i,
+                };
                 counter.record_gate(&g);
                 gates.push(g);
             }
@@ -121,9 +133,18 @@ impl FermatInverter {
 
                 // Swap result into acc
                 for i in 0..n {
-                    let g1 = Gate::Cnot { control: sq_work + i, target: acc_reg + i };
-                    let g2 = Gate::Cnot { control: acc_reg + i, target: sq_work + i };
-                    let g3 = Gate::Cnot { control: sq_work + i, target: acc_reg + i };
+                    let g1 = Gate::Cnot {
+                        control: sq_work + i,
+                        target: acc_reg + i,
+                    };
+                    let g2 = Gate::Cnot {
+                        control: acc_reg + i,
+                        target: sq_work + i,
+                    };
+                    let g3 = Gate::Cnot {
+                        control: sq_work + i,
+                        target: acc_reg + i,
+                    };
                     counter.record_gate(&g1);
                     counter.record_gate(&g2);
                     counter.record_gate(&g3);
@@ -134,7 +155,10 @@ impl FermatInverter {
 
                 // Clear sq_work
                 for i in 0..n {
-                    let g = Gate::Cnot { control: acc_reg + i, target: sq_work + i };
+                    let g = Gate::Cnot {
+                        control: acc_reg + i,
+                        target: sq_work + i,
+                    };
                     counter.record_gate(&g);
                     gates.push(g);
                 }
@@ -143,7 +167,10 @@ impl FermatInverter {
 
         // Copy final result from accumulator to result register
         for i in 0..n {
-            let g = Gate::Cnot { control: acc_reg + i, target: result_offset + i };
+            let g = Gate::Cnot {
+                control: acc_reg + i,
+                target: result_offset + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }

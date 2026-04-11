@@ -52,7 +52,8 @@ pub fn prior_work_table() -> Vec<PriorWork> {
             field_bits: 256,
             qubits: None,
             toffoli: None,
-            notes: "March 2026 — ZK proof of point addition only, full circuit withheld".to_string(),
+            notes: "March 2026 — ZK proof of point addition only, full circuit withheld"
+                .to_string(),
         },
     ]
 }

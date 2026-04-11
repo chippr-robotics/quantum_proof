@@ -61,15 +61,15 @@ impl ReversibleJacobianDouble {
         let n = self.n;
         let mut gates = Vec::new();
 
-        let a_off   = workspace_offset;           // Y₁²
-        let z1sq    = workspace_offset + n;        // Z₁²
-        let z1_4    = workspace_offset + 2 * n;    // Z₁⁴
-        let x1sq    = workspace_offset + 3 * n;    // X₁²
-        let d_off   = workspace_offset + 4 * n;    // D
-        let b_off   = workspace_offset + 5 * n;    // B
-        let c_off   = workspace_offset + 6 * n;    // C
-        let d_sq    = workspace_offset + 7 * n;    // D²
-        let temp    = workspace_offset + 8 * n;    // temp
+        let a_off = workspace_offset; // Y₁²
+        let z1sq = workspace_offset + n; // Z₁²
+        let z1_4 = workspace_offset + 2 * n; // Z₁⁴
+        let x1sq = workspace_offset + 3 * n; // X₁²
+        let d_off = workspace_offset + 4 * n; // D
+        let b_off = workspace_offset + 5 * n; // B
+        let c_off = workspace_offset + 6 * n; // C
+        let d_sq = workspace_offset + 7 * n; // D²
+        let temp = workspace_offset + 8 * n; // temp
         let mul_work = workspace_offset + 9 * n;
 
         counter.allocate_ancilla(12 * n + 1);
@@ -98,19 +98,28 @@ impl ReversibleJacobianDouble {
         // 5. D = 3·X₁² + a·Z₁⁴
         // Start with D = X₁² (copy)
         for i in 0..n {
-            let g = Gate::Cnot { control: x1sq + i, target: d_off + i };
+            let g = Gate::Cnot {
+                control: x1sq + i,
+                target: d_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         // D += X₁² (now D = 2·X₁²)
         for i in 0..n {
-            let g = Gate::Cnot { control: x1sq + i, target: d_off + i };
+            let g = Gate::Cnot {
+                control: x1sq + i,
+                target: d_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         // D += X₁² (now D = 3·X₁²)
         for i in 0..n {
-            let g = Gate::Cnot { control: x1sq + i, target: d_off + i };
+            let g = Gate::Cnot {
+                control: x1sq + i,
+                target: d_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -119,7 +128,10 @@ impl ReversibleJacobianDouble {
         // baked into the circuit. For a=0 this is a no-op. For a=1, add Z₁⁴.
         // We add Z₁⁴ once (assumes a=1 or handles a as constant multiplier).
         for i in 0..n {
-            let g = Gate::Cnot { control: z1_4 + i, target: d_off + i };
+            let g = Gate::Cnot {
+                control: z1_4 + i,
+                target: d_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -134,23 +146,35 @@ impl ReversibleJacobianDouble {
         // b_off currently holds X₁·A. We need 4× that.
         // Copy b_off to temp, add 3 more times.
         for i in 0..n {
-            let g = Gate::Cnot { control: b_off + i, target: temp + i };
+            let g = Gate::Cnot {
+                control: b_off + i,
+                target: temp + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: temp + i, target: b_off + i };
+            let g = Gate::Cnot {
+                control: temp + i,
+                target: b_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: temp + i, target: b_off + i };
+            let g = Gate::Cnot {
+                control: temp + i,
+                target: b_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         // Clear temp
         for i in 0..n {
-            let g = Gate::Cnot { control: b_off + i, target: temp + i };
+            let g = Gate::Cnot {
+                control: b_off + i,
+                target: temp + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -168,17 +192,26 @@ impl ReversibleJacobianDouble {
 
         // 9. X₃ = D² - 2·B
         for i in 0..n {
-            let g = Gate::Cnot { control: d_sq + i, target: out_x + i };
+            let g = Gate::Cnot {
+                control: d_sq + i,
+                target: out_x + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: b_off + i, target: out_x + i };
+            let g = Gate::Cnot {
+                control: b_off + i,
+                target: out_x + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: b_off + i, target: out_x + i };
+            let g = Gate::Cnot {
+                control: b_off + i,
+                target: out_x + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -186,12 +219,18 @@ impl ReversibleJacobianDouble {
         // 10. Y₃ = D·(B - X₃) - C
         // Compute B - X₃ into temp
         for i in 0..n {
-            let g = Gate::Cnot { control: b_off + i, target: temp + i };
+            let g = Gate::Cnot {
+                control: b_off + i,
+                target: temp + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in 0..n {
-            let g = Gate::Cnot { control: out_x + i, target: temp + i };
+            let g = Gate::Cnot {
+                control: out_x + i,
+                target: temp + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -200,7 +239,10 @@ impl ReversibleJacobianDouble {
         gates.extend(g);
         // Subtract C from out_y
         for i in 0..n {
-            let g = Gate::Cnot { control: c_off + i, target: out_y + i };
+            let g = Gate::Cnot {
+                control: c_off + i,
+                target: out_y + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -212,7 +254,10 @@ impl ReversibleJacobianDouble {
         // For the circuit model, doubling is one addition = O(n) CNOT.
         // Copy and add pattern:
         for i in 0..n {
-            let g = Gate::Cnot { control: out_z + i, target: temp + i };
+            let g = Gate::Cnot {
+                control: out_z + i,
+                target: temp + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
@@ -222,33 +267,48 @@ impl ReversibleJacobianDouble {
         // ---- Uncompute intermediates ----
         // Clean temp (B - X₃)
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: out_x + i, target: temp + i };
+            let g = Gate::Cnot {
+                control: out_x + i,
+                target: temp + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: b_off + i, target: temp + i };
+            let g = Gate::Cnot {
+                control: b_off + i,
+                target: temp + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
 
         // Clean X₁²
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: in_x + i, target: x1sq + i };
+            let g = Gate::Cnot {
+                control: in_x + i,
+                target: x1sq + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
 
         // Clean A = Y₁²
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: in_y + i, target: a_off + i };
+            let g = Gate::Cnot {
+                control: in_y + i,
+                target: a_off + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }
 
         // Clean Z₁², Z₁⁴
         for i in (0..n).rev() {
-            let g = Gate::Cnot { control: in_z + i, target: z1sq + i };
+            let g = Gate::Cnot {
+                control: in_z + i,
+                target: z1sq + i,
+            };
             counter.record_gate(&g);
             gates.push(g);
         }

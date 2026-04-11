@@ -31,7 +31,7 @@ pub struct WindowedScalarMulJacobian {
 impl WindowedScalarMulJacobian {
     pub fn new(window_size: usize, scalar_bits: usize) -> Self {
         assert!(
-            scalar_bits % window_size == 0,
+            scalar_bits.is_multiple_of(window_size),
             "Scalar bits must be divisible by window size"
         );
         Self {
@@ -53,12 +53,13 @@ impl WindowedScalarMulJacobian {
     /// 2. 1 QROM table lookup (affine point loaded into ancilla)
     /// 3. 1 Jacobian mixed addition (0 inversions)
     /// 4. Uncompute QROM ancillae
+    #[allow(clippy::too_many_arguments)]
     pub fn forward_gates(
         &self,
         scalar_reg_offset: usize,
-        point_x_offset: usize,   // Jacobian X
-        point_y_offset: usize,   // Jacobian Y
-        point_z_offset: usize,   // Jacobian Z
+        point_x_offset: usize, // Jacobian X
+        point_y_offset: usize, // Jacobian Y
+        point_z_offset: usize, // Jacobian Z
         ancilla_pool: &mut AncillaPool,
         counter: &mut ResourceCounter,
         curve: &CurveParams,
@@ -82,11 +83,8 @@ impl WindowedScalarMulJacobian {
         let ec_workspace = ancilla_pool.allocate("ec_workspace_jac", 13 * n + 1, counter);
 
         // Precompute table (classical — baked into circuit as constants)
-        let precomp = crate::precompute::PrecomputeTable::generate_for_point(
-            curve,
-            &curve.generator,
-            w,
-        );
+        let precomp =
+            crate::precompute::PrecomputeTable::generate_for_point(curve, &curve.generator, w);
 
         let doubler = reversible_arithmetic::ec_double_jacobian::ReversibleJacobianDouble::new(n);
         let adder = reversible_arithmetic::ec_add_jacobian::ReversibleJacobianMixedAdd::new(n);
@@ -113,9 +111,18 @@ impl WindowedScalarMulJacobian {
                     (temp_z.offset, point_z_offset),
                 ] {
                     for i in 0..n {
-                        let g1 = Gate::Cnot { control: reg_pair.0 + i, target: reg_pair.1 + i };
-                        let g2 = Gate::Cnot { control: reg_pair.1 + i, target: reg_pair.0 + i };
-                        let g3 = Gate::Cnot { control: reg_pair.0 + i, target: reg_pair.1 + i };
+                        let g1 = Gate::Cnot {
+                            control: reg_pair.0 + i,
+                            target: reg_pair.1 + i,
+                        };
+                        let g2 = Gate::Cnot {
+                            control: reg_pair.1 + i,
+                            target: reg_pair.0 + i,
+                        };
+                        let g3 = Gate::Cnot {
+                            control: reg_pair.0 + i,
+                            target: reg_pair.1 + i,
+                        };
                         counter.record_gate(&g1);
                         counter.record_gate(&g2);
                         counter.record_gate(&g3);
@@ -203,9 +210,18 @@ impl WindowedScalarMulJacobian {
                 (temp_z.offset, point_z_offset),
             ] {
                 for i in 0..n {
-                    let g1 = Gate::Cnot { control: reg_pair.0 + i, target: reg_pair.1 + i };
-                    let g2 = Gate::Cnot { control: reg_pair.1 + i, target: reg_pair.0 + i };
-                    let g3 = Gate::Cnot { control: reg_pair.0 + i, target: reg_pair.1 + i };
+                    let g1 = Gate::Cnot {
+                        control: reg_pair.0 + i,
+                        target: reg_pair.1 + i,
+                    };
+                    let g2 = Gate::Cnot {
+                        control: reg_pair.1 + i,
+                        target: reg_pair.0 + i,
+                    };
+                    let g3 = Gate::Cnot {
+                        control: reg_pair.0 + i,
+                        target: reg_pair.1 + i,
+                    };
                     counter.record_gate(&g1);
                     counter.record_gate(&g2);
                     counter.record_gate(&g3);

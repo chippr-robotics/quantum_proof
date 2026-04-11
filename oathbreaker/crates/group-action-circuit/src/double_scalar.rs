@@ -10,7 +10,7 @@ use crate::qft_stub::QftResourceEstimate;
 use crate::scalar_mul::WindowedScalarMul;
 use crate::scalar_mul_jacobian::WindowedScalarMulJacobian;
 
-/// The coherent double-scalar group-action circuit: |a⟩|b⟩|O⟩ → |a⟩|b⟩|[a]G + [b]Q⟩
+/// The coherent double-scalar group-action circuit: |a⟩|b⟩|O⟩ → |a⟩|b⟩|\[a\]G + \[b\]Q⟩
 ///
 /// This is the computationally dominant component of Shor's ECDLP algorithm,
 /// consuming >99% of the qubits and gates. The QFT (applied in v2) adds
@@ -60,8 +60,8 @@ pub struct CircuitSummary {
 /// 1. Two exponent registers (reg_a for G, reg_b for Q)
 /// 2. Point accumulator register (x, y)
 /// 3. Precomputed window tables for both G and Q
-/// 4. Windowed scalar multiplication for [a]G
-/// 5. Windowed scalar multiplication for [b]Q (added to accumulator)
+/// 4. Windowed scalar multiplication for \[a\]G
+/// 5. Windowed scalar multiplication for \[b\]Q (added to accumulator)
 /// 6. QFT resource estimate (described, not executed in v1)
 ///
 /// In the full Shor algorithm, QFT is applied to reg_a and reg_b
@@ -89,9 +89,9 @@ pub fn build_group_action_circuit(curve: &CurveParams, window_size: usize) -> Gr
     // Windowed scalar multiplication for [a]G
     let scalar_mul_a = WindowedScalarMul::new(window_size, n);
     let _gates_a = scalar_mul_a.forward_gates(
-        0,         // reg_a offset
-        2 * n,     // point_x offset
-        3 * n,     // point_y offset
+        0,     // reg_a offset
+        2 * n, // point_x offset
+        3 * n, // point_y offset
         &mut ancilla_pool,
         &mut counter,
         curve,
@@ -100,9 +100,9 @@ pub fn build_group_action_circuit(curve: &CurveParams, window_size: usize) -> Gr
     // Windowed scalar multiplication for [b]Q (adds to accumulator)
     let scalar_mul_b = WindowedScalarMul::new(window_size, n);
     let _gates_b = scalar_mul_b.forward_gates(
-        n,         // reg_b offset
-        2 * n,     // point_x offset (same accumulator)
-        3 * n,     // point_y offset
+        n,     // reg_b offset
+        2 * n, // point_x offset (same accumulator)
+        3 * n, // point_y offset
         &mut ancilla_pool,
         &mut counter,
         curve,
@@ -164,10 +164,10 @@ pub fn build_group_action_circuit_jacobian(
     // Windowed Jacobian scalar multiplication for [a]G
     let scalar_mul_a = WindowedScalarMulJacobian::new(window_size, n);
     let _gates_a = scalar_mul_a.forward_gates(
-        0,         // reg_a offset
-        2 * n,     // point_X offset
-        3 * n,     // point_Y offset
-        4 * n,     // point_Z offset
+        0,     // reg_a offset
+        2 * n, // point_X offset
+        3 * n, // point_Y offset
+        4 * n, // point_Z offset
         &mut ancilla_pool,
         &mut counter,
         curve,
@@ -176,10 +176,10 @@ pub fn build_group_action_circuit_jacobian(
     // Windowed Jacobian scalar multiplication for [b]Q (adds to accumulator)
     let scalar_mul_b = WindowedScalarMulJacobian::new(window_size, n);
     let _gates_b = scalar_mul_b.forward_gates(
-        n,         // reg_b offset
-        2 * n,     // point_X offset (same accumulator)
-        3 * n,     // point_Y offset
-        4 * n,     // point_Z offset
+        n,     // reg_b offset
+        2 * n, // point_X offset (same accumulator)
+        3 * n, // point_Y offset
+        4 * n, // point_Z offset
         &mut ancilla_pool,
         &mut counter,
         curve,
@@ -193,8 +193,8 @@ pub fn build_group_action_circuit_jacobian(
     let z_inv_reg = ancilla_pool.allocate("z_inv", n, &mut counter);
     let inverter = reversible_arithmetic::inverter::FermatInverter::new(n);
     let _inv_gates = inverter.forward_gates(
-        4 * n,              // point_Z input
-        z_inv_reg.offset,   // Z⁻¹ output
+        4 * n,            // point_Z input
+        z_inv_reg.offset, // Z⁻¹ output
         inv_workspace.offset,
         &mut counter,
     );
@@ -221,18 +221,18 @@ pub fn build_group_action_circuit_jacobian(
 
     // x_affine = X · Z⁻²  (overwrite point_X with affine x)
     let _mul_x = mul.forward_gates(
-        2 * n,               // point_X
+        2 * n, // point_X
         z_inv2_reg.offset,
-        2 * n,               // result back to point_X
+        2 * n, // result back to point_X
         inv_workspace.offset,
         &mut counter,
     );
 
     // y_affine = Y · Z⁻³  (overwrite point_Y with affine y)
     let _mul_y = mul.forward_gates(
-        3 * n,               // point_Y
+        3 * n, // point_Y
         z_inv3_reg.offset,
-        3 * n,               // result back to point_Y
+        3 * n, // result back to point_Y
         inv_workspace.offset,
         &mut counter,
     );
@@ -273,14 +273,23 @@ impl GroupActionCircuit {
             qft_rotations_estimated: self.qft_estimate.controlled_rotation_count,
             point_additions: num_windows * 2,
             point_doublings: num_windows * w * 2,
-            field_inversions: if self.coordinate_system == "jacobian" { 1 } else { num_windows * 2 },
-            field_multiplications: total_ec_ops * if self.coordinate_system == "jacobian" { 16 } else { 6 },
+            field_inversions: if self.coordinate_system == "jacobian" {
+                1
+            } else {
+                num_windows * 2
+            },
+            field_multiplications: total_ec_ops
+                * if self.coordinate_system == "jacobian" {
+                    16
+                } else {
+                    6
+                },
         }
     }
 
     /// Execute the circuit classically on specific basis-state inputs.
     ///
-    /// Computes [a]G + [b]Q using the classical reference implementation.
+    /// Computes \[a\]G + \[b\]Q using the classical reference implementation.
     /// This is used for verification: the reversible circuit's classical execution
     /// must match this reference.
     pub fn execute_classical(

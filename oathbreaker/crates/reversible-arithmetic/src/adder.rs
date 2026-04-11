@@ -61,30 +61,52 @@ impl CuccaroAdder {
         let b = |i: usize| b_offset + i;
 
         // MAJ gate sequence: propagate carry forward
-        let maj = |x: usize, y: usize, z: usize, gates: &mut Vec<Gate>, counter: &mut ResourceCounter| {
-            let g1 = Gate::Cnot { control: z, target: y };
-            let g2 = Gate::Cnot { control: z, target: x };
-            let g3 = Gate::Toffoli { control1: x, control2: y, target: z };
-            counter.record_gate(&g1);
-            counter.record_gate(&g2);
-            counter.record_gate(&g3);
-            gates.push(g1);
-            gates.push(g2);
-            gates.push(g3);
-        };
+        let maj =
+            |x: usize, y: usize, z: usize, gates: &mut Vec<Gate>, counter: &mut ResourceCounter| {
+                let g1 = Gate::Cnot {
+                    control: z,
+                    target: y,
+                };
+                let g2 = Gate::Cnot {
+                    control: z,
+                    target: x,
+                };
+                let g3 = Gate::Toffoli {
+                    control1: x,
+                    control2: y,
+                    target: z,
+                };
+                counter.record_gate(&g1);
+                counter.record_gate(&g2);
+                counter.record_gate(&g3);
+                gates.push(g1);
+                gates.push(g2);
+                gates.push(g3);
+            };
 
         // UMA gate sequence: propagate sum backward
-        let uma = |x: usize, y: usize, z: usize, gates: &mut Vec<Gate>, counter: &mut ResourceCounter| {
-            let g1 = Gate::Toffoli { control1: x, control2: y, target: z };
-            let g2 = Gate::Cnot { control: z, target: x };
-            let g3 = Gate::Cnot { control: x, target: y };
-            counter.record_gate(&g1);
-            counter.record_gate(&g2);
-            counter.record_gate(&g3);
-            gates.push(g1);
-            gates.push(g2);
-            gates.push(g3);
-        };
+        let uma =
+            |x: usize, y: usize, z: usize, gates: &mut Vec<Gate>, counter: &mut ResourceCounter| {
+                let g1 = Gate::Toffoli {
+                    control1: x,
+                    control2: y,
+                    target: z,
+                };
+                let g2 = Gate::Cnot {
+                    control: z,
+                    target: x,
+                };
+                let g3 = Gate::Cnot {
+                    control: x,
+                    target: y,
+                };
+                counter.record_gate(&g1);
+                counter.record_gate(&g2);
+                counter.record_gate(&g3);
+                gates.push(g1);
+                gates.push(g2);
+                gates.push(g3);
+            };
 
         // Forward sweep: MAJ chain
         // First MAJ uses carry_offset as the initial carry-in
@@ -124,7 +146,7 @@ impl CuccaroAdder {
     ///   - b[0..n]:           second operand (overwritten with (a+b) mod p)
     ///   - carry_offset:      1 ancilla carry bit (must start and end at 0)
     ///   - workspace_offset:  n ancilla bits for the constant (−p) register
-    ///                        (must start and end at 0)
+    ///     (must start and end at 0)
     pub fn modular_forward_gates(
         &self,
         a_offset: usize,
@@ -144,15 +166,17 @@ impl CuccaroAdder {
         // For Goldilocks p = 0xFFFF_FFFF_0000_0001:
         //   −p mod 2^64 = 2^32 − 1 = 0x0000_0000_FFFF_FFFF.
         // The shift `1u128 << n` is valid: n=64 < 128, so this does NOT overflow u128.
-        let neg_p: u64 = ((1u128 << n).wrapping_sub(0xFFFF_FFFF_0000_0001u128)
-            & u64::MAX as u128) as u64;
+        let neg_p: u64 =
+            ((1u128 << n).wrapping_sub(0xFFFF_FFFF_0000_0001u128) & u64::MAX as u128) as u64;
         let p_val: u64 = 0xFFFF_FFFF_0000_0001;
 
         // Step 2a: Load −p into workspace ancilla.
         counter.allocate_ancilla(n);
         for i in 0..n {
             if (neg_p >> i) & 1 == 1 {
-                let g = Gate::Not { target: workspace_offset + i };
+                let g = Gate::Not {
+                    target: workspace_offset + i,
+                };
                 counter.record_gate(&g);
                 gates.push(g);
             }
@@ -169,20 +193,48 @@ impl CuccaroAdder {
 
             macro_rules! maj_g {
                 ($x:expr, $y:expr, $z:expr) => {{
-                    let g1 = Gate::Cnot { control: $z, target: $y };
-                    let g2 = Gate::Cnot { control: $z, target: $x };
-                    let g3 = Gate::Toffoli { control1: $x, control2: $y, target: $z };
-                    counter.record_gate(&g1); counter.record_gate(&g2); counter.record_gate(&g3);
-                    gates.push(g1); gates.push(g2); gates.push(g3);
+                    let g1 = Gate::Cnot {
+                        control: $z,
+                        target: $y,
+                    };
+                    let g2 = Gate::Cnot {
+                        control: $z,
+                        target: $x,
+                    };
+                    let g3 = Gate::Toffoli {
+                        control1: $x,
+                        control2: $y,
+                        target: $z,
+                    };
+                    counter.record_gate(&g1);
+                    counter.record_gate(&g2);
+                    counter.record_gate(&g3);
+                    gates.push(g1);
+                    gates.push(g2);
+                    gates.push(g3);
                 }};
             }
             macro_rules! uma_g {
                 ($x:expr, $y:expr, $z:expr) => {{
-                    let g1 = Gate::Toffoli { control1: $x, control2: $y, target: $z };
-                    let g2 = Gate::Cnot { control: $z, target: $x };
-                    let g3 = Gate::Cnot { control: $x, target: $y };
-                    counter.record_gate(&g1); counter.record_gate(&g2); counter.record_gate(&g3);
-                    gates.push(g1); gates.push(g2); gates.push(g3);
+                    let g1 = Gate::Toffoli {
+                        control1: $x,
+                        control2: $y,
+                        target: $z,
+                    };
+                    let g2 = Gate::Cnot {
+                        control: $z,
+                        target: $x,
+                    };
+                    let g3 = Gate::Cnot {
+                        control: $x,
+                        target: $y,
+                    };
+                    counter.record_gate(&g1);
+                    counter.record_gate(&g2);
+                    counter.record_gate(&g3);
+                    gates.push(g1);
+                    gates.push(g2);
+                    gates.push(g3);
                 }};
             }
 
@@ -195,7 +247,10 @@ impl CuccaroAdder {
             // Capture carry-out: a[n-1] holds carry-out after the last MAJ.
             // CNOT into carry_offset (currently 0 → set to carry-out value).
             {
-                let g_co = Gate::Cnot { control: a(n - 1), target: carry_offset };
+                let g_co = Gate::Cnot {
+                    control: a(n - 1),
+                    target: carry_offset,
+                };
                 counter.record_gate(&g_co);
                 gates.push(g_co);
             }
@@ -212,19 +267,26 @@ impl CuccaroAdder {
         // We invert carry_offset so it acts as "should correct" flag, apply CNOTs for
         // each 1-bit of p, then invert back.
         {
-            let g_not = Gate::Not { target: carry_offset };
+            let g_not = Gate::Not {
+                target: carry_offset,
+            };
             counter.record_gate(&g_not);
             gates.push(g_not);
 
             for i in 0..n {
                 if (p_val >> i) & 1 == 1 {
-                    let g = Gate::Cnot { control: carry_offset, target: b_offset + i };
+                    let g = Gate::Cnot {
+                        control: carry_offset,
+                        target: b_offset + i,
+                    };
                     counter.record_gate(&g);
                     gates.push(g);
                 }
             }
 
-            let g_not2 = Gate::Not { target: carry_offset };
+            let g_not2 = Gate::Not {
+                target: carry_offset,
+            };
             counter.record_gate(&g_not2);
             gates.push(g_not2);
             // carry_offset is back to the carry-out value.
@@ -233,7 +295,9 @@ impl CuccaroAdder {
         // Step 4: Unload −p from workspace.
         for i in 0..n {
             if (neg_p >> i) & 1 == 1 {
-                let g = Gate::Not { target: workspace_offset + i };
+                let g = Gate::Not {
+                    target: workspace_offset + i,
+                };
                 counter.record_gate(&g);
                 gates.push(g);
             }
@@ -262,4 +326,3 @@ impl CuccaroAdder {
         gates
     }
 }
-
