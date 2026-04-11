@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: sagemath/sagemath:latest
+      options: --user root
     steps:
       - uses: actions/checkout@v4
 
@@ -98,6 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: sagemath/sagemath:latest
+      options: --user root
     strategy:
       fail-fast: false
       matrix:
