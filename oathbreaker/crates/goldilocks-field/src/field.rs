@@ -124,8 +124,54 @@ impl GoldilocksField {
         if self.legendre() != 1 {
             return None;
         }
-        // TODO: Implement Tonelli-Shanks exploiting p ≡ 1 (mod 4)
-        todo!("Tonelli-Shanks square root")
+        // Tonelli-Shanks for p = 2^64 - 2^32 + 1.
+        // p - 1 = 2^32 * (2^32 - 1), so S = 32, Q = 2^32 - 1.
+        let s: u32 = 32;
+        let q: u64 = (1u64 << 32) - 1; // 2^32 - 1 = 0xFFFFFFFF
+
+        // Find a quadratic non-residue. 7 is the multiplicative generator.
+        let z = Self::from_canonical(crate::constants::MULTIPLICATIVE_GENERATOR);
+        debug_assert_eq!(z.legendre(), -1, "z must be a quadratic non-residue");
+
+        let mut m = s;
+        let mut c = z.pow(q);                // z^Q
+        let mut t = self.pow(q);             // n^Q
+        let mut r = self.pow((q + 1) / 2);   // n^((Q+1)/2)
+
+        loop {
+            if t.0 == 0 {
+                return Some(Self::ZERO);
+            }
+            if t.0 == 1 {
+                // Return the canonical (smaller) root
+                let neg_r = -r;
+                if r.0 <= neg_r.0 {
+                    return Some(r);
+                } else {
+                    return Some(neg_r);
+                }
+            }
+
+            // Find the least i such that t^(2^i) = 1
+            let mut i = 0u32;
+            let mut tmp = t;
+            while tmp.0 != 1 {
+                tmp = tmp * tmp;
+                i += 1;
+                if i >= m {
+                    return None; // should not happen if legendre == 1
+                }
+            }
+
+            // Update: b = c^(2^(m-i-1)), r = r*b, t = t*b^2, c = b^2
+            let exp = 1u64 << (m - i - 1);
+            let b = c.pow(exp);
+            r = r * b;
+            let b2 = b * b;
+            t = t * b2;
+            c = b2;
+            m = i;
+        }
     }
 }
 

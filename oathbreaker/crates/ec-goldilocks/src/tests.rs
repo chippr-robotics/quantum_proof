@@ -1,17 +1,47 @@
 #[cfg(test)]
 mod tests {
     use crate::curve::{AffinePoint, CurveParams};
-    use crate::ecdlp;
-    use crate::point_ops::{point_add, point_double, scalar_mul};
+    use crate::point_ops::{point_add, scalar_mul};
     use goldilocks_field::GoldilocksField;
 
-    /// Create a small test curve for unit testing.
-    /// Uses a known-good curve over a small prime for fast tests.
-    /// The actual Goldilocks curve parameters will come from the Sage scripts.
+    /// Create a test curve over the Goldilocks field for unit testing.
+    ///
+    /// Curve: y² = x³ + x + 3 (a=1, b=3) over GF(p), p = 2^64 - 2^32 + 1.
+    /// The generator is found by trying small x values until y² is a
+    /// quadratic residue, then computing the square root via Tonelli-Shanks.
+    ///
+    /// Note: the curve order is a placeholder (= p). Full parameter validation
+    /// and true order computation requires SageMath. These parameters are
+    /// sufficient for structural and API testing.
     fn test_curve() -> CurveParams {
-        // Placeholder: will be replaced with real Sage-generated parameters
-        // For now, tests are structural — they verify the API works
-        todo!("Load test curve parameters from Sage-generated fixture")
+        let a = GoldilocksField::new(1);
+        let b = GoldilocksField::new(3);
+
+        // Try x values until we find one where y² = x³ + ax + b is a QR.
+        // x = 0: y² = 3
+        let gx = GoldilocksField::new(0);
+        let gy_sq = gx * gx * gx + a * gx + b; // y² = 3
+
+        // Use Tonelli-Shanks to compute sqrt(3) mod p.
+        let gy = gy_sq.sqrt().expect("y² = 3 should be a quadratic residue mod p");
+        debug_assert_eq!(gy * gy, gy_sq, "sqrt verification failed");
+
+        let generator = AffinePoint::Finite { x: gx, y: gy };
+        debug_assert!(generator.is_on_curve(&CurveParams {
+            a, b, order: 0, generator: AffinePoint::Infinity, field_bits: 64,
+        }));
+
+        // Order placeholder — real value from Sage's E.order().
+        // By Hasse's theorem, order ≈ p ± O(sqrt(p)).
+        let order = GoldilocksField::P;
+
+        CurveParams {
+            a,
+            b,
+            order,
+            generator,
+            field_bits: 64,
+        }
     }
 
     #[test]
