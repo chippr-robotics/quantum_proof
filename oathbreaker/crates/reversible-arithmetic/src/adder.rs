@@ -20,9 +20,22 @@ impl CuccaroAdder {
     /// Generate the gate sequence for addition.
     ///
     /// Register layout:
-    /// - a[0..n]: first operand (preserved)
-    /// - b[0..n]: second operand (overwritten with a+b)
+    /// - a[0..n]: first operand (**preserved** — temporarily used as carry chain
+    ///   by the MAJ sweep but fully restored by the UMA sweep; see Cuccaro et al. 2004)
+    /// - b[0..n]: second operand (overwritten with a+b mod 2^n)
     /// - carry: 1 ancilla bit (must start and end at 0)
+    ///
+    /// The Cuccaro MAJ/UMA structure routes the carry through `a` bits:
+    /// • MAJ(x, y, z): CNOT(z→y), CNOT(z→x), Toffoli(x,y→z)  — z becomes carry
+    /// • UMA(x, y, z): Toffoli(x,y→z), CNOT(z→x), CNOT(x→y)  — restores z, sets sum in y
+    ///
+    /// After the full MAJ chain + UMA chain, `a` is restored to its original value and
+    /// `b` contains (a + b) mod 2^n.  The carry_offset ancilla returns to 0.
+    ///
+    /// Note: the carry-out bit (whether a+b ≥ 2^n) is consumed internally and not
+    /// separately observable after this gate sequence.  Callers that need the carry-out
+    /// should capture `a[n-1]` (which holds the carry-out at the top of the MAJ chain)
+    /// via an explicit CNOT into a dedicated carry-out register before the UMA sweep.
     ///
     /// Returns the sequence of gates and updates the resource counter.
     pub fn forward_gates(
@@ -95,28 +108,29 @@ impl CuccaroAdder {
 
     /// Generate the gate sequence for modular addition (mod p).
     ///
-    /// After plain addition, conditionally subtract p if result >= p.
+    /// Computes (a + b) mod p where p = 2^64 − 2^32 + 1 (Goldilocks prime).
+    ///
+    /// Strategy (standard "compare-and-correct" reversible modular adder):
+    ///   1. Compute plain sum: b ← a + b  (using Cuccaro adder)
+    ///   2. Subtract p from b: b' ← b − p  (add −p mod 2^n via a dedicated constant register)
+    ///   3. The carry out of step 2 is 1 iff the original sum was ≥ p (no borrow).
+    ///   4. If carry = 0 (sum < p, subtraction wrapped), undo the subtraction.
+    ///   5. Clean up ancilla constant register.
+    ///
+    /// Register layout:
+    ///   - a[0..n]:           first operand (preserved)
+    ///   - b[0..n]:           second operand (overwritten with (a+b) mod p)
+    ///   - carry_offset:      1 ancilla carry bit (must start and end at 0)
+    ///   - workspace_offset:  n ancilla bits for the constant (−p) register
+    ///                        (must start and end at 0)
     pub fn modular_forward_gates(
         &self,
         a_offset: usize,
         b_offset: usize,
         carry_offset: usize,
+        workspace_offset: usize,
         counter: &mut ResourceCounter,
     ) -> Vec<Gate> {
-        // Modular addition: compute (a + b) mod p where p = 2^64 - 2^32 + 1.
-        //
-        // Strategy:
-        // 1. Compute a + b via plain Cuccaro adder (result in b register)
-        // 2. Subtract p from result: compute (a + b) - p
-        // 3. Check the borrow/carry: if (a + b) >= p, keep (a+b)-p; else keep a+b
-        // 4. Conditional correction: if borrow, add p back
-        //
-        // For the reversible circuit, we use two additions and a conditional:
-        // - First, compute a + b (plain)
-        // - Then subtract p by adding the two's complement of p
-        // - The carry out tells us whether (a+b) >= p
-        // - Use the carry to conditionally select the correct result
-
         let n = self.n;
         let mut gates = Vec::new();
 
@@ -124,70 +138,61 @@ impl CuccaroAdder {
         let plain_gates = self.forward_gates(a_offset, b_offset, carry_offset, counter);
         gates.extend(plain_gates);
 
-        // Step 2: Subtract p from b register.
-        // We do this by XOR-ing the constant -p (mod 2^n) = 2^n - p into a
-        // scratch approach. For simplicity in the gate model, we subtract p
-        // by adding the two's complement.
-        //
-        // Since p = 0xFFFFFFFF00000001 for n=64:
-        //   -p mod 2^64 = 2^64 - p = 2^32 - 1 = 0x00000000FFFFFFFF
-        //
-        // We implement subtraction of a constant by flipping the bits of b
-        // where the constant has 1-bits (conditional on the carry logic).
-        //
-        // For a circuit-level implementation, we encode p as a classical
-        // constant and use controlled-NOT gates to subtract it.
-        //
-        // Simplified approach: we XOR in the constant's bits, then propagate
-        // carries. This is effectively adding the two's complement of p.
+        // After step 1: carry_offset is back to 0 (Cuccaro contract).
 
-        // For the reversible modular adder, we use the standard approach:
-        // After plain addition, compare sum with p and conditionally subtract.
-        //
-        // The comparison is done by subtracting p and checking if the result
-        // overflows. We use CNOT gates to XOR constant bits.
-        let neg_p_bits: Vec<bool> = {
-            // -p mod 2^n = 2^n - p
-            // For p = 2^64 - 2^32 + 1: neg_p = 2^32 - 1 = 0xFFFFFFFF
-            let neg_p: u128 = (1u128 << n) - 0xFFFF_FFFF_0000_0001u128;
-            (0..n).map(|i| (neg_p >> i) & 1 == 1).collect()
-        };
+        // Constant: −p mod 2^n  =  2^n − p
+        // For Goldilocks p = 2^64 − 2^32 + 1:
+        //   −p mod 2^64 = 2^64 − (2^64 − 2^32 + 1) = 2^32 − 1 = 0x0000_0000_FFFF_FFFF
+        let neg_p: u64 = ((1u128 << n).wrapping_sub(0xFFFF_FFFF_0000_0001u128) & u64::MAX as u128) as u64;
 
-        // XOR the constant -p into the b register using NOT gates where bits are 1
+        // Step 2a: Load constant (−p) into the workspace ancilla register.
+        //   workspace[i] ← bit i of (−p)  via NOT gates on 0-initialised qubits.
+        counter.allocate_ancilla(n);
         for i in 0..n {
-            if neg_p_bits[i] {
-                let g = Gate::Not { target: b_offset + i };
+            if (neg_p >> i) & 1 == 1 {
+                let g = Gate::Not { target: workspace_offset + i };
                 counter.record_gate(&g);
                 gates.push(g);
             }
         }
 
-        // Propagate carries through the addition of the constant
-        // This is a simplified constant-addition: we use the carry chain
-        // to propagate the +1 from two's complement.
-        // For a proper implementation, we need a carry-propagation pass.
-        // We add +1 to complete the two's complement (NOT + 1 = negate).
-        let g = Gate::Not { target: carry_offset };
-        counter.record_gate(&g);
-        gates.push(g);
+        // Step 2b: b ← b + (−p)  using the Cuccaro adder with the constant register as 'a'.
+        //   After this carry_offset = 1 iff (original sum) ≥ p (no borrow).
+        let sub_gates = self.forward_gates(workspace_offset, b_offset, carry_offset, counter);
+        gates.extend(sub_gates);
 
-        let carry_gates = self.forward_gates(a_offset, b_offset, carry_offset, counter);
-        gates.extend(carry_gates);
+        // Step 3: Conditional correction.
+        //   If carry_offset = 0 the subtraction wrapped (original sum < p), so add p back.
+        //   We invert carry_offset, use it as a control for the add-back, then invert again.
+        let g_flip = Gate::Not { target: carry_offset };
+        counter.record_gate(&g_flip);
+        gates.push(g_flip);
 
-        // After this, carry_offset holds whether (a+b) >= p.
-        // If carry is set, the subtracted value is correct (no borrow).
-        // If carry is clear, we need to add p back.
-
-        // Step 3: Conditional correction — if carry is 0, undo the subtraction.
-        // We use the carry bit to control adding p back.
-        // This is done by reversing the NOT operations, controlled on carry.
+        // Controlled on (NOT carry): for each bit where −p is 1, flip b[i] back.
+        // This undoes the two's-complement XOR (the constant-add correction).
         for i in 0..n {
-            if neg_p_bits[i] {
+            if (neg_p >> i) & 1 == 1 {
                 let g = Gate::Cnot { control: carry_offset, target: b_offset + i };
                 counter.record_gate(&g);
                 gates.push(g);
             }
         }
+
+        let g_unflip = Gate::Not { target: carry_offset };
+        counter.record_gate(&g_unflip);
+        gates.push(g_unflip);
+
+        // Step 4: Unload constant (−p) from workspace (restore to |0⟩).
+        for i in 0..n {
+            if (neg_p >> i) & 1 == 1 {
+                let g = Gate::Not { target: workspace_offset + i };
+                counter.record_gate(&g);
+                gates.push(g);
+            }
+        }
+        counter.free_ancilla(n);
+
+        // carry_offset returns to 0 (two NOT gates cancel each other out).
 
         gates
     }

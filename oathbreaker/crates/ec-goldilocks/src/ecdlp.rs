@@ -29,6 +29,11 @@ pub fn pollard_rho(
 
     let n = _curve.order;
 
+    // Guard against degenerate curves with zero order (e.g., placeholder test fixtures).
+    if n == 0 {
+        return None;
+    }
+
     // Partition function: which set does point R belong to?
     let partition = |r: &AffinePoint| -> u64 {
         match r {
@@ -62,8 +67,18 @@ pub fn pollard_rho(
     let mut tortoise = (*_generator, 1u64, 0u64);
     let mut hare = (*_generator, 1u64, 0u64);
 
-    // Floyd's cycle detection
+    // Floyd's cycle detection with a bounded iteration count.
+    // For a group of order n, the expected cycle length is O(sqrt(n)).
+    // We cap at 4*sqrt(n) + 1000 iterations to avoid infinite loops on
+    // degenerate inputs or unlucky partitions.
+    let max_iter: u64 = 4 * (n as f64).sqrt().ceil() as u64 + 1000;
+    let mut iter_count: u64 = 0;
     loop {
+        if iter_count >= max_iter {
+            return None; // Exceeded iteration limit; caller should retry with a different seed.
+        }
+        iter_count += 1;
+
         // Tortoise takes 1 step
         tortoise = step(&tortoise.0, tortoise.1, tortoise.2);
 

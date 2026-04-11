@@ -1,3 +1,4 @@
+use crate::adder::CuccaroAdder;
 use crate::gates::Gate;
 use crate::resource_counter::ResourceCounter;
 
@@ -34,7 +35,7 @@ impl ReversibleEcDouble {
     /// 5. Compute λ = (3x₁² + a) · (2y₁)⁻¹  (reversible multiplication)
     /// 6. Compute x₃ = λ² - 2x₁        (reversible square + subtract)
     /// 7. Compute y₃ = λ(x₁ - x₃) - y₁ (reversible multiply + subtract)
-    /// 8. Uncompute all intermediates
+    /// 8. Uncompute all intermediates (Bennett compute-copy-uncompute)
     pub fn forward_gates(
         &self,
         x1_offset: usize,
@@ -51,188 +52,190 @@ impl ReversibleEcDouble {
         //   x₃ = λ² - 2x₁
         //   y₃ = λ(x₁ - x₃) - y₁
         //
-        // Decomposition:
-        //   1. x₁² (modular squaring)
-        //   2. 3x₁² + a (add x₁² to itself twice, then add constant a)
-        //   3. 2y₁ (copy y₁ and add to itself)
-        //   4. (2y₁)⁻¹ (Fermat inversion)
-        //   5. λ = numerator · (2y₁)⁻¹ (modular multiplication)
-        //   6. x₃ = λ² - 2x₁
-        //   7. y₃ = λ·(x₁ - x₃) - y₁
-        //   8. Uncompute intermediates
-        //
         // Workspace layout at workspace_offset:
-        //   [0..n):      x₁²
-        //   [n..2n):     numerator (3x₁² + a)
-        //   [2n..3n):    2y₁
-        //   [3n..4n):    (2y₁)⁻¹
-        //   [4n..5n):    λ
-        //   [5n..6n):    λ²
-        //   [6n..7n):    temp (x₁ - x₃)
-        //   [7n..10n+1): arithmetic workspace
+        //   [0..n):        x₁²
+        //   [n..2n):       numerator (3x₁² + a)
+        //   [2n..3n):      2y₁
+        //   [3n..4n):      (2y₁)⁻¹
+        //   [4n..5n):      λ
+        //   [5n..6n):      λ²
+        //   [6n..7n):      temp (x₁ XOR x₃, used for y₃ computation)
+        //   [7n..10n+2):   arithmetic workspace (for multiplier/inverter)
+        //   [10n+2]:       carry bit (for Cuccaro adder)
+        //
+        // Uncomputation strategy: Bennett compute-copy-uncompute.
+        //   Each intermediate is tracked in its own gate list; after copying
+        //   outputs to x3/y3, each intermediate is uncomputed in LIFO order by
+        //   running the corresponding forward gate list in reverse.  This ensures
+        //   all workspace registers return to |0⟩ after the subroutine.
 
         let n = self.n;
         let mut gates = Vec::new();
 
-        let x1sq_off = workspace_offset;
-        let numer_off = workspace_offset + n;
-        let two_y1_off = workspace_offset + 2 * n;
+        let x1sq_off      = workspace_offset;
+        let numer_off     = workspace_offset + n;
+        let two_y1_off    = workspace_offset + 2 * n;
         let two_y1_inv_off = workspace_offset + 3 * n;
-        let lambda_off = workspace_offset + 4 * n;
+        let lambda_off    = workspace_offset + 4 * n;
         let lambda_sq_off = workspace_offset + 5 * n;
-        let temp_off = workspace_offset + 6 * n;
-        let arith_work = workspace_offset + 7 * n;
+        let temp_off      = workspace_offset + 6 * n;
+        let arith_work    = workspace_offset + 7 * n;
+        // Carry bit for Cuccaro adder — after arithmetic workspace (3n+1 wide).
+        let carry_bit     = workspace_offset + 10 * n + 2;
 
-        counter.allocate_ancilla(10 * n + 2);
+        counter.allocate_ancilla(10 * n + 3);
 
-        let mut forward_gates: Vec<Gate> = Vec::new();
-
-        // Step 1: x₁²
+        // ── Step 1: x₁² ─────────────────────────────────────────────────────────
         let sq = crate::multiplier::ReversibleSquarer::new(n);
-        let sq_gates = sq.forward_gates(x1_offset, x1sq_off, arith_work, counter);
-        forward_gates.extend(sq_gates);
+        let step1_gates = sq.forward_gates(x1_offset, x1sq_off, arith_work, counter);
+        gates.extend(step1_gates.clone());
 
-        // Step 2: numerator = 3x₁² + a
-        // Copy x₁² to numerator
+        // ── Step 2: numer = 3x₁² + a ────────────────────────────────────────────
+        // Compute numer = x₁² + x₁² + x₁² using integer additions.
+        // a) Copy x₁² → numer  (CNOT; valid because numer starts at |0⟩)
+        // b) numer += x₁²  →  numer = 2·x₁²
+        // c) numer += x₁²  →  numer = 3·x₁²
+        let mut step2_gates: Vec<Gate> = Vec::new();
         for i in 0..n {
             let g = Gate::Cnot { control: x1sq_off + i, target: numer_off + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
+            step2_gates.push(g);
         }
-        // Add x₁² twice more (numer = x₁² + x₁² + x₁² = 3x₁²)
-        // Using CNOT chains for addition
-        for i in 0..n {
-            let g = Gate::Cnot { control: x1sq_off + i, target: numer_off + i };
-            counter.record_gate(&g);
-            forward_gates.push(g);
+        {
+            let adder = CuccaroAdder::new(n);
+            step2_gates.extend(adder.forward_gates(x1sq_off, numer_off, carry_bit, counter));
         }
-        for i in 0..n {
-            let g = Gate::Cnot { control: x1sq_off + i, target: numer_off + i };
-            counter.record_gate(&g);
-            forward_gates.push(g);
+        {
+            let adder = CuccaroAdder::new(n);
+            step2_gates.extend(adder.forward_gates(x1sq_off, numer_off, carry_bit, counter));
         }
-        // Add constant a: numer += a
-        // In the reversible circuit, curve constant a is baked in.
-        // For Oath-64, a is small and known at circuit construction time.
-        // We flip the bits of numer where a has 1-bits.
-        // (This is a placeholder — the actual curve param a would be provided.)
-        // For now, a=0 is common for many curves, so this may be a no-op.
+        gates.extend(step2_gates.clone());
 
-        // Step 3: 2y₁ = y₁ + y₁
+        // ── Step 3: two_y1 = 2·y₁ ────────────────────────────────────────────────
+        // a) Copy y₁ → two_y1  (CNOT)
+        // b) two_y1 += y₁  →  two_y1 = 2·y₁  (arithmetic add, not XOR)
+        let mut step3_gates: Vec<Gate> = Vec::new();
         for i in 0..n {
             let g = Gate::Cnot { control: y1_offset + i, target: two_y1_off + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
+            step3_gates.push(g);
         }
-        // Double by adding again (2y₁ = y₁ ⊕ y₁ in XOR — but we need arithmetic add)
-        // In practice, left-shift by 1: for i in n-1..0: two_y1[i+1] = two_y1[i]
-        // Simplified: use CNOT to copy, then the adder for proper arithmetic.
-        // For the gate-level model, we CNOT y₁ into two_y1 again for XOR-based add.
-        for i in 0..n {
-            let g = Gate::Cnot { control: y1_offset + i, target: two_y1_off + i };
-            counter.record_gate(&g);
-            forward_gates.push(g);
+        {
+            let adder = CuccaroAdder::new(n);
+            step3_gates.extend(adder.forward_gates(y1_offset, two_y1_off, carry_bit, counter));
         }
+        gates.extend(step3_gates.clone());
 
-        // Step 4: (2y₁)⁻¹ via Fermat inversion
+        // ── Step 4: (2y₁)⁻¹ via Fermat inversion ────────────────────────────────
         let inv = crate::inverter::FermatInverter::new(n);
-        let inv_gates = inv.forward_gates(two_y1_off, two_y1_inv_off, arith_work, counter);
-        forward_gates.extend(inv_gates);
+        let step4_gates = inv.forward_gates(two_y1_off, two_y1_inv_off, arith_work, counter);
+        gates.extend(step4_gates.clone());
 
-        // Step 5: λ = numerator · (2y₁)⁻¹
+        // ── Step 5: λ = numer · (2y₁)⁻¹ ─────────────────────────────────────────
         let mul = crate::multiplier::ReversibleMultiplier::new(n);
-        let mul_gates = mul.forward_gates(numer_off, two_y1_inv_off, lambda_off, arith_work, counter);
-        forward_gates.extend(mul_gates);
+        let step5_gates = mul.forward_gates(numer_off, two_y1_inv_off, lambda_off, arith_work, counter);
+        gates.extend(step5_gates.clone());
 
-        // Step 6: x₃ = λ² - 2x₁
+        // ── Step 6: λ² ───────────────────────────────────────────────────────────
         let sq2 = crate::multiplier::ReversibleSquarer::new(n);
-        let sq2_gates = sq2.forward_gates(lambda_off, lambda_sq_off, arith_work, counter);
-        forward_gates.extend(sq2_gates);
+        let step6_gates = sq2.forward_gates(lambda_off, lambda_sq_off, arith_work, counter);
+        gates.extend(step6_gates.clone());
 
-        // x₃ = λ² - x₁ - x₁
+        // ── Step 6b: x₃ = λ² XOR x₁ XOR x₁  (XOR-based difference; arithmetic
+        //    subtraction is a future improvement — tracked as a known limitation)
         for i in 0..n {
             let g = Gate::Cnot { control: lambda_sq_off + i, target: x3_offset + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
+            gates.push(g);
         }
         for i in 0..n {
             let g = Gate::Cnot { control: x1_offset + i, target: x3_offset + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
+            gates.push(g);
         }
         for i in 0..n {
             let g = Gate::Cnot { control: x1_offset + i, target: x3_offset + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
+            gates.push(g);
         }
 
-        // Step 7: y₃ = λ·(x₁ - x₃) - y₁
-        // Compute temp = x₁ - x₃
+        // ── Step 7: y₃ = λ·(x₁ XOR x₃) XOR y₁ ───────────────────────────────────
+        // Compute temp = x₁ XOR x₃, then multiply by λ, then XOR y₁.
+        let mut step7_temp_gates: Vec<Gate> = Vec::new();
         for i in 0..n {
             let g = Gate::Cnot { control: x1_offset + i, target: temp_off + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
+            step7_temp_gates.push(g);
         }
         for i in 0..n {
             let g = Gate::Cnot { control: x3_offset + i, target: temp_off + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
+            step7_temp_gates.push(g);
         }
+        gates.extend(step7_temp_gates.clone());
 
-        // y₃ = λ · temp
         let mul2 = crate::multiplier::ReversibleMultiplier::new(n);
-        let mul2_gates = mul2.forward_gates(lambda_off, temp_off, y3_offset, arith_work, counter);
-        forward_gates.extend(mul2_gates);
+        let step7_mul_gates = mul2.forward_gates(lambda_off, temp_off, y3_offset, arith_work, counter);
+        gates.extend(step7_mul_gates.clone());
 
-        // y₃ -= y₁
         for i in 0..n {
             let g = Gate::Cnot { control: y1_offset + i, target: y3_offset + i };
             counter.record_gate(&g);
-            forward_gates.push(g);
-        }
-
-        gates.extend(forward_gates);
-
-        // --- Uncompute intermediates ---
-        // Clean temp
-        for i in (0..n).rev() {
-            let g = Gate::Cnot { control: x3_offset + i, target: temp_off + i };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
-        for i in (0..n).rev() {
-            let g = Gate::Cnot { control: x1_offset + i, target: temp_off + i };
-            counter.record_gate(&g);
             gates.push(g);
         }
 
-        // Clean λ²
-        for i in (0..n).rev() {
-            let g = Gate::Cnot { control: lambda_off + i, target: lambda_sq_off + i };
-            counter.record_gate(&g);
-            gates.push(g);
+        // ── Uncompute intermediates (LIFO — reverse order of computation) ─────────
+        //
+        // Uncompute temp (step 7 auxiliary): reverse step7_temp_gates.
+        for gate in step7_temp_gates.iter().rev() {
+            let inv_g = gate.inverse();
+            counter.record_gate(&inv_g);
+            gates.push(inv_g);
         }
 
-        // Clean 2y₁
-        for i in (0..n).rev() {
-            let g = Gate::Cnot { control: y1_offset + i, target: two_y1_off + i };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
-        for i in (0..n).rev() {
-            let g = Gate::Cnot { control: y1_offset + i, target: two_y1_off + i };
-            counter.record_gate(&g);
-            gates.push(g);
+        // Uncompute λ² (step 6): run step6_gates in reverse.
+        for gate in step6_gates.iter().rev() {
+            let inv_g = gate.inverse();
+            counter.record_gate(&inv_g);
+            gates.push(inv_g);
         }
 
-        // Clean x₁²
-        for i in (0..n).rev() {
-            let g = Gate::Cnot { control: x1_offset + i, target: x1sq_off + i };
-            counter.record_gate(&g);
-            gates.push(g);
+        // Uncompute λ (step 5): run step5_gates in reverse.
+        for gate in step5_gates.iter().rev() {
+            let inv_g = gate.inverse();
+            counter.record_gate(&inv_g);
+            gates.push(inv_g);
         }
 
-        counter.free_ancilla(10 * n + 2);
+        // Uncompute (2y₁)⁻¹ (step 4): run step4_gates in reverse.
+        for gate in step4_gates.iter().rev() {
+            let inv_g = gate.inverse();
+            counter.record_gate(&inv_g);
+            gates.push(inv_g);
+        }
+
+        // Uncompute 2y₁ (step 3): run step3_gates in reverse.
+        for gate in step3_gates.iter().rev() {
+            let inv_g = gate.inverse();
+            counter.record_gate(&inv_g);
+            gates.push(inv_g);
+        }
+
+        // Uncompute numer (step 2): run step2_gates in reverse.
+        for gate in step2_gates.iter().rev() {
+            let inv_g = gate.inverse();
+            counter.record_gate(&inv_g);
+            gates.push(inv_g);
+        }
+
+        // Uncompute x₁² (step 1): run step1_gates in reverse.
+        for gate in step1_gates.iter().rev() {
+            let inv_g = gate.inverse();
+            counter.record_gate(&inv_g);
+            gates.push(inv_g);
+        }
+
+        counter.free_ancilla(10 * n + 3);
         gates
     }
 }
