@@ -44,6 +44,17 @@ impl AncillaPool {
         }
     }
 
+    /// Create a new pool whose qubit indices start at `base_offset`,
+    /// avoiding collisions with already-allocated primary registers.
+    pub fn new_with_base_offset(base_offset: usize, strategy: UncomputeStrategy) -> Self {
+        Self {
+            registers: Vec::new(),
+            next_qubit: base_offset,
+            strategy,
+            deferred_gates: Vec::new(),
+        }
+    }
+
     /// Allocate a new ancilla register.
     pub fn allocate(
         &mut self,

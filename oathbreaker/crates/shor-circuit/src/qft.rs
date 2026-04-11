@@ -1,6 +1,3 @@
-use reversible_arithmetic::gates::Gate;
-use reversible_arithmetic::resource_counter::ResourceCounter;
-
 /// Quantum Fourier Transform (classical description).
 ///
 /// The QFT on an n-qubit register:

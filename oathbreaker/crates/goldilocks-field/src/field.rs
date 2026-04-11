@@ -38,33 +38,38 @@ impl GoldilocksField {
 
     /// Reduce a u128 value modulo p, exploiting p's special form.
     ///
-    /// For p = 2^64 - 2^32 + 1:
-    ///   x mod p = x_lo + x_hi * 2^32 - x_hi  (with carry handling)
-    /// where x_lo = x mod 2^64 and x_hi = x >> 64.
+    /// For p = 2^64 - 2^32 + 1, we have:
+    ///   2^64 ≡ 2^32 - 1 (mod p)
+    ///
+    /// So for x = x_lo + 2^64 * x_hi:
+    ///   x mod p = x_lo + x_hi * (2^32 - 1) (mod p)
+    ///
+    /// A single fold may still leave bits above 64 bits, so we keep folding
+    /// until the value is small enough for a final conditional subtraction.
     fn reduce(x: u128) -> u64 {
+        const EPSILON: u128 = (1u128 << 32) - 1;
+
         let x_lo = x as u64;
         let x_hi = (x >> 64) as u64;
 
-        if x_hi == 0 {
-            // Simple case: just reduce x_lo mod p
-            if x_lo >= Self::P {
-                x_lo - Self::P
-            } else {
-                x_lo
-            }
-        } else {
-            // x mod p = x_lo + x_hi * (2^32 - 1)  since 2^64 ≡ 2^32 - 1 (mod p)
-            // = x_lo + x_hi * 2^32 - x_hi
-            let hi_shifted = (x_hi as u128) << 32;
-            let sum = x_lo as u128 + hi_shifted - x_hi as u128;
+        // First fold: x_lo + x_hi * (2^32 - 1).
+        let folded = x_lo as u128 + (x_hi as u128) * EPSILON;
 
-            // May need further reduction
-            let result = sum as u64;
-            if result >= Self::P {
-                result - Self::P
-            } else {
-                result
-            }
+        // Second fold: enough to reduce the first fold from < 2^97 to < 2^65.
+        let folded_lo = folded as u64;
+        let folded_hi = folded >> 64;
+        let folded_again = folded_lo as u128 + folded_hi * EPSILON;
+
+        // Final fold: handles the remaining top bit when folded_again >= 2^64.
+        let result_lo = folded_again as u64;
+        let result_hi = folded_again >> 64;
+        let result = result_lo as u128 + result_hi * EPSILON;
+
+        let result = result as u64;
+        if result >= Self::P {
+            result - Self::P
+        } else {
+            result
         }
     }
 

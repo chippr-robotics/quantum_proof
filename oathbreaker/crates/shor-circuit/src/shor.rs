@@ -54,7 +54,10 @@ pub struct CircuitSummary {
 pub fn build_shor_circuit(curve: &CurveParams, window_size: usize) -> ShorCircuit {
     let n = curve.field_bits; // 64
     let mut counter = ResourceCounter::new();
-    let mut ancilla_pool = AncillaPool::new(UncomputeStrategy::Eager);
+    // Initialise the ancilla pool starting beyond the three primary registers
+    // (scalar at 0..n, point_x at n..2n, point_y at 2n..3n) so that ancilla
+    // qubit indices never collide with primary register indices.
+    let mut ancilla_pool = AncillaPool::new_with_base_offset(3 * n, UncomputeStrategy::Eager);
 
     // Phase estimation register allocation
     let _phase_est = PhaseEstimation::new(n, &mut counter);
