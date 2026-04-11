@@ -1,0 +1,17 @@
+[package]
+name = "shor-circuit"
+description = "Full Shor's algorithm circuit assembly for ECDLP over the Goldilocks field"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+goldilocks-field = { workspace = true }
+ec-goldilocks = { workspace = true }
+reversible-arithmetic = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true }
+proptest = { workspace = true }

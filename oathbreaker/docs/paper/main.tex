@@ -1,0 +1,88 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{cite}
+
+\title{Oathbreaker: A Complete End-to-End Shor Circuit for ECDLP\\over the Goldilocks Field}
+\author{Chippr Robotics LLC}
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We present a complete implementation of Shor's algorithm for the Elliptic Curve
+Discrete Logarithm Problem (ECDLP) on the Oath-64 curve, a toy elliptic curve
+over the Goldilocks field $\mathbb{F}_p$ where $p = 2^{64} - 2^{32} + 1$. Unlike prior work that
+proves only subroutines (e.g., Google's point addition proof for secp256k1),
+our circuit is end-to-end: it encompasses all components of Shor's algorithm
+including controlled scalar multiplication, the Quantum Fourier Transform, and
+phase estimation. The circuit's correctness is proven via an SP1 zkVM Groth16
+SNARK and independently verified against classically-computed ground truth via
+Pollard's rho algorithm. We report measured resource counts (qubits, Toffoli
+gates, circuit depth) and project scaling to cryptographically relevant field
+sizes. The full circuit is published as a quantum hardware benchmark --- the
+Oathbreaker Scale --- which scores quantum computers by the largest Oath curve they can crack.
+\end{abstract}
+
+\section{Introduction}
+
+% TODO: Motivation, relationship to Google March 2026 paper
+
+\section{Background}
+
+\subsection{Shor's Algorithm for ECDLP}
+% TODO: Standard Shor ECDLP description
+
+\subsection{Circuit Model}
+% TODO: Reversible gate model, gate set
+
+\section{Curve Selection}
+
+% TODO: Why Goldilocks, the Oath-64 curve, parameter generation process
+
+\section{Circuit Construction}
+
+\subsection{Reversible Field Arithmetic}
+% TODO: Adder, multiplier, inverter decomposition
+
+\subsection{Reversible EC Operations}
+% TODO: Point addition, doubling, scalar multiplication
+
+\subsection{Shor Assembly}
+% TODO: Register allocation, windowed arithmetic, QFT
+
+\section{Verification Methodology}
+
+\subsection{Classical Ground Truth}
+% TODO: Pollard's rho verification
+
+\subsection{Zero-Knowledge Proof}
+% TODO: SP1 Groth16
+
+\section{Resource Analysis}
+
+% TODO: Measured counts, scaling table, comparison
+
+\section{The Oathbreaker Scale}
+
+% TODO: Benchmark specification --- Oath-8 through Oath-64 difficulty levels
+
+\section{Discussion}
+
+% TODO: What this proves, limitations, implications
+
+\section{Conclusion}
+
+% TODO
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

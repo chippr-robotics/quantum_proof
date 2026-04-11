@@ -1,0 +1,14 @@
+[package]
+name = "benchmark"
+description = "Circuit resource counting, scaling projections, and comparison to prior work"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+goldilocks-field = { workspace = true }
+ec-goldilocks = { workspace = true }
+reversible-arithmetic = { workspace = true }
+shor-circuit = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
