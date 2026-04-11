@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 /// For the dual-register ECDLP formulation, QFT is applied independently to
 /// both exponent registers (reg_a and reg_b) after the coherent group-action map.
 ///
-/// For n=64: ~4,096 gates per register, ~8,192 total. This is <0.1% of the
-/// EC arithmetic cost and requires no novel optimization.
+/// Using the counting model implemented below
+/// (Hadamards = n, controlled rotations = n(n-1)/2, SWAPs = n/2),
+/// n=64 yields 2,112 gates per register and 4,224 total for two registers.
+/// This is <0.1% of the EC arithmetic cost and requires no novel optimization.
 ///
 /// QFT is included in resource projections and QASM export.
 /// Execution is deferred to v2.

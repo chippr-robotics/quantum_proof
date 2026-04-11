@@ -15,7 +15,10 @@ use crate::resource_counter::ResourceCounter;
 pub struct AncillaPool {
     /// All allocated ancilla registers.
     registers: Vec<QuantumRegister>,
-    /// Next available qubit index.
+    /// The global qubit index at which ancilla allocation begins.
+    /// Ancilla indices start here to avoid colliding with primary registers.
+    base_offset: usize,
+    /// Next available qubit index (>= base_offset).
     next_qubit: usize,
     /// Strategy for uncomputation.
     pub strategy: UncomputeStrategy,
@@ -38,6 +41,7 @@ impl AncillaPool {
     pub fn new(strategy: UncomputeStrategy) -> Self {
         Self {
             registers: Vec::new(),
+            base_offset: 0,
             next_qubit: 0,
             strategy,
             deferred_gates: Vec::new(),
@@ -49,6 +53,7 @@ impl AncillaPool {
     pub fn new_with_base_offset(base_offset: usize, strategy: UncomputeStrategy) -> Self {
         Self {
             registers: Vec::new(),
+            base_offset,
             next_qubit: base_offset,
             strategy,
             deferred_gates: Vec::new(),
@@ -89,8 +94,8 @@ impl AncillaPool {
         uncompute_gates
     }
 
-    /// Total ancilla qubits currently allocated.
+    /// Total ancilla qubits currently allocated (excludes the base offset).
     pub fn total_allocated(&self) -> usize {
-        self.next_qubit
+        self.next_qubit - self.base_offset
     }
 }

@@ -7,9 +7,9 @@ use std::collections::HashMap;
 /// Uses Pollard's rho algorithm: O(sqrt(n)) time, O(1) space.
 /// This is the primary solver for the Goldilocks curve (~2^32 iterations).
 pub fn pollard_rho(
-    generator: &AffinePoint,
-    target: &AffinePoint,
-    curve: &CurveParams,
+    _generator: &AffinePoint,
+    _target: &AffinePoint,
+    _curve: &CurveParams,
 ) -> Option<u64> {
     // TODO: Implement Pollard's rho with Floyd's cycle detection.
     //

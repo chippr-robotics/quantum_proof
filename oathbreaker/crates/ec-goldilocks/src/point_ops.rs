@@ -1,4 +1,4 @@
-use crate::curve::{AffinePoint, CurveParams, JacobianPoint};
+use crate::curve::{AffinePoint, CurveParams};
 use goldilocks_field::GoldilocksField;
 
 /// Add two affine points on the curve. Handles all cases:
