@@ -1,0 +1,164 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/code-quality.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/code-quality.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Formatting — enforce consistent style across the entire workspace.
+  # ---------------------------------------------------------------------------
+  fmt:
+    name: "rustfmt"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  # ---------------------------------------------------------------------------
+  # Linting — cargo clippy on the four core crates (the provable components).
+  # Warnings are treated as errors for these crates to enforce correctness.
+  #
+  # Stub crates (sp1-program, sp1-host, benchmark) are checked separately
+  # without -D warnings since they contain intentional placeholder code.
+  # ---------------------------------------------------------------------------
+  clippy-core:
+    name: "clippy / core crates"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: clippy-core-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            clippy-core-${{ runner.os }}-cargo-
+
+      - name: Clippy — goldilocks-field
+        run: cargo clippy -p goldilocks-field --all-targets -- -D warnings
+
+      - name: Clippy — ec-goldilocks
+        run: cargo clippy -p ec-goldilocks --all-targets -- -D warnings
+
+      - name: Clippy — reversible-arithmetic
+        run: cargo clippy -p reversible-arithmetic --all-targets -- -D warnings
+
+      - name: Clippy — group-action-circuit
+        run: cargo clippy -p group-action-circuit --all-targets -- -D warnings
+
+  clippy-workspace:
+    name: "clippy / full workspace"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: clippy-ws-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            clippy-ws-${{ runner.os }}-cargo-
+
+      - name: Clippy — full workspace (advisory)
+        run: cargo clippy --workspace --all-targets
+
+  # ---------------------------------------------------------------------------
+  # Doc check — ensure all public API documentation compiles without errors.
+  # Broken doc links or invalid examples are caught here.
+  # ---------------------------------------------------------------------------
+  docs:
+    name: "doc build"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: docs-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            docs-${{ runner.os }}-cargo-
+
+      - name: Build documentation
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --workspace --no-deps --verbose
+
+  # ---------------------------------------------------------------------------
+  # Summary gate — all quality checks must pass.
+  # ---------------------------------------------------------------------------
+  code-quality-pass:
+    name: "All quality checks pass"
+    if: always()
+    needs: [fmt, clippy-core, clippy-workspace, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all quality check results
+        run: |
+          results=("${{ needs.fmt.result }}" \
+                   "${{ needs.clippy-core.result }}" \
+                   "${{ needs.clippy-workspace.result }}" \
+                   "${{ needs.docs.result }}")
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" ]]; then
+              echo "::error::One or more quality checks failed or were cancelled"
+              exit 1
+            fi
+          done
+          echo "All code quality checks passed."

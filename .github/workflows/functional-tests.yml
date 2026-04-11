@@ -1,0 +1,196 @@
+name: Functional Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/functional-tests.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/functional-tests.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Full workspace integration test — verifies that all crates compose
+  # correctly across the dependency chain:
+  #
+  #   goldilocks-field → ec-goldilocks → reversible-arithmetic
+  #                                    → group-action-circuit
+  #                                    → sp1-program / sp1-host / benchmark
+  #
+  # This catches cross-crate interface breakage that isolated unit tests miss.
+  # ---------------------------------------------------------------------------
+  workspace-test:
+    name: "workspace / test"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: workspace-test-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            workspace-test-${{ runner.os }}-cargo-
+
+      - name: Build entire workspace (debug)
+        run: cargo build --workspace --verbose
+
+      - name: Run all workspace tests (debug)
+        run: cargo test --workspace --verbose
+
+      - name: Build entire workspace (release)
+        run: cargo build --workspace --release --verbose
+
+      - name: Run all workspace tests (release)
+        run: cargo test --workspace --release --verbose
+
+  # ---------------------------------------------------------------------------
+  # Cross-crate integration — explicitly verify the layered dependency chain
+  # by running each crate's tests with all transitive dependencies built,
+  # in dependency order. This validates that the algebraic guarantees compose:
+  #
+  #   1. Field axioms hold                     (goldilocks-field)
+  #   2. EC group law built on valid field      (ec-goldilocks)
+  #   3. Reversible gates preserve field ops    (reversible-arithmetic)
+  #   4. Group-action circuit is coherent       (group-action-circuit)
+  # ---------------------------------------------------------------------------
+  dependency-chain:
+    name: "integration / dependency chain"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: depchain-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            depchain-${{ runner.os }}-cargo-
+
+      - name: "Layer 1: Field axioms (goldilocks-field)"
+        run: cargo test -p goldilocks-field --release --verbose
+
+      - name: "Layer 2: EC group law (ec-goldilocks)"
+        run: cargo test -p ec-goldilocks --release --verbose
+
+      - name: "Layer 3: Reversible gates (reversible-arithmetic)"
+        run: cargo test -p reversible-arithmetic --release --verbose
+
+      - name: "Layer 4: Coherent group-action circuit (group-action-circuit)"
+        run: cargo test -p group-action-circuit --release --verbose
+
+  # ---------------------------------------------------------------------------
+  # Benchmark binary — verify the benchmark crate compiles and runs without
+  # panicking. This validates resource counting and scaling projections.
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: "functional / benchmark"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: benchmark-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            benchmark-${{ runner.os }}-cargo-
+
+      - name: Build benchmark binary
+        run: cargo build --release -p benchmark --verbose
+
+      - name: Run benchmark suite
+        run: cargo run --release -p benchmark
+
+  # ---------------------------------------------------------------------------
+  # SP1 crate compilation — verify sp1-program and sp1-host compile cleanly.
+  # (SP1 toolchain not required; the SDK deps are commented out in v1.)
+  # ---------------------------------------------------------------------------
+  sp1-compilation:
+    name: "functional / sp1 compilation"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: sp1-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            sp1-${{ runner.os }}-cargo-
+
+      - name: Build sp1-program
+        run: cargo build -p sp1-program --verbose
+
+      - name: Build sp1-host
+        run: cargo build -p sp1-host --verbose
+
+  # ---------------------------------------------------------------------------
+  # Summary gate — all functional test jobs must pass.
+  # ---------------------------------------------------------------------------
+  functional-tests-pass:
+    name: "All functional tests pass"
+    if: always()
+    needs: [workspace-test, dependency-chain, benchmark, sp1-compilation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all functional test results
+        run: |
+          results=("${{ needs.workspace-test.result }}" \
+                   "${{ needs.dependency-chain.result }}" \
+                   "${{ needs.benchmark.result }}" \
+                   "${{ needs.sp1-compilation.result }}")
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" ]]; then
+              echo "::error::One or more functional tests failed or were cancelled"
+              exit 1
+            fi
+          done
+          echo "All functional tests passed."
