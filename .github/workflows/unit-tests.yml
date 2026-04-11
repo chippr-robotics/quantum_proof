@@ -52,9 +52,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             oathbreaker/target
-          key: unit-${{ matrix.crate }}-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          key: unit-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
           restore-keys: |
-            unit-${{ matrix.crate }}-${{ runner.os }}-cargo-
+            unit-${{ runner.os }}-cargo-
 
       - name: Run unit tests (debug)
         run: cargo test -p ${{ matrix.crate }} --verbose
@@ -99,14 +99,14 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             oathbreaker/target
-          key: proptest-${{ matrix.crate }}-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          key: proptest-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
           restore-keys: |
-            proptest-${{ matrix.crate }}-${{ runner.os }}-cargo-
+            proptest-${{ runner.os }}-cargo-
 
       - name: Run property-based tests (1024 cases)
         env:
           PROPTEST_CASES: 1024
-        run: cargo test -p ${{ matrix.crate }} --release --verbose -- proptest
+        run: cargo test -p ${{ matrix.crate }} --release --verbose
 
   # ---------------------------------------------------------------------------
   # Summary gate — blocks merges unless every unit + proptest job passes.
