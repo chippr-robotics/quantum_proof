@@ -1,0 +1,130 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/unit-tests.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/unit-tests.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Per-crate unit tests — each core crate is tested in isolation to verify
+  # correctness of its individual algebraic and circuit components.
+  #
+  # Crate dependency chain (bottom-up):
+  #   goldilocks-field → ec-goldilocks → reversible-arithmetic → group-action-circuit
+  #
+  # Each layer must be independently provable before composition.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: "unit / ${{ matrix.crate }}"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - goldilocks-field
+          - ec-goldilocks
+          - reversible-arithmetic
+          - group-action-circuit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: unit-${{ matrix.crate }}-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            unit-${{ matrix.crate }}-${{ runner.os }}-cargo-
+
+      - name: Run unit tests (debug)
+        run: cargo test -p ${{ matrix.crate }} --verbose
+
+      - name: Run unit tests (release)
+        run: cargo test -p ${{ matrix.crate }} --release --verbose
+
+  # ---------------------------------------------------------------------------
+  # Property-based tests (proptest) — run with 1024 cases per property to
+  # stress-test the algebraic invariants that the oathbreaker system's
+  # provable correctness depends on:
+  #
+  #   - Field axioms: commutativity, associativity, distributivity, inverses
+  #   - EC group law: point addition closure, identity, inverse
+  #   - Gate reversibility: every gate is its own inverse
+  #   - Circuit coherence: classical simulation matches algebraic reference
+  # ---------------------------------------------------------------------------
+  proptest:
+    name: "proptest / ${{ matrix.crate }}"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - goldilocks-field
+          - ec-goldilocks
+          - reversible-arithmetic
+          - group-action-circuit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: proptest-${{ matrix.crate }}-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            proptest-${{ matrix.crate }}-${{ runner.os }}-cargo-
+
+      - name: Run property-based tests (1024 cases)
+        env:
+          PROPTEST_CASES: 1024
+        run: cargo test -p ${{ matrix.crate }} --release --verbose -- proptest
+
+  # ---------------------------------------------------------------------------
+  # Summary gate — blocks merges unless every unit + proptest job passes.
+  # ---------------------------------------------------------------------------
+  unit-tests-pass:
+    name: "All unit tests pass"
+    if: always()
+    needs: [unit-tests, proptest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all unit test results
+        run: |
+          if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then
+            echo "::error::Unit tests failed or were cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.proptest.result }}" != "success" ]]; then
+            echo "::error::Property-based tests failed or were cancelled"
+            exit 1
+          fi
+          echo "All unit and property-based tests passed."
