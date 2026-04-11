@@ -14,7 +14,7 @@ Toffoli gates operating on a qubit register model.
 
 The circuit targets the **Oath-64** curve over the Goldilocks field GF(2^64 - 2^32 + 1).
 
-## Register Layout
+## Register Layout (Jacobian Projective)
 
 ```
 ┌──────────────────────┐
@@ -24,19 +24,25 @@ The circuit targets the **Oath-64** curve over the Goldilocks field GF(2^64 - 2^
 │ Exponent B Register  │  64 qubits  (scalar for [b]Q)
 │ [b_0, b_1, ..., b_63]│
 ├──────────────────────┤
-│ Point X Register     │  64 qubits  (accumulator x-coordinate)
-│ [x_0, x_1, ..., x_63]│
+│ Point X Register     │  64 qubits  (Jacobian X coordinate)
+│ [X_0, X_1, ..., X_63]│
 ├──────────────────────┤
-│ Point Y Register     │  64 qubits  (accumulator y-coordinate)
-│ [y_0, y_1, ..., y_63]│
+│ Point Y Register     │  64 qubits  (Jacobian Y coordinate)
+│ [Y_0, Y_1, ..., Y_63]│
+├──────────────────────┤
+│ Point Z Register     │  64 qubits  (Jacobian Z coordinate)
+│ [Z_0, Z_1, ..., Z_63]│
 ├──────────────────────┤
 │ Ancilla Pool         │  ~N qubits  (dynamically allocated)
 │ [anc_0, ..., anc_N]  │
 └──────────────────────┘
 ```
 
-**Primary qubits**: 4n = 256 (two exponent registers + point accumulator)
-**Ancilla qubits**: Dynamic, depends on uncomputation strategy
+**Note**: Jacobian adds one n-bit Z register (+64 qubits) vs affine.
+The tradeoff: +20% qubits, −6× gate count (elimination of per-op inversions).
+
+**Primary qubits**: 5n = 320 (two exponent registers + Jacobian point (X,Y,Z))
+**Ancilla qubits**: Dynamic, depends on uncomputation strategy (~300-500)
 
 ## Group-Action Circuit Flow
 
@@ -57,21 +63,47 @@ The circuit targets the **Oath-64** curve over the Goldilocks field GF(2^64 - 2^
 3. QFT on both exponent registers (v2 — estimated, not executed in v1)
 ```
 
-## Gate Decomposition: Point Addition (Affine)
+## Gate Decomposition: Point Addition
 
-The EC point addition P + Q = R is decomposed into:
+### Jacobian Mixed Addition (Primary — v1)
 
-1. **Subtraction** (Δx = x₂ - x₁): O(n) Toffoli
-2. **Subtraction** (Δy = y₂ - y₁): O(n) Toffoli
-3. **Inversion** (Δx⁻¹): O(n³) Toffoli (Fermat) or O(n²) (binary GCD)
-4. **Multiplication** (λ = Δy · Δx⁻¹): O(n²) Toffoli
-5. **Squaring** (λ²): O(n²) Toffoli
-6. **Subtraction** (x₃ = λ² - x₁ - x₂): O(n) Toffoli
-7. **Multiplication + subtraction** (y₃): O(n²) Toffoli
-8. **Uncomputation**: Reversal of steps 1-5 (doubles gate count for intermediates)
+The accumulator is in Jacobian projective coordinates (X, Y, Z). Table entries
+are in affine (x, y). Mixed addition avoids **all per-addition inversions**:
 
-**Design note**: v1 uses affine coordinates + Fermat inversion. Future optimization:
-projective coordinates to eliminate per-addition inversion entirely.
+1. **Squaring** (Z₁²): O(n²) Toffoli
+2. **Multiplication** (Z₁³ = Z₁² · Z₁): O(n²) Toffoli
+3. **Multiplication** (U₂ = x₂ · Z₁²): O(n²) Toffoli
+4. **Multiplication** (S₂ = y₂ · Z₁³): O(n²) Toffoli
+5. **Subtraction** (H = U₂ - X₁): O(n) Toffoli
+6. **Subtraction** (R = S₂ - Y₁): O(n) Toffoli
+7. **Squaring** (H²): O(n²) Toffoli
+8. **Multiplication** (H³ = H² · H): O(n²) Toffoli
+9. **Multiplication** (X₁·H²): O(n²) Toffoli
+10. **Squaring** (R²): O(n²) Toffoli
+11. **Subtractions** (X₃ = R² - H³ - 2·X₁·H²): O(n) Toffoli
+12. **Multiplication + subtraction** (Y₃): O(n²) Toffoli
+13. **Multiplication** (Z₃ = Z₁ · H): O(n²) Toffoli
+14. **Uncomputation**: Reversal of intermediates
+
+**Total: ~16 field multiplications, 0 inversions.**
+
+A single Fermat inversion at the end converts Z → affine. One inversion
+for the entire scalar multiplication instead of one per point addition.
+
+### Affine Addition (Reference Implementation)
+
+The affine version (retained for comparison) decomposes into 6 multiplications +
+1 inversion per addition. The inversion is 94% of the gate cost.
+
+```
+┌─────────────────────┬──────────────┬──────────────┐
+│ Metric              │ Affine+Fermat│ Jacobian+1inv│
+├─────────────────────┼──────────────┼──────────────┤
+│ Mul-equivalents/add │   ~102       │   ~16        │
+│ Inversions (total)  │   ~128       │   1          │
+│ Gate ratio          │   1.0×       │   ~0.16×     │
+└─────────────────────┴──────────────┴──────────────┘
+```
 
 ## Ancilla Strategies
 

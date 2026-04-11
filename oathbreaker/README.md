@@ -40,10 +40,10 @@ Score your quantum computer by which Oath curve it can crack:
 
 | Tier | Field | Est. Qubits | Est. Toffoli | Classical Difficulty | Target Era |
 |------|-------|-------------|-------------|---------------------|-----------|
-| Oath-8 | 8-bit | ~20 | ~2K | Trivial | 2026-2027 |
-| Oath-16 | 16-bit | ~50 | ~15K | Trivial | 2027-2028 |
-| Oath-32 | 32-bit | ~120 | ~300K | Easy (~seconds) | 2029-2031 |
-| **Oath-64** | **64-bit** | **~300** | **~5M** | **Hours (Pollard rho)** | **2032-2035** |
+| Oath-8 | 8-bit | ~35 | ~8K | Trivial | 2026-2027 |
+| Oath-16 | 16-bit | ~100 | ~120K | Trivial | 2027-2028 |
+| Oath-32 | 32-bit | ~280 | ~3M | Easy (~seconds) | 2029-2031 |
+| **Oath-64** | **64-bit** | **~700** | **~17M** | **Hours (Pollard rho)** | **2032-2035** |
 
 ## Architecture
 
