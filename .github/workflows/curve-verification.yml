@@ -1,0 +1,253 @@
+name: Curve Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "oathbreaker/sage/**"
+      - ".github/workflows/curve-verification.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "oathbreaker/sage/**"
+      - ".github/workflows/curve-verification.yml"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Independent SageMath verification of all Oath-N curve parameters.
+  #
+  # This is the tamper-proof check: SageMath recomputes the group order from
+  # scratch using the Schoof-Elkies-Atkin (SEA) algorithm — a completely
+  # independent code path from the Python generation script. If any parameter
+  # file is modified (accidentally or maliciously), the SEA recomputation will
+  # detect the discrepancy.
+  #
+  # The job also records SHA-256 hashes of every parameter file in the GitHub
+  # Actions job summary, creating an immutable, publicly auditable record tied
+  # to the commit SHA.
+  # ---------------------------------------------------------------------------
+  verify-curves:
+    name: "sage / verify oath curves"
+    runs-on: ubuntu-latest
+    container:
+      image: sagemath/sagemath:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify parameter files exist
+        working-directory: oathbreaker/sage
+        run: |
+          missing=0
+          for f in oath8_params.json oath16_params.json oath32_params.json oath64_params.json; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing parameter file: $f"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+          echo "All parameter files present."
+
+      - name: SHA-256 fingerprints of parameter files
+        working-directory: oathbreaker/sage
+        run: |
+          echo "## Oath Curve Parameter Fingerprints" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| File | SHA-256 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          for f in oath8_params.json oath16_params.json oath32_params.json oath64_params.json oath_all_params.json; do
+            hash=$(sha256sum "$f" | cut -d' ' -f1)
+            echo "| \`$f\` | \`$hash\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "$f: $hash"
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run SageMath verification (all tiers)
+        working-directory: oathbreaker/sage
+        run: |
+          sage verify_all_oath_curves.sage 2>&1 | tee /tmp/verification.log
+
+      - name: Append verification results to job summary
+        if: always()
+        working-directory: oathbreaker/sage
+        run: |
+          echo "## SageMath Verification Output" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/verification.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verification log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: curve-verification-log
+          path: /tmp/verification.log
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # Per-tier verification — run each tier as a separate matrix job so failures
+  # are isolated and visible in the GitHub checks UI. Each job independently
+  # loads the tier's JSON, recomputes the order via SEA, and runs all checks.
+  # ---------------------------------------------------------------------------
+  verify-tier:
+    name: "sage / ${{ matrix.tier }}"
+    runs-on: ubuntu-latest
+    container:
+      image: sagemath/sagemath:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tier: Oath-8
+            bits: 8
+            file: oath8_params.json
+          - tier: Oath-16
+            bits: 16
+            file: oath16_params.json
+          - tier: Oath-32
+            bits: 32
+            file: oath32_params.json
+          - tier: Oath-64
+            bits: 64
+            file: oath64_params.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Verify ${{ matrix.tier }} curve parameters"
+        working-directory: oathbreaker/sage
+        run: |
+          sage -c "
+          import json, sys
+
+          with open('${{ matrix.file }}') as f:
+              params = json.load(f)
+
+          p_int = params['p']
+          a_int = params['a']
+          b_int = params['b']
+          n_claimed = params['order']
+          gx_int = params['generator_x']
+          gy_int = params['generator_y']
+          k_claimed = params['embedding_degree']
+
+          print('=== ${{ matrix.tier }} Independent Verification ===')
+          print(f'Curve: y^2 = x^3 + {a_int}x + {b_int}')
+          print(f'Field: GF({p_int})')
+          print()
+
+          failures = 0
+
+          # 1. Field prime
+          if not is_prime(p_int):
+              print('[FAIL] p is not prime')
+              failures += 1
+          else:
+              print('[PASS] p is prime')
+
+          # 2. Construct curve (non-singular check)
+          F = GF(p_int)
+          a, b = F(a_int), F(b_int)
+          E = EllipticCurve(F, [a, b])
+          print('[PASS] Curve is non-singular')
+
+          # 3. Order via SEA
+          n = E.order()
+          if int(n) == n_claimed:
+              print(f'[PASS] Order verified via SEA: {n}')
+          else:
+              print(f'[FAIL] Order mismatch: SEA={n}, claimed={n_claimed}')
+              failures += 1
+
+          # 4. Prime order
+          if is_prime(n):
+              print('[PASS] Order is prime')
+          else:
+              print('[FAIL] Order is NOT prime')
+              failures += 1
+
+          # 5. Non-anomalous
+          if int(n) != p_int:
+              print('[PASS] Non-anomalous (n != p)')
+          else:
+              print('[FAIL] Anomalous curve (n == p)')
+              failures += 1
+
+          # 6. Embedding degree
+          k = Mod(p_int, int(n)).multiplicative_order()
+          if k > 4:
+              print(f'[PASS] Embedding degree k = {k} > 4')
+          else:
+              print(f'[FAIL] Embedding degree k = {k} <= 4')
+              failures += 1
+
+          # 7. Generator on curve + full order
+          G = E(F(gx_int), F(gy_int))
+          if G == E(0):
+              print('[FAIL] Generator is the point at infinity')
+              failures += 1
+          else:
+              print(f'[PASS] Generator on curve: ({gx_int}, {gy_int})')
+
+          if int(n) * G == E(0):
+              print('[PASS] [n]G = O (full order)')
+          else:
+              print('[FAIL] [n]G != O')
+              failures += 1
+
+          # 8. Hasse bound
+          t = p_int + 1 - int(n)
+          if abs(t) <= 2 * isqrt(p_int):
+              print(f'[PASS] Hasse bound: |t|={abs(t)} <= {2*isqrt(p_int)}')
+          else:
+              print(f'[FAIL] Hasse bound violated')
+              failures += 1
+
+          # 9. Twist info
+          n_twist = 2*p_int + 2 - int(n)
+          print(f'[INFO] Twist order: {n_twist} = {factor(n_twist)}')
+
+          print()
+          if failures == 0:
+              print('ALL CHECKS PASSED')
+          else:
+              print(f'{failures} CHECK(S) FAILED')
+              sys.exit(1)
+          "
+
+      - name: "Record ${{ matrix.tier }} fingerprint"
+        working-directory: oathbreaker/sage
+        run: |
+          hash=$(sha256sum "${{ matrix.file }}" | cut -d' ' -f1)
+          echo "## ${{ matrix.tier }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Property | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| File | \`${{ matrix.file }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SHA-256 | \`${hash}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status | Verified by SageMath SEA |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Summary gate — blocks merges unless every curve passes verification.
+  # ---------------------------------------------------------------------------
+  curve-verification-pass:
+    name: "All curves verified"
+    if: always()
+    needs: [verify-curves, verify-tier]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all curve verification results
+        run: |
+          if [[ "${{ needs.verify-curves.result }}" != "success" ]]; then
+            echo "::error::Combined curve verification failed or was cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.verify-tier.result }}" != "success" ]]; then
+            echo "::error::One or more per-tier curve verifications failed or were cancelled"
+            exit 1
+          fi
+          echo "All Oath curves independently verified by SageMath."
