@@ -1,0 +1,15 @@
+[package]
+name = "reversible-arithmetic"
+description = "Reversible (quantum-compatible) gate circuits: adders, multipliers, inverters, EC point ops"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+goldilocks-field = { workspace = true }
+ec-goldilocks = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+rand = { workspace = true }

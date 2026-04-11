@@ -1,0 +1,96 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{cite}
+
+\title{Oathbreaker: An Open, zk-Verifiable Reversible Circuit Framework\\for ECDLP Arithmetic and Coherent Group Action\\over the Goldilocks Field}
+\author{Chippr Robotics LLC}
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We present an open reversible circuit framework implementing the coherent
+group-action map $|a\rangle|b\rangle|O\rangle \to |a\rangle|b\rangle|[a]G + [b]Q\rangle$
+for the Elliptic Curve Discrete Logarithm Problem (ECDLP) on the Oath-64 curve
+over the Goldilocks field $\mathbb{F}_p$ where $p = 2^{64} - 2^{32} + 1$.
+This map is the computationally dominant component of Shor's ECDLP algorithm,
+consuming $>$99\% of the qubits and gates.
+The circuit's execution trace is proven correct via an SP1 zkVM Groth16 SNARK
+and independently verified against classically-computed ground truth via
+Pollard's rho algorithm. We report measured resource counts (logical qubits,
+Toffoli gates, circuit depth) and project scaling to cryptographically relevant
+field sizes. The full circuit is published as a quantum hardware benchmark ---
+the Oathbreaker Scale --- which scores quantum computers by the largest Oath
+curve they can crack. We explicitly delineate what is proven (classical
+arithmetic correctness, reversible consistency, ancilla cleanup) from what is
+assumed (superposition behavior) or deferred (QFT, measurement, post-processing).
+\end{abstract}
+
+\section{Introduction}
+
+% TODO: Motivation, relationship to Google March 2026 paper
+
+\section{Background}
+
+\subsection{Shor's Algorithm for ECDLP}
+% TODO: Standard Shor ECDLP description
+
+\subsection{Circuit Model}
+% TODO: Reversible gate model, gate set
+
+\section{Curve Selection}
+
+% TODO: Why Goldilocks, the Oath-64 curve, parameter generation process
+
+\section{Circuit Construction}
+
+\subsection{Reversible Field Arithmetic}
+% TODO: Adder, multiplier, inverter decomposition
+
+\subsection{Reversible EC Operations}
+% TODO: Point addition, doubling, scalar multiplication
+
+\subsection{Coherent Group-Action Map}
+% TODO: Dual-scalar formulation, register allocation, windowed arithmetic
+
+\section{Verification Methodology}
+
+\subsection{Classical Ground Truth}
+% TODO: Pollard's rho verification
+
+\subsection{Zero-Knowledge Proof}
+% TODO: SP1 Groth16
+
+\section{Resource Analysis}
+
+% TODO: Measured counts, scaling table, comparison
+
+\section{The Oathbreaker Scale}
+
+% TODO: Benchmark specification --- Oath-8 through Oath-64 difficulty levels
+
+\section{Limitations}
+
+% TODO: No quantum execution, no amplitude simulation, no full phase estimation
+% Superposition correctness assumed via reversibility. Full Shor requires QFT + measurement.
+
+\section{Discussion}
+
+% TODO: What this proves, implications, future work
+
+\section{Conclusion}
+
+% TODO
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
