@@ -4,16 +4,16 @@ use serde::{Deserialize, Serialize};
 /// A single test case for the group-action circuit verification.
 ///
 /// The SP1 guest proves that the circuit correctly computes
-/// [a]G + [b]Q for each test case, matching the classical reference.
+/// \[a\]G + \[b\]Q for each test case, matching the classical reference.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TestCase {
     /// Scalar for the generator G.
     pub a: u64,
     /// Scalar for the target point Q.
     pub b: u64,
-    /// Target point Q = [k]G (the "public key" being attacked).
+    /// Target point Q = \[k\]G (the "public key" being attacked).
     pub target_q: AffinePoint,
-    /// Expected result: [a]G + [b]Q (classical reference).
+    /// Expected result: \[a\]G + \[b\]Q (classical reference).
     pub expected: AffinePoint,
 }
 
