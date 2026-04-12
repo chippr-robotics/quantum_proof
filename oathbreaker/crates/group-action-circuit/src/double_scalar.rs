@@ -186,12 +186,13 @@ pub fn build_group_action_circuit_jacobian(
     );
 
     // --- Single final inversion: convert Jacobian → affine ---
-    // Compute Z⁻¹ via Fermat (only 1 inversion for the entire computation).
+    // Compute Z⁻¹ via Binary GCD (O(n²) Toffoli, much cheaper than Fermat's O(n^2.585)).
     // Then: x = X · Z⁻², y = Y · Z⁻³
-    // This single inversion costs ~400K Toffoli, amortized over ~144 EC ops.
-    let inv_workspace = ancilla_pool.allocate("final_inv_workspace", 3 * n + 1, &mut counter);
+    // Only 1 inversion for the entire computation.
+    let bgcd_ws_size = reversible_arithmetic::inverter::BinaryGcdInverter::workspace_size(n);
+    let inv_workspace = ancilla_pool.allocate("final_inv_workspace", bgcd_ws_size, &mut counter);
     let z_inv_reg = ancilla_pool.allocate("z_inv", n, &mut counter);
-    let inverter = reversible_arithmetic::inverter::FermatInverter::new(n);
+    let inverter = reversible_arithmetic::inverter::BinaryGcdInverter::new(n);
     let _inv_gates = inverter.forward_gates(
         4 * n,            // point_Z input
         z_inv_reg.offset, // Z⁻¹ output
