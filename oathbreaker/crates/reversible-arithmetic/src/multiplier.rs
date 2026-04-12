@@ -361,6 +361,88 @@ fn schoolbook_integer_mul(
     gates
 }
 
+/// Symmetry-optimized schoolbook integer squaring.
+///
+/// Computes acc[0..2n] = a[0..n]² by exploiting the symmetry of the partial
+/// product matrix: each cross-term a[i]*a[j] (i≠j) appears twice, so we
+/// compute it once and place it at position i+j+1 (shifted by 1 = ×2).
+/// Diagonal terms a[i]² = a[i] are added via CNOT (no Toffoli).
+///
+/// Saves ~50% of the partial-product Toffoli compared to schoolbook multiply.
+///
+/// Workspace: pp[0..n-1] + carry(1) = n qubits (fits in schoolbook_int_ws).
+fn schoolbook_integer_square(
+    n: usize,
+    a: usize,
+    acc: usize,
+    ws: usize,
+    counter: &mut ResourceCounter,
+) -> Vec<Gate> {
+    let pp = ws;
+    let carry = ws + n; // carry bit (reused from schoolbook_int_ws allocation)
+    let mut gates = Vec::new();
+
+    // --- Phase 1: Cross terms (i < j) → a[i]*a[j] at position i+j+1 ---
+    //
+    // For each row i, the cross terms are a[i]*a[j] for j = i+1..n-1.
+    // These go into acc starting at position 2i+2 (= i+(i+1)+1) with
+    // width (n-1-i).
+    for i in 0..n {
+        let row_width = n - 1 - i;
+        if row_width == 0 {
+            break;
+        }
+
+        // Load pp[k] = a[i] AND a[i+1+k]
+        for k in 0..row_width {
+            let j = i + 1 + k;
+            let g = Gate::Toffoli {
+                control1: a + i,
+                control2: a + j,
+                target: pp + k,
+            };
+            counter.record_gate(&g);
+            gates.push(g);
+        }
+
+        // Add pp[0..row_width] to acc at position 2*i+2
+        let add_pos = 2 * i + 2;
+        let add_width = row_width.min(2 * n - add_pos);
+        if add_width > 0 {
+            let adder = CuccaroAdder::new(add_width);
+            let add_gates = adder.forward_gates(pp, acc + add_pos, carry, counter);
+            gates.extend(add_gates);
+        }
+
+        // Unload pp (Toffoli is self-inverse)
+        for k in 0..row_width {
+            let j = i + 1 + k;
+            let g = Gate::Toffoli {
+                control1: a + i,
+                control2: a + j,
+                target: pp + k,
+            };
+            counter.record_gate(&g);
+            gates.push(g);
+        }
+    }
+
+    // --- Phase 2: Diagonal terms → a[i] at position 2i ---
+    for i in 0..n {
+        let pos = 2 * i;
+        if pos < 2 * n {
+            let g = Gate::Cnot {
+                control: a + i,
+                target: acc + pos,
+            };
+            counter.record_gate(&g);
+            gates.push(g);
+        }
+    }
+
+    gates
+}
+
 /// Goldilocks modular reduction: fold acc[n..2n] into acc[0..n].
 ///
 /// Uses p = 2^n − 2^(n/2) + 1, so 2^n ≡ 2^(n/2) − 1 (mod p).
@@ -521,6 +603,37 @@ fn add_with_carryout(
     gates
 }
 
+/// Reversible integer subtraction: b -= a (a preserved).
+///
+/// Computed by running the Cuccaro adder gate sequence in reverse order.
+/// Since Cuccaro forward computes b += a, the reverse computes b -= a.
+/// All gates are self-inverse, so reversing the order suffices.
+///
+/// Cost: O(n) Toffoli + O(2n) CNOT (same as addition).
+/// `carry` is a 1-bit ancilla that starts and ends at 0.
+fn cuccaro_subtract(
+    n: usize,
+    a: usize,     // n-bit register (preserved)
+    b: usize,     // n-bit register (overwritten with b - a)
+    carry: usize, // 1-bit ancilla
+    counter: &mut ResourceCounter,
+) -> Vec<Gate> {
+    // Generate the forward addition gates using a temporary counter
+    // to avoid double-counting in the real counter.
+    let mut tmp_counter = ResourceCounter::new();
+    let adder = CuccaroAdder::new(n);
+    let fwd = adder.forward_gates(a, b, carry, &mut tmp_counter);
+
+    // Run in reverse for subtraction; record each gate in the real counter.
+    let mut gates = Vec::with_capacity(fwd.len());
+    for gate in fwd.iter().rev() {
+        let inv = gate.inverse();
+        counter.record_gate(&inv);
+        gates.push(inv);
+    }
+    gates
+}
+
 /// Compute the workspace needed by the recursive Karatsuba integer multiply.
 ///
 /// Each level allocates its own intermediates plus three separate sub-workspace
@@ -541,24 +654,35 @@ pub fn karatsuba_int_ws(n: usize) -> usize {
     level + karatsuba_int_ws(h) + karatsuba_int_ws(h_hi) + karatsuba_int_ws(h_sum)
 }
 
-/// Recursive Karatsuba integer multiplication.
+/// Recursive Karatsuba integer multiplication (or squaring).
 ///
 /// Computes acc[0..2n] = a[0..n] * b[0..n] (integer product, no modular
 /// reduction).  The workspace is left dirty — the caller is responsible for
 /// Bennett uncomputation of the entire forward pass.
 ///
-/// Gate count: O(n^1.585) Toffoli via 3 half-size multiplications per level.
+/// When `is_square` is true, a and b point to the same register. All
+/// recursive sub-calls also receive `is_square = true`, and the base case
+/// uses `schoolbook_integer_square` (saving ~50% of partial-product Toffoli
+/// via cross-term symmetry: each a[i]*a[j] pair computed once, doubled
+/// by shifting position; diagonal terms use CNOT instead of Toffoli).
+///
+/// Gate count: O(n^1.585) Toffoli via 3 half-size sub-problems per level.
 fn karatsuba_integer_mul(
     n: usize,
     a: usize,
     b: usize,
     acc: usize,
     ws: usize,
+    is_square: bool,
     counter: &mut ResourceCounter,
 ) -> Vec<Gate> {
     // Base case: fall back to schoolbook
     if n <= 8 {
-        return schoolbook_integer_mul(n, a, b, acc, ws, counter);
+        if is_square {
+            return schoolbook_integer_square(n, a, acc, ws, counter);
+        } else {
+            return schoolbook_integer_mul(n, a, b, acc, ws, counter);
+        }
     }
 
     let h = n / 2;
@@ -583,15 +707,14 @@ fn karatsuba_integer_mul(
     let sub_ws_2 = sub_ws_1 + karatsuba_int_ws(h_hi);
 
     // --- Step 1: z0 = a_lo * b_lo → acc[0..2h] ---
-    let g = karatsuba_integer_mul(h, a, b, acc, sub_ws_0, counter);
+    let g = karatsuba_integer_mul(h, a, b, acc, sub_ws_0, is_square, counter);
     gates.extend(g);
 
     // --- Step 2: z2 = a_hi * b_hi → z2_reg[0..2*h_hi] ---
-    let g = karatsuba_integer_mul(h_hi, a + h, b + h, z2_reg, sub_ws_1, counter);
+    let g = karatsuba_integer_mul(h_hi, a + h, b + h, z2_reg, sub_ws_1, is_square, counter);
     gates.extend(g);
 
     // --- Step 3: sa = a_lo + a_hi → sa_reg[0..h_sum] ---
-    // Copy a_lo to sa_reg[0..h]
     for i in 0..h {
         let g = Gate::Cnot {
             control: a + i,
@@ -600,47 +723,54 @@ fn karatsuba_integer_mul(
         counter.record_gate(&g);
         gates.push(g);
     }
-    // Add a_hi with carry-out: sa_reg = a_lo + a_hi
     let g = add_with_carryout(h_hi, a + h, sa_reg, carry_a, counter);
     gates.extend(g);
 
-    // --- Step 4: sb = b_lo + b_hi → sb_reg[0..h_sum] ---
-    for i in 0..h {
-        let g = Gate::Cnot {
-            control: b + i,
-            target: sb_reg + i,
-        };
-        counter.record_gate(&g);
-        gates.push(g);
+    if is_square {
+        // --- Step 4 (square): sb == sa, skip separate computation ---
+        // Use sa_reg for both inputs to the z1 sub-call.
+
+        // --- Step 5 (square): z1_full = sa² → z1_reg ---
+        let g = karatsuba_integer_mul(h_sum, sa_reg, sa_reg, z1_reg, sub_ws_2, true, counter);
+        gates.extend(g);
+    } else {
+        // --- Step 4: sb = b_lo + b_hi → sb_reg[0..h_sum] ---
+        for i in 0..h {
+            let g = Gate::Cnot {
+                control: b + i,
+                target: sb_reg + i,
+            };
+            counter.record_gate(&g);
+            gates.push(g);
+        }
+        let g = add_with_carryout(h_hi, b + h, sb_reg, carry_b, counter);
+        gates.extend(g);
+
+        // --- Step 5: z1_full = sa * sb → z1_reg[0..2*h_sum] ---
+        let g = karatsuba_integer_mul(h_sum, sa_reg, sb_reg, z1_reg, sub_ws_2, false, counter);
+        gates.extend(g);
     }
-    let g = add_with_carryout(h_hi, b + h, sb_reg, carry_b, counter);
-    gates.extend(g);
 
-    // --- Step 5: z1_full = sa * sb → z1_reg[0..2*h_sum] ---
-    let g = karatsuba_integer_mul(h_sum, sa_reg, sb_reg, z1_reg, sub_ws_2, counter);
-    gates.extend(g);
-
-    // --- Step 6: z1 = z1_full - z0 - z2 (via XOR subtraction) ---
-    // z1_reg ^= acc[0..2h] (subtract z0)
+    // --- Step 6: z1 = z1_full - z0 - z2 (proper reversible subtraction) ---
+    //
+    // Karatsuba's middle term: z1 = (a_lo+a_hi)*(b_lo+b_hi) - z0 - z2
+    //                             = a_lo*b_hi + a_hi*b_lo  (always >= 0).
+    //
+    // Reversible subtraction via Cuccaro-reverse: running the Cuccaro adder
+    // gates in reverse order computes b -= a (undoing b += a). This costs
+    // O(n) Toffoli per subtraction, matching proper integer arithmetic.
+    //
+    // z1_reg -= acc[0..2h] (subtract z0)
     let z0_bits = 2 * h;
-    for i in 0..z0_bits.min(2 * h_sum) {
-        let g = Gate::Cnot {
-            control: acc + i,
-            target: z1_reg + i,
-        };
-        counter.record_gate(&g);
-        gates.push(g);
-    }
-    // z1_reg ^= z2_reg[0..2*h_hi] (subtract z2)
+    let sub_width_0 = z0_bits.min(2 * h_sum);
+    let g = cuccaro_subtract(sub_width_0, acc, z1_reg, carry_comb, counter);
+    gates.extend(g);
+
+    // z1_reg -= z2_reg[0..2*h_hi] (subtract z2)
     let z2_bits = 2 * h_hi;
-    for i in 0..z2_bits.min(2 * h_sum) {
-        let g = Gate::Cnot {
-            control: z2_reg + i,
-            target: z1_reg + i,
-        };
-        counter.record_gate(&g);
-        gates.push(g);
-    }
+    let sub_width_2 = z2_bits.min(2 * h_sum);
+    let g = cuccaro_subtract(sub_width_2, z2_reg, z1_reg, carry_comb, counter);
+    gates.extend(g);
 
     // --- Step 7: Combine products into accumulator ---
     // acc[h..h+2*h_sum] += z1 (shifted by h positions)
@@ -710,7 +840,7 @@ impl KaratsubaMultiplier {
         let mut forward_gates_list: Vec<Gate> = Vec::new();
 
         // Step 1: Integer multiplication via Karatsuba
-        let g = karatsuba_integer_mul(n, a_offset, b_offset, acc, kara_ws, counter);
+        let g = karatsuba_integer_mul(n, a_offset, b_offset, acc, kara_ws, false, counter);
         forward_gates_list.extend(g);
 
         // Step 2: Goldilocks modular reduction
@@ -758,7 +888,47 @@ impl KaratsubaSquarer {
         workspace_offset: usize,
         counter: &mut ResourceCounter,
     ) -> Vec<Gate> {
-        let mul = KaratsubaMultiplier::new(self.n);
-        mul.forward_gates(input_offset, input_offset, result_offset, workspace_offset, counter)
+        let n = self.n;
+        let mut gates = Vec::new();
+
+        // Same workspace layout as KaratsubaMultiplier
+        let acc = workspace_offset;
+        let carry = workspace_offset + 2 * n;
+        let kara_ws = workspace_offset + 2 * n + 1;
+
+        let total_ws = KaratsubaMultiplier::workspace_size(n);
+        counter.allocate_ancilla(total_ws);
+
+        let mut forward_gates_list: Vec<Gate> = Vec::new();
+
+        // Integer squaring via Karatsuba with is_square=true
+        let g = karatsuba_integer_mul(n, input_offset, input_offset, acc, kara_ws, true, counter);
+        forward_gates_list.extend(g);
+
+        // Goldilocks modular reduction
+        let g = goldilocks_reduce(n, acc, carry, counter);
+        forward_gates_list.extend(g);
+
+        gates.extend(forward_gates_list.clone());
+
+        // Copy result to output
+        for i in 0..n {
+            let g = Gate::Cnot {
+                control: acc + i,
+                target: result_offset + i,
+            };
+            counter.record_gate(&g);
+            gates.push(g);
+        }
+
+        // Bennett uncomputation
+        for gate in forward_gates_list.iter().rev() {
+            let inv = gate.inverse();
+            counter.record_gate(&inv);
+            gates.push(inv);
+        }
+
+        counter.free_ancilla(total_ws);
+        gates
     }
 }
