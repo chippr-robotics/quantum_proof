@@ -21,13 +21,47 @@ pub fn project_scaling(
     measured_toffoli: usize,
     base_bits: usize,
 ) -> Vec<ScalingProjection> {
-    let targets = vec![
-        (64, "Oath-64 (measured)"),
-        (128, "Oath-128 projection"),
-        (256, "Oath-256 / secp256k1"),
-        (384, "Oath-384 / P-384"),
-        (521, "Oath-521 / P-521"),
-    ];
+    let mut targets: Vec<(usize, &str)> = Vec::new();
+
+    // Include the measured baseline
+    if base_bits <= 8 {
+        targets.push((base_bits, "measured baseline"));
+    }
+    if base_bits <= 16 {
+        targets.push((
+            16,
+            if base_bits == 16 {
+                "Oath-16 (measured)"
+            } else {
+                "Oath-16 projection"
+            },
+        ));
+    }
+    if base_bits <= 32 {
+        targets.push((
+            32,
+            if base_bits == 32 {
+                "Oath-32 (measured)"
+            } else {
+                "Oath-32 projection"
+            },
+        ));
+    }
+    targets.push((
+        64,
+        if base_bits == 64 {
+            "Oath-64 (measured)"
+        } else {
+            "Oath-64 projection"
+        },
+    ));
+    targets.push((128, "Oath-128 projection"));
+    targets.push((256, "Oath-256 / secp256k1"));
+    targets.push((384, "Oath-384 / P-384"));
+    targets.push((521, "Oath-521 / P-521"));
+
+    // Deduplicate (base_bits may already be in the list)
+    targets.dedup_by_key(|t| t.0);
 
     targets
         .into_iter()
