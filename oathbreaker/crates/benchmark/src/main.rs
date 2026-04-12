@@ -121,22 +121,169 @@ fn run_benchmarks() {
             let circuit = group_action_circuit::build_group_action_circuit_jacobian(curve, w);
             let summary = circuit.summary();
             counter::print_resource_table(&circuit);
+            // Print cost attribution for the largest tier
+            if let Some(ref attr) = summary.cost_attribution {
+                let total = summary.toffoli_gates.max(1);
+                println!();
+                println!("  Toffoli Cost Attribution:");
+                println!("  ┌─────────────────────┬──────────────┬────────┐");
+                println!("  │ Subsystem           │ Toffoli      │ Share  │");
+                println!("  ├─────────────────────┼──────────────┼────────┤");
+                let rows = [
+                    ("Doublings", attr.doubling_toffoli),
+                    ("QROM decode/load", attr.qrom_toffoli),
+                    ("Mixed additions", attr.addition_toffoli),
+                    ("Inversion (BGCD)", attr.inversion_toffoli),
+                    ("Affine recovery", attr.affine_recovery_toffoli),
+                ];
+                let mut accounted = 0;
+                for (name, cost) in &rows {
+                    let pct = *cost as f64 / total as f64 * 100.0;
+                    println!("  │ {:<19} │ {:<12} │ {:>5.1}% │", name, cost, pct,);
+                    accounted += cost;
+                }
+                let other = total.saturating_sub(accounted);
+                let other_pct = other as f64 / total as f64 * 100.0;
+                println!(
+                    "  │ {:<19} │ {:<12} │ {:>5.1}% │",
+                    "Other/overhead", other, other_pct,
+                );
+                println!("  └─────────────────────┴──────────────┴────────┘");
+            }
             println!();
             measured.push((tier_name.to_string(), summary));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 2b: Window-size sweep.
+    //           For each measured tier, try all valid window sizes and report
+    //           the Toffoli / qubit tradeoff.  This determines whether the
+    //           current default w is optimal under the new QROM + Karatsuba
+    //           cost structure.
+    // -----------------------------------------------------------------------
+    println!("=== Window-Size Sweep ===\n");
+    println!("┌───────────┬────────┬──────────────┬─────────────┬──────────────────┐");
+    println!(
+        "│ {:<9} │ {:<6} │ {:<12} │ {:<11} │ {:<16} │",
+        "Tier", "Window", "Toffoli", "Qubits", "Total gates"
+    );
+    println!("├───────────┼────────┼──────────────┼─────────────┼──────────────────┤");
+
+    // Track the best window per tier for use in projections
+    let mut best_per_tier: Vec<(String, group_action_circuit::CircuitSummary)> = Vec::new();
+
+    for tier_name in &measurable_tiers {
+        if let Some((_, curve)) = all_curves.iter().find(|(n, _)| n == *tier_name) {
+            let n = curve.field_bits;
+            // Valid window sizes: must divide n, range 1..=n
+            let valid_windows: Vec<usize> = (1..=n)
+                .filter(|w| n % w == 0 && *w <= 8) // cap at 8 to keep QROM table ≤ 256
+                .collect();
+
+            let mut best_toffoli = usize::MAX;
+            let mut best_summary = None;
+            for &w in &valid_windows {
+                let circuit = group_action_circuit::build_group_action_circuit_jacobian(curve, w);
+                let summary = circuit.summary();
+                let marker = if summary.toffoli_gates < best_toffoli {
+                    best_toffoli = summary.toffoli_gates;
+                    best_summary = Some(summary.clone());
+                    " ◄ best"
+                } else {
+                    ""
+                };
+                println!(
+                    "│ {:<9} │ w={:<4} │ {:<12} │ {:<11} │ {:<16} │{}",
+                    tier_name,
+                    w,
+                    summary.toffoli_gates,
+                    summary.logical_qubits_peak,
+                    summary.total_reversible_gates,
+                    marker,
+                );
+            }
+
+            if let Some(s) = best_summary {
+                best_per_tier.push((tier_name.to_string(), s));
+            }
+
+            // Separator between tiers
+            if tier_name != measurable_tiers.last().unwrap() {
+                println!("├───────────┼────────┼──────────────┼─────────────┼──────────────────┤");
+            }
+        }
+    }
+    println!("└───────────┴────────┴──────────────┴─────────────┴──────────────────┘");
+    println!();
+
+    // Use the best-window results for the largest tier as our projection base
+    if !best_per_tier.is_empty() {
+        let (ref best_name, ref best_summary) = best_per_tier[best_per_tier.len() - 1];
+        let default_w = window_for_field(best_summary.field_bits);
+        let (_, ref default_summary) = measured[measured.len() - 1];
+
+        if best_summary.toffoli_gates < default_summary.toffoli_gates {
+            println!(
+                "Window sweep found a better configuration for {}:",
+                best_name
+            );
+            println!(
+                "  Default (w={}): {} Toffoli, {} qubits",
+                default_w, default_summary.toffoli_gates, default_summary.logical_qubits_peak,
+            );
+            println!(
+                "  Best:           {} Toffoli, {} qubits",
+                best_summary.toffoli_gates, best_summary.logical_qubits_peak,
+            );
+            println!(
+                "  Improvement:    {:.1}% fewer Toffoli\n",
+                (1.0 - best_summary.toffoli_gates as f64 / default_summary.toffoli_gates as f64)
+                    * 100.0,
+            );
+
+            // Replace the measured entry with the best-window version
+            if let Some(entry) = measured.last_mut() {
+                *entry = (best_name.clone(), best_summary.clone());
+            }
+        } else {
+            println!(
+                "Default window (w={}) is already optimal for {}.\n",
+                default_w, best_name,
+            );
         }
     }
 
     // Note about Oath-64
     println!("Note: Oath-64 full circuit construction materializes ~90M+ gate objects");
     println!("      (~3 GB RAM) and is omitted from CI. Resource counts are projected");
-    println!("      from measured tiers using the O(n^3) Toffoli scaling model.\n");
+    println!("      from measured tiers using the Karatsuba O(n^2.585) scaling model.\n");
 
     // -----------------------------------------------------------------------
     // Phase 3: Scaling projections from the largest measured tier.
+    //          Three views: Karatsuba O(n^2.585), schoolbook O(n^3), empirical fit.
     // -----------------------------------------------------------------------
     if let Some((ref base_name, ref base_summary)) = measured.last() {
+        // Compute empirical exponent from the two largest measured tiers
+        let empirical_exp = if measured.len() >= 2 {
+            let (_, ref prev) = measured[measured.len() - 2];
+            let exp = scaling::empirical_exponent(
+                prev.field_bits,
+                prev.toffoli_gates,
+                base_summary.field_bits,
+                base_summary.toffoli_gates,
+            );
+            println!(
+                "Empirical scaling exponent ({}-bit → {}-bit): {:.3}",
+                prev.field_bits, base_summary.field_bits, exp,
+            );
+            Some(exp)
+        } else {
+            None
+        };
+
         println!(
-            "=== Scaling Projections (from {} baseline) ===\n",
+            "\n=== Scaling Projections (from {} baseline, Karatsuba O(n^2.585)) ===\n",
             base_name
         );
         let projections = scaling::project_scaling(
@@ -145,9 +292,30 @@ fn run_benchmarks() {
             base_summary.field_bits,
         );
         scaling::print_scaling_table(&projections);
+
+        // Also show schoolbook O(n³) for comparison
+        println!("\n=== Schoolbook O(n^3) Projections (for comparison) ===\n",);
+        let schoolbook_projections = scaling::project_scaling_schoolbook(
+            base_summary.logical_qubits_peak,
+            base_summary.toffoli_gates,
+            base_summary.field_bits,
+        );
+        scaling::print_scaling_table(&schoolbook_projections);
+
+        // If we have an empirical fit, show that too
+        if let Some(exp) = empirical_exp {
+            println!("\n=== Empirical Fit O(n^{:.2}) Projections ===\n", exp,);
+            let emp_projections = scaling::project_scaling_empirical(
+                base_summary.logical_qubits_peak,
+                base_summary.toffoli_gates,
+                base_summary.field_bits,
+                exp,
+            );
+            scaling::print_scaling_table(&emp_projections);
+        }
         println!();
 
-        // Extract 256-bit projection for comparison table
+        // Extract 256-bit projection (Karatsuba model) for comparison table
         let projection_256 = projections
             .iter()
             .find(|p| p.field_bits == 256)

@@ -49,6 +49,8 @@ point addition. The qubit increase comes from the additional Z coordinate regist
 - Litinski's 50M Toffoli uses measurement-based uncomputation (requires active error correction)
 - Our circuit uses standard reversible uncomputation (works on any gate-model machine)
 - Both are valid — they target different hardware models
+- Our multiplier now uses Karatsuba decomposition (O(n^1.585) per multiply), closing part of the gap
+- Remaining gap is primarily from measurement-based uncomputation (2× Bennett overhead) and Litinski's semi-classical oracle approach
 
 ### vs. Google
 - Google proved correctness of point addition at 256 bits

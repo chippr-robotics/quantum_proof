@@ -81,7 +81,7 @@ pub fn print_comparison_table(our_projection_256: Option<(usize, usize)>) {
                 .map(|q| q.to_string())
                 .unwrap_or_else(|| "N/A".to_string()),
             p.toffoli
-                .map(|t| format_large_number(t))
+                .map(format_large_number)
                 .unwrap_or_else(|| "N/A".to_string()),
             truncate(&p.notes, 24),
         );
