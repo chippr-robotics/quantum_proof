@@ -17,9 +17,9 @@ use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-// Import the Prover trait so execute/setup/prove/verify methods are in scope.
+// Import SP1 traits so execute/setup/prove/verify/compressed/groth16 are in scope.
 #[cfg(feature = "sp1")]
-use sp1_sdk::Prover;
+use sp1_sdk::{ProveRequest, Prover};
 
 /// Oathbreaker SP1 Host — ZK proof generation for quantum circuit verification.
 #[derive(Parser, Debug)]
@@ -289,7 +289,6 @@ fn run_sp1_execute(input: &ProofInput) -> ProofOutput {
 
         let (output, report) = client
             .execute(elf, stdin)
-            .run()
             .await
             .expect("SP1 execution failed");
 
@@ -316,9 +315,9 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         println!("[3/7] Initializing SP1 prover client...");
         let client = sp1_sdk::ProverClient::from_env().await;
 
-        println!("[4/7] Setting up proving and verification keys...");
+        println!("[4/7] Setting up proving key...");
         let elf = sp1_sdk::include_elf!("sp1-program");
-        let (pk, vk) = client.setup(elf).await.expect("SP1 setup failed");
+        let pk = client.setup(elf).await.expect("SP1 setup failed");
 
         let mut stdin = sp1_sdk::SP1Stdin::new();
         stdin.write(input);
@@ -342,21 +341,15 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         );
 
         let proof = match proof_type_owned.as_str() {
-            "core" => client
-                .prove(&pk, stdin)
-                .run()
-                .await
-                .expect("Core proof failed"),
+            "core" => client.prove(&pk, stdin).await.expect("Core proof failed"),
             "compressed" => client
                 .prove(&pk, stdin)
                 .compressed()
-                .run()
                 .await
                 .expect("Compressed proof failed"),
             "groth16" => client
                 .prove(&pk, stdin)
                 .groth16()
-                .run()
                 .await
                 .expect("Groth16 proof failed"),
             _ => unreachable!(),
@@ -364,8 +357,7 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
 
         println!("[6/7] Verifying proof...");
         client
-            .verify(&proof, &vk)
-            .await
+            .verify(&proof, &pk, None)
             .expect("Proof verification failed — this should never happen");
         println!("  Proof verified successfully.");
 
@@ -383,10 +375,9 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         let proof_path = output_dir_owned.join("proof.bin");
         proof.save(&proof_path).expect("Failed to save proof");
 
-        // Serialize verification key as JSON for portability
-        let vk_json =
-            serde_json::to_string_pretty(&vk).expect("Failed to serialize verification key");
-        std::fs::write(output_dir_owned.join("vk.json"), vk_json).expect("Failed to write vk.json");
+        // Serialize proving key as JSON for portability (contains verification key)
+        let pk_json = serde_json::to_string_pretty(&pk).expect("Failed to serialize proving key");
+        std::fs::write(output_dir_owned.join("pk.json"), pk_json).expect("Failed to write pk.json");
 
         // Write circuit summary (public values)
         std::fs::write(
@@ -397,7 +388,7 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
 
         println!("  Artifacts written:");
         println!("    proof.bin            — {} proof", proof_type_label);
-        println!("    vk.json              — Verification key");
+        println!("    pk.json              — Proving key (contains verification key)");
         println!("    circuit_summary.json — Public values (resource counts + circuit hash)");
 
         proof_output
