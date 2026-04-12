@@ -87,9 +87,9 @@ impl WindowedScalarMulJacobian {
 
         // EC operation workspace — Jacobian ops need more workspace than affine
         // Mixed add: ~13n, Doubling: ~12n. Take the max + multiplier workspace.
-        // Mixed add needs 13n+2 (10n intermediates + carry + multiplier workspace).
-        // Doubling needs 12n+1. Take the max.
-        let ec_workspace = ancilla_pool.allocate("ec_workspace_jac", 13 * n + 2, counter);
+        // Doubling needs 14n+2 (11n intermediates + carry + mul workspace).
+        // Mixed add needs 13n+2. Take the max = 14n+2.
+        let ec_workspace = ancilla_pool.allocate("ec_workspace_jac", 14 * n + 2, counter);
 
         // One-hot selection register for QROM decode (2^w qubits).
         // Decodes the w-bit window index into a one-hot representation so that
