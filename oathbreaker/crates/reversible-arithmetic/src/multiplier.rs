@@ -552,9 +552,19 @@ fn add_with_carryout(
     // MAJ(x, y, z): CNOT(z→y), CNOT(z→x), Toffoli(x,y→z)
     macro_rules! maj {
         ($x:expr, $y:expr, $z:expr) => {{
-            let g1 = Gate::Cnot { control: $z, target: $y };
-            let g2 = Gate::Cnot { control: $z, target: $x };
-            let g3 = Gate::Toffoli { control1: $x, control2: $y, target: $z };
+            let g1 = Gate::Cnot {
+                control: $z,
+                target: $y,
+            };
+            let g2 = Gate::Cnot {
+                control: $z,
+                target: $x,
+            };
+            let g3 = Gate::Toffoli {
+                control1: $x,
+                control2: $y,
+                target: $z,
+            };
             counter.record_gate(&g1);
             counter.record_gate(&g2);
             counter.record_gate(&g3);
@@ -567,9 +577,19 @@ fn add_with_carryout(
     // UMA(x, y, z): Toffoli(x,y→z), CNOT(z→x), CNOT(x→y)
     macro_rules! uma {
         ($x:expr, $y:expr, $z:expr) => {{
-            let g1 = Gate::Toffoli { control1: $x, control2: $y, target: $z };
-            let g2 = Gate::Cnot { control: $z, target: $x };
-            let g3 = Gate::Cnot { control: $x, target: $y };
+            let g1 = Gate::Toffoli {
+                control1: $x,
+                control2: $y,
+                target: $z,
+            };
+            let g2 = Gate::Cnot {
+                control: $z,
+                target: $x,
+            };
+            let g3 = Gate::Cnot {
+                control: $x,
+                target: $y,
+            };
             counter.record_gate(&g1);
             counter.record_gate(&g2);
             counter.record_gate(&g3);

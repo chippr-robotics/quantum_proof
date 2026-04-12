@@ -99,7 +99,13 @@ pub fn project_scaling(
     base_bits: usize,
 ) -> Vec<ScalingProjection> {
     let targets = build_targets(base_bits);
-    project_with_exponent(measured_qubits, measured_toffoli, base_bits, 2.585, &targets)
+    project_with_exponent(
+        measured_qubits,
+        measured_toffoli,
+        base_bits,
+        2.585,
+        &targets,
+    )
 }
 
 /// Project using the old O(n³) schoolbook scaling (for comparison).
@@ -129,7 +135,13 @@ pub fn project_scaling_empirical(
     exponent: f64,
 ) -> Vec<ScalingProjection> {
     let targets = build_targets(base_bits);
-    project_with_exponent(measured_qubits, measured_toffoli, base_bits, exponent, &targets)
+    project_with_exponent(
+        measured_qubits,
+        measured_toffoli,
+        base_bits,
+        exponent,
+        &targets,
+    )
 }
 
 /// Print the scaling projection table.

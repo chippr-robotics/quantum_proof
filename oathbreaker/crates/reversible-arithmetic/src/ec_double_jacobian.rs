@@ -1,6 +1,6 @@
+use crate::adder::CuccaroAdder;
 use crate::gates::Gate;
 use crate::multiplier::cuccaro_subtract;
-use crate::adder::CuccaroAdder;
 use crate::resource_counter::ResourceCounter;
 
 /// Reversible Jacobian point doubling: 2P in projective coordinates.
@@ -46,10 +46,10 @@ impl ReversibleJacobianDouble {
     ///   [6n..7n):    C = 8·A²
     ///   [7n..8n):    A² (base for ×8 → C)
     ///   [8n..9n):    D²
-    ///   [9n..10n):   temp (B - X₃, etc.)
-    ///   [10n..11n):  const_temp (×k intermediate; holds X₁·A)
-    ///   [11n]:       sub_carry (for Cuccaro subtract)
-    ///   [11n+1..):   multiplier workspace
+    ///   `[9n..10n)`:   temp (B - X₃, etc.)
+    ///   `[10n..11n)`:  const_temp (×k intermediate; holds X₁·A)
+    ///   `[11n]`:       sub_carry (for Cuccaro subtract)
+    ///   `[11n+1..)`:   multiplier workspace
     #[allow(clippy::too_many_arguments)]
     pub fn forward_gates(
         &self,
@@ -65,16 +65,16 @@ impl ReversibleJacobianDouble {
         let n = self.n;
         let mut gates = Vec::new();
 
-        let a_off = workspace_offset;          // Y₁²
-        let z1sq = workspace_offset + n;       // Z₁²
-        let z1_4 = workspace_offset + 2 * n;   // Z₁⁴
-        let x1sq = workspace_offset + 3 * n;   // X₁²
-        let d_off = workspace_offset + 4 * n;   // D
-        let b_off = workspace_offset + 5 * n;   // B = 4·X₁·A
-        let c_off = workspace_offset + 6 * n;   // C = 8·A²
-        let a_sq = workspace_offset + 7 * n;    // A² (base value for ×8)
-        let d_sq = workspace_offset + 8 * n;    // D²
-        let temp = workspace_offset + 9 * n;    // temp
+        let a_off = workspace_offset; // Y₁²
+        let z1sq = workspace_offset + n; // Z₁²
+        let z1_4 = workspace_offset + 2 * n; // Z₁⁴
+        let x1sq = workspace_offset + 3 * n; // X₁²
+        let d_off = workspace_offset + 4 * n; // D
+        let b_off = workspace_offset + 5 * n; // B = 4·X₁·A
+        let c_off = workspace_offset + 6 * n; // C = 8·A²
+        let a_sq = workspace_offset + 7 * n; // A² (base value for ×8)
+        let d_sq = workspace_offset + 8 * n; // D²
+        let temp = workspace_offset + 9 * n; // temp
         let const_temp = workspace_offset + 10 * n; // scratch for ×k
         let sub_carry = workspace_offset + 11 * n; // carry for Cuccaro
         let mul_work = workspace_offset + 11 * n + 1;

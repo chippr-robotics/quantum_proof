@@ -54,9 +54,9 @@ impl ReversibleJacobianMixedAdd {
     ///   [6n..7n):    H²
     ///   [7n..8n):    H³
     ///   [8n..9n):    X₁·H²
-    ///   [9n..10n):   R² (temp, reused for Y₃ computation)
-    ///   [10n]:       carry bit for Cuccaro subtraction
-    ///   [10n+1..13n+2): multiplier workspace
+    ///   `[9n..10n)`:   R² (temp, reused for Y₃ computation)
+    ///   `[10n]`:       carry bit for Cuccaro subtraction
+    ///   `[10n+1..13n+2)`: multiplier workspace
     #[allow(clippy::too_many_arguments)]
     pub fn forward_gates(
         &self,

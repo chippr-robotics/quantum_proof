@@ -88,13 +88,8 @@ impl FermatInverter {
 
             if bit_set {
                 let mul = crate::multiplier::KaratsubaMultiplier::new(n);
-                let mul_gates = mul.forward_gates(
-                    acc_reg,
-                    input_offset,
-                    sq_work,
-                    mul_work,
-                    counter,
-                );
+                let mul_gates =
+                    mul.forward_gates(acc_reg, input_offset, sq_work, mul_work, counter);
                 gates.extend(mul_gates);
 
                 for i in 0..n {
@@ -160,19 +155,16 @@ impl FermatInverter {
 ///
 /// # Algorithm overview
 ///
-/// Phase 1 (2n iterations): extended binary GCD
-///   Maintains state (u, v, r, s) with u initialized to p, v to a.
-///   Each iteration:
-///   1. Conditionally swap (u,v) and (r,s) so u is the register to halve
-///   2. If both u,v are odd: u -= v, r += s
-///   3. Right-shift u, left-shift s
-///   4. Reverse conditional swap
-///   After 2n iterations: gcd(p,a) = u = 1, r = a⁻¹ · 2^k mod p.
+/// **Phase 1** (2n iterations): extended binary GCD.
+/// Maintains state (u, v, r, s) with u initialized to p, v to a.
+/// Each iteration conditionally swaps (u,v) and (r,s) so u is the
+/// register to halve, subtracts if both odd (u -= v, r += s),
+/// right-shifts u, left-shifts s, then reverses the conditional swap.
+/// After 2n iterations: gcd(p,a) = u = 1, r = a⁻¹ · 2^k mod p.
 ///
-/// Phase 2 (2n halvings): Montgomery correction
-///   Multiply r by 2⁻²ⁿ mod p via repeated halving:
-///   if r is even: r /= 2; if odd: r = (r + p) / 2.
-///
+/// **Phase 2** (2n halvings): Montgomery correction.
+/// Multiplies r by 2⁻²ⁿ mod p via repeated halving:
+/// if r is even, r /= 2; if odd, r = (r + p) / 2.
 /// Result: r = a⁻¹ mod p.
 pub struct BinaryGcdInverter {
     pub n: usize,

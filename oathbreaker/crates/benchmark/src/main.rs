@@ -139,10 +139,7 @@ fn run_benchmarks() {
                 let mut accounted = 0;
                 for (name, cost) in &rows {
                     let pct = *cost as f64 / total as f64 * 100.0;
-                    println!(
-                        "  │ {:<19} │ {:<12} │ {:>5.1}% │",
-                        name, cost, pct,
-                    );
+                    println!("  │ {:<19} │ {:<12} │ {:>5.1}% │", name, cost, pct,);
                     accounted += cost;
                 }
                 let other = total.saturating_sub(accounted);
@@ -187,8 +184,7 @@ fn run_benchmarks() {
             let mut best_toffoli = usize::MAX;
             let mut best_summary = None;
             for &w in &valid_windows {
-                let circuit =
-                    group_action_circuit::build_group_action_circuit_jacobian(curve, w);
+                let circuit = group_action_circuit::build_group_action_circuit_jacobian(curve, w);
                 let summary = circuit.summary();
                 let marker = if summary.toffoli_gates < best_toffoli {
                     best_toffoli = summary.toffoli_gates;
@@ -298,9 +294,7 @@ fn run_benchmarks() {
         scaling::print_scaling_table(&projections);
 
         // Also show schoolbook O(n³) for comparison
-        println!(
-            "\n=== Schoolbook O(n^3) Projections (for comparison) ===\n",
-        );
+        println!("\n=== Schoolbook O(n^3) Projections (for comparison) ===\n",);
         let schoolbook_projections = scaling::project_scaling_schoolbook(
             base_summary.logical_qubits_peak,
             base_summary.toffoli_gates,
@@ -310,10 +304,7 @@ fn run_benchmarks() {
 
         // If we have an empirical fit, show that too
         if let Some(exp) = empirical_exp {
-            println!(
-                "\n=== Empirical Fit O(n^{:.2}) Projections ===\n",
-                exp,
-            );
+            println!("\n=== Empirical Fit O(n^{:.2}) Projections ===\n", exp,);
             let emp_projections = scaling::project_scaling_empirical(
                 base_summary.logical_qubits_peak,
                 base_summary.toffoli_gates,

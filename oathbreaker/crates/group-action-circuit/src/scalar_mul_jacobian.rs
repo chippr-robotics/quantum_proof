@@ -58,8 +58,9 @@ impl WindowedScalarMulJacobian {
     /// 2. 1 QROM table lookup (affine point loaded into ancilla)
     /// 3. 1 Jacobian mixed addition (0 inversions)
     /// 4. Uncompute QROM ancillae
-    /// Generate the complete gate sequence for windowed scalar multiplication
-    /// and return a per-subsystem Toffoli breakdown: (doubling, qrom, addition).
+    ///
+    /// Returns the gate sequence and a per-subsystem Toffoli breakdown:
+    /// (doubling, qrom, addition).
     #[allow(clippy::too_many_arguments)]
     pub fn forward_gates(
         &self,
@@ -108,7 +109,7 @@ impl WindowedScalarMulJacobian {
         let mut doubling_toffoli: usize = 0;
         let mut qrom_toffoli: usize = 0;
         let mut addition_toffoli: usize = 0;
-        let mut swap_toffoli: usize = 0;
+        let _swap_toffoli: usize = 0;
 
         for window_idx in 0..num_windows {
             // --- Step 1: w Jacobian doublings of the accumulator ---
