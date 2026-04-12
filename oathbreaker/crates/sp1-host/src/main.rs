@@ -17,10 +17,9 @@ use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-/// When compiled with --features sp1, embed the guest program ELF binary.
-/// The ELF is compiled from sp1-program by sp1-build in build.rs.
+// Import the Prover trait so execute/setup/prove/verify methods are in scope.
 #[cfg(feature = "sp1")]
-const SP1_PROGRAM_ELF: &[u8] = sp1_sdk::include_elf!("sp1-program");
+use sp1_sdk::Prover;
 
 /// Oathbreaker SP1 Host — ZK proof generation for quantum circuit verification.
 #[derive(Parser, Debug)]
@@ -284,11 +283,12 @@ fn run_sp1_execute(input: &ProofInput) -> ProofOutput {
         let client = sp1_sdk::ProverClient::from_env().await;
 
         println!("[4/5] Executing guest program in SP1 zkVM (no proof)...");
+        let elf = sp1_sdk::include_elf!("sp1-program");
         let mut stdin = sp1_sdk::SP1Stdin::new();
         stdin.write(input);
 
         let (output, report) = client
-            .execute(SP1_PROGRAM_ELF, &stdin)
+            .execute(elf, stdin)
             .run()
             .await
             .expect("SP1 execution failed");
@@ -317,7 +317,8 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         let client = sp1_sdk::ProverClient::from_env().await;
 
         println!("[4/7] Setting up proving and verification keys...");
-        let (pk, vk) = client.setup(SP1_PROGRAM_ELF);
+        let elf = sp1_sdk::include_elf!("sp1-program");
+        let (pk, vk) = client.setup(elf).await.expect("SP1 setup failed");
 
         let mut stdin = sp1_sdk::SP1Stdin::new();
         stdin.write(input);
@@ -342,18 +343,18 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
 
         let proof = match proof_type_owned.as_str() {
             "core" => client
-                .prove(&pk, &stdin)
+                .prove(&pk, stdin)
                 .run()
                 .await
                 .expect("Core proof failed"),
             "compressed" => client
-                .prove(&pk, &stdin)
+                .prove(&pk, stdin)
                 .compressed()
                 .run()
                 .await
                 .expect("Compressed proof failed"),
             "groth16" => client
-                .prove(&pk, &stdin)
+                .prove(&pk, stdin)
                 .groth16()
                 .run()
                 .await
