@@ -129,14 +129,33 @@ fn run_benchmarks() {
     // Note about Oath-64
     println!("Note: Oath-64 full circuit construction materializes ~90M+ gate objects");
     println!("      (~3 GB RAM) and is omitted from CI. Resource counts are projected");
-    println!("      from measured tiers using the O(n^3) Toffoli scaling model.\n");
+    println!("      from measured tiers using the Karatsuba O(n^2.585) scaling model.\n");
 
     // -----------------------------------------------------------------------
     // Phase 3: Scaling projections from the largest measured tier.
+    //          Three views: Karatsuba O(n^2.585), schoolbook O(n^3), empirical fit.
     // -----------------------------------------------------------------------
     if let Some((ref base_name, ref base_summary)) = measured.last() {
+        // Compute empirical exponent from the two largest measured tiers
+        let empirical_exp = if measured.len() >= 2 {
+            let (_, ref prev) = measured[measured.len() - 2];
+            let exp = scaling::empirical_exponent(
+                prev.field_bits,
+                prev.toffoli_gates,
+                base_summary.field_bits,
+                base_summary.toffoli_gates,
+            );
+            println!(
+                "Empirical scaling exponent ({}-bit → {}-bit): {:.3}",
+                prev.field_bits, base_summary.field_bits, exp,
+            );
+            Some(exp)
+        } else {
+            None
+        };
+
         println!(
-            "=== Scaling Projections (from {} baseline) ===\n",
+            "\n=== Scaling Projections (from {} baseline, Karatsuba O(n^2.585)) ===\n",
             base_name
         );
         let projections = scaling::project_scaling(
@@ -145,9 +164,35 @@ fn run_benchmarks() {
             base_summary.field_bits,
         );
         scaling::print_scaling_table(&projections);
+
+        // Also show schoolbook O(n³) for comparison
+        println!(
+            "\n=== Schoolbook O(n^3) Projections (for comparison) ===\n",
+        );
+        let schoolbook_projections = scaling::project_scaling_schoolbook(
+            base_summary.logical_qubits_peak,
+            base_summary.toffoli_gates,
+            base_summary.field_bits,
+        );
+        scaling::print_scaling_table(&schoolbook_projections);
+
+        // If we have an empirical fit, show that too
+        if let Some(exp) = empirical_exp {
+            println!(
+                "\n=== Empirical Fit O(n^{:.2}) Projections ===\n",
+                exp,
+            );
+            let emp_projections = scaling::project_scaling_empirical(
+                base_summary.logical_qubits_peak,
+                base_summary.toffoli_gates,
+                base_summary.field_bits,
+                exp,
+            );
+            scaling::print_scaling_table(&emp_projections);
+        }
         println!();
 
-        // Extract 256-bit projection for comparison table
+        // Extract 256-bit projection (Karatsuba model) for comparison table
         let projection_256 = projections
             .iter()
             .find(|p| p.field_bits == 256)

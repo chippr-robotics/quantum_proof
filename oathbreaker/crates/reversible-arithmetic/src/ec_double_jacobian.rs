@@ -74,8 +74,8 @@ impl ReversibleJacobianDouble {
 
         counter.allocate_ancilla(12 * n + 1);
 
-        let mul = crate::multiplier::ReversibleMultiplier::new(n);
-        let sq = crate::multiplier::ReversibleSquarer::new(n);
+        let mul = crate::multiplier::KaratsubaMultiplier::new(n);
+        let sq = crate::multiplier::KaratsubaSquarer::new(n);
 
         // ---- Forward computation ----
 

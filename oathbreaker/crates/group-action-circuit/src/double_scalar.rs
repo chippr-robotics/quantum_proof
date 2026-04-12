@@ -202,8 +202,8 @@ pub fn build_group_action_circuit_jacobian(
     // Compute Z⁻² = Z⁻¹ · Z⁻¹ and Z⁻³ = Z⁻² · Z⁻¹
     let z_inv2_reg = ancilla_pool.allocate("z_inv2", n, &mut counter);
     let z_inv3_reg = ancilla_pool.allocate("z_inv3", n, &mut counter);
-    let mul = reversible_arithmetic::multiplier::ReversibleMultiplier::new(n);
-    let sq = reversible_arithmetic::multiplier::ReversibleSquarer::new(n);
+    let mul = reversible_arithmetic::multiplier::KaratsubaMultiplier::new(n);
+    let sq = reversible_arithmetic::multiplier::KaratsubaSquarer::new(n);
 
     let _sq_gates = sq.forward_gates(
         z_inv_reg.offset,

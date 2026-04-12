@@ -79,7 +79,7 @@ impl FermatInverter {
             // Step 1: Square the accumulator.
             // Reversible squaring: sq_work ← acc * acc
             // Then copy sq_work → acc, uncompute sq_work.
-            let squarer = crate::multiplier::ReversibleSquarer::new(n);
+            let squarer = crate::multiplier::KaratsubaSquarer::new(n);
             let sq_gates = squarer.forward_gates(acc_reg, sq_work, mul_work, counter);
             gates.extend(sq_gates);
 
@@ -121,7 +121,7 @@ impl FermatInverter {
 
             // Step 2: If exponent bit is set, multiply acc by input.
             if bit_set {
-                let mul = crate::multiplier::ReversibleMultiplier::new(n);
+                let mul = crate::multiplier::KaratsubaMultiplier::new(n);
                 let mul_gates = mul.forward_gates(
                     acc_reg,
                     input_offset,

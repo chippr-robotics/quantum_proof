@@ -88,8 +88,8 @@ impl ReversibleJacobianMixedAdd {
 
         counter.allocate_ancilla(13 * n + 1);
 
-        let mul = crate::multiplier::ReversibleMultiplier::new(n);
-        let sq = crate::multiplier::ReversibleSquarer::new(n);
+        let mul = crate::multiplier::KaratsubaMultiplier::new(n);
+        let sq = crate::multiplier::KaratsubaSquarer::new(n);
 
         // ---- Forward computation (16 multiplications, 0 inversions) ----
 

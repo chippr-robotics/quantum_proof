@@ -25,17 +25,22 @@ These are well-understood published constructions and are deferred to v2.
 No quantum computer currently exists that can execute this circuit. The circuit description is a specification for future hardware, not a claim of current executability.
 
 ### Resource projections are estimates
-Scaling projections from 64-bit to 256-bit are based on asymptotic scaling laws (O(n) qubits, O(n^3) Toffoli). Actual 256-bit circuits would differ due to:
-- Optimization techniques not yet applied (Karatsuba multiplication)
+Scaling projections from 32-bit to 256-bit are based on asymptotic scaling laws (O(n) qubits, O(n^2.585) Toffoli with Karatsuba). The benchmark reports three projection models:
+- **Karatsuba O(n^2.585)**: Primary model reflecting the implemented Karatsuba multiplier
+- **Schoolbook O(n^3)**: Legacy model for comparison
+- **Empirical fit**: Least-squares fit from measured 16-bit and 32-bit tiers
+
+Actual 256-bit circuits would differ due to:
 - Constant factor improvements in industrial implementations
 - Hardware-specific compilation optimizations
+- Measurement-based uncomputation (not implemented; requires mid-circuit measurement)
 
 ### Fermat inversion is suboptimal
 The v1 implementation uses Fermat's little theorem for the single final inversion
-(Jacobian Z → affine conversion), contributing O(n^3) gates. Known optimizations include:
+(Jacobian Z → affine conversion), contributing O(n^2.585) gates (using Karatsuba multiplier). Known optimizations include:
 - **Projective coordinates**: Implemented in v1 — Jacobian projective coordinates eliminate all per-addition inversions, reducing the total from ~128 inversions (affine) to exactly 1 (final affine conversion)
 - **Binary GCD / Kaliski inversion**: O(n^2) reversible gates — implemented as an alternative inverter, though Fermat remains the default
-- **Karatsuba multiplication**: Reduce per-multiply cost from O(n^2) to O(n^1.585) — not yet implemented
+- **Karatsuba multiplication**: Implemented — reduces per-multiply cost from O(n^2) to O(n^1.585), changing overall scaling from O(n^3) to O(n^2.585)
 
 ### Comparison to Google is approximate
 Google's March 2026 paper discloses resource estimates but not the circuit itself. Our comparison is based on published numbers and scaling projections. Google's implementation uses unknown optimizations that may significantly reduce gate counts.
