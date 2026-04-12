@@ -287,7 +287,7 @@ fn run_sp1_execute(input: &ProofInput) -> ProofOutput {
         let mut stdin = sp1_sdk::SP1Stdin::new();
         stdin.write(input);
 
-        let (output, report) = client
+        let (mut output, report) = client
             .execute(elf, stdin)
             .await
             .expect("SP1 execution failed");
@@ -318,6 +318,8 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         println!("[4/7] Setting up proving key...");
         let elf = sp1_sdk::include_elf!("sp1-program");
         let pk = client.setup(elf).await.expect("SP1 setup failed");
+        // Extract the verifying key from the proving key for later verification.
+        let vk = pk.vk();
 
         let mut stdin = sp1_sdk::SP1Stdin::new();
         stdin.write(input);
@@ -357,7 +359,7 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
 
         println!("[6/7] Verifying proof...");
         client
-            .verify(&proof, &pk, None)
+            .verify(&proof, &vk, None)
             .expect("Proof verification failed — this should never happen");
         println!("  Proof verified successfully.");
 
@@ -375,10 +377,6 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         let proof_path = output_dir_owned.join("proof.bin");
         proof.save(&proof_path).expect("Failed to save proof");
 
-        // Serialize proving key as JSON for portability (contains verification key)
-        let pk_json = serde_json::to_string_pretty(&pk).expect("Failed to serialize proving key");
-        std::fs::write(output_dir_owned.join("pk.json"), pk_json).expect("Failed to write pk.json");
-
         // Write circuit summary (public values)
         std::fs::write(
             output_dir_owned.join("circuit_summary.json"),
@@ -388,7 +386,6 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
 
         println!("  Artifacts written:");
         println!("    proof.bin            — {} proof", proof_type_label);
-        println!("    pk.json              — Proving key (contains verification key)");
         println!("    circuit_summary.json — Public values (resource counts + circuit hash)");
 
         proof_output
