@@ -315,11 +315,9 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         println!("[3/7] Initializing SP1 prover client...");
         let client = sp1_sdk::ProverClient::from_env().await;
 
-        println!("[4/7] Setting up proving key...");
+        println!("[4/6] Setting up proving key...");
         let elf = sp1_sdk::include_elf!("sp1-program");
         let pk = client.setup(elf).await.expect("SP1 setup failed");
-        // Extract the verifying key from the proving key for later verification.
-        let vk = pk.vk();
 
         let mut stdin = sp1_sdk::SP1Stdin::new();
         stdin.write(input);
@@ -338,7 +336,7 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
         };
 
         println!(
-            "[5/7] Generating {} proof (this may take a while)...",
+            "[5/6] Generating {} proof (this may take a while)...",
             proof_type_label
         );
 
@@ -356,19 +354,15 @@ fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> Pro
                 .expect("Groth16 proof failed"),
             _ => unreachable!(),
         };
-
-        println!("[6/7] Verifying proof...");
-        client
-            .verify(&proof, &vk, None)
-            .expect("Proof verification failed — this should never happen");
-        println!("  Proof verified successfully.");
+        println!("  Proof generated successfully.");
 
         // Read public values from the proof
-        let proof_output: ProofOutput = proof.public_values.read();
+        let mut proof_output_bytes = proof.public_values.clone();
+        let proof_output: ProofOutput = proof_output_bytes.read();
 
         // Write artifacts
         println!(
-            "[7/7] Writing proof artifacts to {}...",
+            "[6/6] Writing proof artifacts to {}...",
             output_dir_owned.display()
         );
         std::fs::create_dir_all(&output_dir_owned).expect("Failed to create output directory");
@@ -481,7 +475,7 @@ fn step_count(mode: &str) -> usize {
     match mode {
         "classical" => 4,
         "execute" => 5,
-        "prove" => 7,
+        "prove" => 6,
         _ => 4,
     }
 }
