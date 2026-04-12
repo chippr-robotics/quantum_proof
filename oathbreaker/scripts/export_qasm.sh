@@ -10,12 +10,15 @@ echo ""
 
 cd "$PROJECT_DIR"
 
-# TODO: Once the circuit is fully implemented, this will invoke
-# a binary that builds the circuit and calls group_action_circuit::export::export_qasm().
-#
-# For now, print a placeholder message.
-echo "QASM export awaiting full circuit implementation."
-echo "Once complete, output will be written to: oathbreaker_oath64.qasm"
+OUTPUT_FILE="${1:-oathbreaker_oath64.qasm}"
+
+echo "Building and exporting Oath-64 group-action circuit..."
+echo "  Target: OpenQASM 3.0"
+echo "  Output: $OUTPUT_FILE"
+echo ""
+
+cargo run --release -p benchmark -- export-qasm "$OUTPUT_FILE"
+
 echo ""
 echo "The exported QASM describes the coherent group-action map:"
 echo "  |a⟩|b⟩|O⟩ → |a⟩|b⟩|[a]G + [b]Q⟩"

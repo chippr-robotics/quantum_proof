@@ -107,8 +107,10 @@ jobs:
         run: cargo test -p group-action-circuit --release --verbose
 
   # ---------------------------------------------------------------------------
-  # Benchmark binary — verify the benchmark crate compiles and runs without
-  # panicking. This validates resource counting and scaling projections.
+  # Benchmark smoke test — verify the benchmark crate compiles and runs
+  # without panicking. Full resource counting, scaling projections, and QASM
+  # export with downloadable artifacts are in the dedicated benchmark.yml
+  # workflow.
   # ---------------------------------------------------------------------------
   benchmark:
     name: "functional / benchmark"

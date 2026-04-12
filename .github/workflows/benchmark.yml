@@ -1,0 +1,182 @@
+name: Benchmark & QASM Export
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/benchmark.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "oathbreaker/**"
+      - ".github/workflows/benchmark.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Full benchmark suite — builds both affine and Jacobian circuits from the
+  # Sage-generated Oath-64 parameters, measures resource counts, projects
+  # scaling to 256/384/521-bit, and compares against published prior work.
+  #
+  # Produces a text report artifact and writes key metrics to the job summary
+  # so reviewers can inspect resource counts directly from the PR checks tab.
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: "benchmark / resource counts"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: benchmark-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            benchmark-${{ runner.os }}-cargo-
+
+      - name: Build benchmark binary (release)
+        run: cargo build --release -p benchmark --verbose
+
+      - name: Run benchmark suite
+        run: |
+          cargo run --release -p benchmark 2>&1 | tee benchmark-report.txt
+
+      - name: Write benchmark results to job summary
+        if: always()
+        run: |
+          echo "## Oathbreaker Benchmark Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat benchmark-report.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: oathbreaker/benchmark-report.txt
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # QASM export — builds the Jacobian Oath-64 circuit and exports OpenQASM 3.0
+  # for external toolchain consumption (Qiskit, Cirq, etc.).
+  #
+  # Produces:
+  #   - oathbreaker_oath64.qasm       (the circuit in OpenQASM 3.0)
+  #   - oathbreaker_oath64.stats.json (machine-readable resource summary)
+  # ---------------------------------------------------------------------------
+  qasm-export:
+    name: "benchmark / qasm export"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: qasm-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            qasm-${{ runner.os }}-cargo-
+
+      - name: Build benchmark binary (release)
+        run: cargo build --release -p benchmark --verbose
+
+      - name: Export Oath-64 QASM
+        run: |
+          cargo run --release -p benchmark -- export-qasm oathbreaker_oath64.qasm
+
+      - name: Validate QASM output
+        run: |
+          echo "## QASM Export Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ! -f oathbreaker_oath64.qasm ]; then
+            echo "::error::QASM file was not produced"
+            exit 1
+          fi
+
+          lines=$(wc -l < oathbreaker_oath64.qasm)
+          size=$(wc -c < oathbreaker_oath64.qasm)
+          header=$(head -1 oathbreaker_oath64.qasm)
+
+          echo "| Property | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| File | \`oathbreaker_oath64.qasm\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lines | ${lines} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Size | ${size} bytes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Header | \`${header}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Verify it starts with OPENQASM 3.0
+          if ! grep -q "^OPENQASM 3.0;" oathbreaker_oath64.qasm; then
+            echo "::error::QASM file does not start with OPENQASM 3.0 header"
+            exit 1
+          fi
+
+          echo "QASM file validated: ${lines} lines, ${size} bytes"
+
+          # Show stats JSON if present
+          if [ -f oathbreaker_oath64.stats.json ]; then
+            echo "### Circuit Statistics" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat oathbreaker_oath64.stats.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload QASM artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qasm-export
+          path: |
+            oathbreaker/oathbreaker_oath64.qasm
+            oathbreaker/oathbreaker_oath64.stats.json
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # Summary gate — both benchmark and QASM export must succeed.
+  # ---------------------------------------------------------------------------
+  benchmark-pass:
+    name: "All benchmarks pass"
+    if: always()
+    needs: [benchmark, qasm-export]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify benchmark results
+        run: |
+          results=("${{ needs.benchmark.result }}" \
+                   "${{ needs.qasm-export.result }}")
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" ]]; then
+              echo "::error::Benchmark or QASM export failed or was cancelled"
+              exit 1
+            fi
+          done
+          echo "All benchmark jobs passed."
