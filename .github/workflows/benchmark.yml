@@ -51,6 +51,7 @@ jobs:
         run: cargo build --release -p benchmark --verbose
 
       - name: Run benchmark suite
+        timeout-minutes: 15
         run: |
           cargo run --release -p benchmark 2>&1 | tee benchmark-report.txt
 
@@ -74,12 +75,16 @@ jobs:
           retention-days: 90
 
   # ---------------------------------------------------------------------------
-  # QASM export — builds the Jacobian Oath-64 circuit and exports OpenQASM 3.0
+  # QASM export — builds the Jacobian Oath-16 circuit and exports OpenQASM 3.0
   # for external toolchain consumption (Qiskit, Cirq, etc.).
   #
+  # Oath-16 is used for CI export: small enough to complete quickly while
+  # producing a meaningful gate sequence. Larger tiers (Oath-32, Oath-64)
+  # can be exported locally with: cargo run -p benchmark -- export-qasm
+  #
   # Produces:
-  #   - oathbreaker_oath64.qasm       (the circuit in OpenQASM 3.0)
-  #   - oathbreaker_oath64.stats.json (machine-readable resource summary)
+  #   - oathbreaker_oath16.qasm       (the circuit in OpenQASM 3.0)
+  #   - oathbreaker_oath16.stats.json (machine-readable resource summary)
   # ---------------------------------------------------------------------------
   qasm-export:
     name: "benchmark / qasm export"
@@ -107,34 +112,35 @@ jobs:
       - name: Build benchmark binary (release)
         run: cargo build --release -p benchmark --verbose
 
-      - name: Export Oath-64 QASM
+      - name: Export QASM
         run: |
-          cargo run --release -p benchmark -- export-qasm oathbreaker_oath64.qasm
+          cargo run --release -p benchmark -- export-qasm oathbreaker_oath16.qasm
 
       - name: Validate QASM output
         run: |
           echo "## QASM Export Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ ! -f oathbreaker_oath64.qasm ]; then
-            echo "::error::QASM file was not produced"
+          QASM_FILE=$(ls oathbreaker_oath*.qasm 2>/dev/null | head -1)
+          if [ -z "$QASM_FILE" ]; then
+            echo "::error::No QASM file was produced"
             exit 1
           fi
 
-          lines=$(wc -l < oathbreaker_oath64.qasm)
-          size=$(wc -c < oathbreaker_oath64.qasm)
-          header=$(head -1 oathbreaker_oath64.qasm)
+          lines=$(wc -l < "$QASM_FILE")
+          size=$(wc -c < "$QASM_FILE")
+          header=$(head -1 "$QASM_FILE")
 
           echo "| Property | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| File | \`oathbreaker_oath64.qasm\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| File | \`${QASM_FILE}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Lines | ${lines} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Size | ${size} bytes |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Header | \`${header}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Verify it starts with OPENQASM 3.0
-          if ! grep -q "^OPENQASM 3.0;" oathbreaker_oath64.qasm; then
+          if ! grep -q "^OPENQASM 3.0;" "$QASM_FILE"; then
             echo "::error::QASM file does not start with OPENQASM 3.0 header"
             exit 1
           fi
@@ -142,11 +148,12 @@ jobs:
           echo "QASM file validated: ${lines} lines, ${size} bytes"
 
           # Show stats JSON if present
-          if [ -f oathbreaker_oath64.stats.json ]; then
+          STATS_FILE="${QASM_FILE%.qasm}.stats.json"
+          if [ -f "$STATS_FILE" ]; then
             echo "### Circuit Statistics" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo '```json' >> "$GITHUB_STEP_SUMMARY"
-            cat oathbreaker_oath64.stats.json >> "$GITHUB_STEP_SUMMARY"
+            cat "$STATS_FILE" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -156,8 +163,8 @@ jobs:
         with:
           name: qasm-export
           path: |
-            oathbreaker/oathbreaker_oath64.qasm
-            oathbreaker/oathbreaker_oath64.stats.json
+            oathbreaker/oathbreaker_oath*.qasm
+            oathbreaker/oathbreaker_oath*.stats.json
           retention-days: 90
 
   # ---------------------------------------------------------------------------

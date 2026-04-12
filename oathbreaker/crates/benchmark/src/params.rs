@@ -58,6 +58,7 @@ impl RawCurveParams {
 }
 
 /// Load a single curve's parameters from a JSON file (e.g., oath64_params.json).
+#[allow(dead_code)]
 pub fn load_curve_params(path: &Path) -> Result<CurveParams, String> {
     let contents = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;

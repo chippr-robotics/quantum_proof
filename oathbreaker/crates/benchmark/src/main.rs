@@ -10,7 +10,6 @@ use std::path::PathBuf;
 /// Resolve the project root (the `oathbreaker/` directory) from the current
 /// working directory or the benchmark binary's location.
 fn find_project_dir() -> PathBuf {
-    // Try common locations relative to the working directory.
     let candidates = [
         PathBuf::from("sage"),             // cwd is oathbreaker/
         PathBuf::from("oathbreaker/sage"), // cwd is repo root
@@ -20,112 +19,189 @@ fn find_project_dir() -> PathBuf {
             return c.parent().unwrap().to_path_buf();
         }
     }
-    // Fallback: assume cwd is oathbreaker/
     PathBuf::from(".")
+}
+
+/// Choose an appropriate window size for a given field size.
+/// Window must divide field_bits. Larger windows reduce iterations
+/// but increase QROM table size exponentially.
+fn window_for_field(field_bits: usize) -> usize {
+    match field_bits {
+        8 => 4,  // 2 windows, 16-entry table
+        16 => 4, // 4 windows, 16-entry table
+        32 => 8, // 4 windows, 256-entry table
+        64 => 8, // 8 windows, 256-entry table
+        _ => 4,  // conservative default
+    }
 }
 
 fn run_benchmarks() {
     println!("=== Oathbreaker Benchmark Suite ===\n");
 
     let project_dir = find_project_dir();
-    let params_path = project_dir.join("sage/oath64_params.json");
+    let all_params_path = project_dir.join("sage/oath_all_params.json");
 
-    let curve = match params::load_curve_params(&params_path) {
+    let all_curves = match params::load_all_curve_params(&all_params_path) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Warning: {}", e);
-            eprintln!("Falling back to hardcoded Oath-64 parameters.\n");
-            hardcoded_oath64()
+            eprintln!("Falling back to hardcoded Oath-64 parameters only.\n");
+            vec![("Oath-64".to_string(), hardcoded_oath64())]
         }
     };
 
-    let window_size = 8;
-
-    // --- Affine circuit ---
-    println!("=== Affine Coordinate Circuit (baseline) ===\n");
-    let circuit_affine = group_action_circuit::build_group_action_circuit(&curve, window_size);
-    counter::print_resource_table(&circuit_affine);
-    println!();
-
-    // --- Jacobian circuit (optimized) ---
-    println!("=== Jacobian Coordinate Circuit (optimized) ===\n");
-    let circuit_jacobian =
-        group_action_circuit::build_group_action_circuit_jacobian(&curve, window_size);
-    counter::print_resource_table(&circuit_jacobian);
-    println!();
-
-    // --- Improvement summary ---
-    let affine_summary = circuit_affine.summary();
-    let jac_summary = circuit_jacobian.summary();
-    println!("=== Jacobian vs Affine Improvement ===\n");
-    if affine_summary.toffoli_gates > 0 {
-        let toffoli_ratio =
-            affine_summary.toffoli_gates as f64 / jac_summary.toffoli_gates.max(1) as f64;
+    // -----------------------------------------------------------------------
+    // Phase 1: Build the Oath-8 circuit in BOTH coordinate systems to show
+    //          the affine-vs-Jacobian improvement.
+    // -----------------------------------------------------------------------
+    if let Some((_, curve_8)) = all_curves.iter().find(|(n, _)| n == "Oath-8") {
+        let w = window_for_field(curve_8.field_bits);
         println!(
-            "  Toffoli reduction: {:.1}x ({} → {})",
-            toffoli_ratio, affine_summary.toffoli_gates, jac_summary.toffoli_gates,
+            "=== Oath-8 Circuit ({}-bit field, window={}) ===\n",
+            curve_8.field_bits, w
         );
+
+        println!("--- Affine Coordinate Circuit (baseline) ---\n");
+        let affine = group_action_circuit::build_group_action_circuit(curve_8, w);
+        counter::print_resource_table(&affine);
+        println!();
+
+        println!("--- Jacobian Coordinate Circuit (optimized) ---\n");
+        let jacobian = group_action_circuit::build_group_action_circuit_jacobian(curve_8, w);
+        counter::print_resource_table(&jacobian);
+        println!();
+
+        let a = affine.summary();
+        let j = jacobian.summary();
+        println!("--- Jacobian vs Affine Improvement ---\n");
+        if a.toffoli_gates > 0 {
+            let ratio = a.toffoli_gates as f64 / j.toffoli_gates.max(1) as f64;
+            println!(
+                "  Toffoli reduction: {:.1}x ({} -> {})",
+                ratio, a.toffoli_gates, j.toffoli_gates,
+            );
+        }
+        println!(
+            "  Field inversions: {} -> {} (single final Fermat inversion)",
+            a.field_inversions, j.field_inversions,
+        );
+        println!(
+            "  Qubit overhead:   {} -> {} (+{} for Z register)",
+            a.logical_qubits_peak,
+            j.logical_qubits_peak,
+            j.logical_qubits_peak.saturating_sub(a.logical_qubits_peak),
+        );
+        println!();
     }
-    println!(
-        "  Field inversions: {} → {} (single final Fermat inversion)",
-        affine_summary.field_inversions, jac_summary.field_inversions,
-    );
-    println!(
-        "  Qubit overhead:   {} → {} (+{} for Z register)",
-        affine_summary.logical_qubits_peak,
-        jac_summary.logical_qubits_peak,
-        jac_summary
-            .logical_qubits_peak
-            .saturating_sub(affine_summary.logical_qubits_peak),
-    );
-    println!();
 
-    // --- Scaling projections (based on the optimized Jacobian circuit) ---
-    println!("=== Scaling Projections (from Jacobian Oath-64 baseline) ===\n");
-    let projections = scaling::project_scaling(
-        circuit_jacobian.qubit_count(),
-        circuit_jacobian.toffoli_count(),
-        64,
-    );
-    scaling::print_scaling_table(&projections);
-    println!();
+    // -----------------------------------------------------------------------
+    // Phase 2: Build Jacobian circuits for each measurable tier.
+    //          Gate vectors are large for bigger fields, so we build up to
+    //          the largest tier that fits comfortably in CI memory.
+    //
+    //          The circuit construction materializes all gate objects in
+    //          memory (~O(n^3) gates at ~32 bytes each). Practical limits:
+    //            Oath-8:   ~400K gates  (~13 MB)   -- instant
+    //            Oath-16:  ~2M gates    (~64 MB)   -- fast
+    //            Oath-32:  ~15M gates   (~480 MB)  -- moderate
+    //            Oath-64:  ~90M+ gates  (~3+ GB)   -- exceeds CI runners
+    // -----------------------------------------------------------------------
+    println!("=== Measured Jacobian Circuit Resources ===\n");
 
-    // --- Comparison to prior work ---
-    let projection_256 = projections
-        .iter()
-        .find(|p| p.field_bits == 256)
-        .map(|p| (p.projected_qubits, p.projected_toffoli));
-    comparison::print_comparison_table(projection_256);
-    println!();
+    let measurable_tiers: Vec<&str> = vec!["Oath-8", "Oath-16", "Oath-32"];
+    let mut measured: Vec<(String, group_action_circuit::CircuitSummary)> = Vec::new();
 
-    // --- Oath-N benchmark tiers ---
+    for tier_name in &measurable_tiers {
+        if let Some((_, curve)) = all_curves.iter().find(|(n, _)| n == *tier_name) {
+            let w = window_for_field(curve.field_bits);
+            println!(
+                "Building {} (Jacobian, {}-bit, window={})...",
+                tier_name, curve.field_bits, w
+            );
+            let circuit = group_action_circuit::build_group_action_circuit_jacobian(curve, w);
+            let summary = circuit.summary();
+            counter::print_resource_table(&circuit);
+            println!();
+            measured.push((tier_name.to_string(), summary));
+        }
+    }
+
+    // Note about Oath-64
+    println!("Note: Oath-64 full circuit construction materializes ~90M+ gate objects");
+    println!("      (~3 GB RAM) and is omitted from CI. Resource counts are projected");
+    println!("      from measured tiers using the O(n^3) Toffoli scaling model.\n");
+
+    // -----------------------------------------------------------------------
+    // Phase 3: Scaling projections from the largest measured tier.
+    // -----------------------------------------------------------------------
+    if let Some((ref base_name, ref base_summary)) = measured.last() {
+        println!(
+            "=== Scaling Projections (from {} baseline) ===\n",
+            base_name
+        );
+        let projections = scaling::project_scaling(
+            base_summary.logical_qubits_peak,
+            base_summary.toffoli_gates,
+            base_summary.field_bits,
+        );
+        scaling::print_scaling_table(&projections);
+        println!();
+
+        // Extract 256-bit projection for comparison table
+        let projection_256 = projections
+            .iter()
+            .find(|p| p.field_bits == 256)
+            .map(|p| (p.projected_qubits, p.projected_toffoli));
+
+        comparison::print_comparison_table(projection_256);
+        println!();
+    } else {
+        comparison::print_comparison_table(None);
+        println!();
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 4: Oath-N tier definitions and JSON summary.
+    // -----------------------------------------------------------------------
     oath_tiers::print_oath_tiers();
 
-    // --- JSON summary ---
-    println!("\n=== JSON Circuit Summary (Jacobian, Oath-64) ===\n");
-    println!("{}", export_stats_json(&circuit_jacobian));
+    if let Some((_, ref summary)) = measured.last() {
+        println!("\n=== JSON Circuit Summary (largest measured tier) ===\n");
+        println!(
+            "{}",
+            serde_json::to_string_pretty(summary).unwrap_or_default()
+        );
+    }
 }
 
 fn run_export_qasm(output_path: Option<String>) {
     let project_dir = find_project_dir();
-    let params_path = project_dir.join("sage/oath64_params.json");
+    let all_params_path = project_dir.join("sage/oath_all_params.json");
 
-    let curve = match params::load_curve_params(&params_path) {
-        Ok(c) => c,
+    // Default to Oath-16: small enough for fast export, large enough for
+    // a meaningful gate sequence in the QASM output.
+    let (tier_name, curve) = match params::load_all_curve_params(&all_params_path) {
+        Ok(curves) => curves
+            .into_iter()
+            .find(|(n, _)| n == "Oath-16")
+            .unwrap_or_else(|| {
+                eprintln!("Oath-16 not found, falling back to hardcoded Oath-64 params");
+                ("Oath-64".to_string(), hardcoded_oath64())
+            }),
         Err(e) => {
             eprintln!("Warning: {}", e);
             eprintln!("Falling back to hardcoded Oath-64 parameters.\n");
-            hardcoded_oath64()
+            ("Oath-64".to_string(), hardcoded_oath64())
         }
     };
 
-    let window_size = 8;
+    let w = window_for_field(curve.field_bits);
 
     eprintln!(
-        "Building Jacobian group-action circuit (Oath-64, window={})...",
-        window_size
+        "Building {} Jacobian group-action circuit ({}-bit, window={})...",
+        tier_name, curve.field_bits, w
     );
-    let circuit = group_action_circuit::build_group_action_circuit_jacobian(&curve, window_size);
+    let circuit = group_action_circuit::build_group_action_circuit_jacobian(&curve, w);
 
     let summary = circuit.summary();
     eprintln!(
@@ -135,7 +211,11 @@ fn run_export_qasm(output_path: Option<String>) {
 
     let qasm = export_qasm(&circuit);
 
-    let out = output_path.unwrap_or_else(|| "oathbreaker_oath64.qasm".to_string());
+    let default_name = format!(
+        "oathbreaker_{}.qasm",
+        tier_name.to_lowercase().replace('-', "")
+    );
+    let out = output_path.unwrap_or(default_name);
     match std::fs::write(&out, &qasm) {
         Ok(()) => {
             eprintln!("QASM written to: {}", out);
@@ -144,12 +224,11 @@ fn run_export_qasm(output_path: Option<String>) {
         }
         Err(e) => {
             eprintln!("Failed to write {}: {}", out, e);
-            // Fall back to stdout
             print!("{}", qasm);
         }
     }
 
-    // Also write the JSON stats alongside
+    // Write JSON stats alongside
     let stats_path = format!("{}.stats.json", out.trim_end_matches(".qasm"));
     let stats_json = export_stats_json(&circuit);
     if let Err(e) = std::fs::write(&stats_path, &stats_json) {
@@ -172,14 +251,8 @@ fn run_export_all_qasm() {
         }
     };
 
-    let window_size = 4; // smaller window for smaller curves
-
     for (tier_name, curve) in &all_curves {
-        let w = if curve.field_bits >= 32 {
-            8
-        } else {
-            window_size
-        };
+        let w = window_for_field(curve.field_bits);
         eprintln!(
             "Building {} circuit ({}-bit, window={})...",
             tier_name, curve.field_bits, w
@@ -202,12 +275,9 @@ fn run_export_all_qasm() {
 ///
 /// Note: The true curve order (18446744077729562113) exceeds u64::MAX.
 /// Circuit construction only uses field_bits, not the order, so this is fine.
-/// The truncated order is stored for CurveParams compatibility.
 fn hardcoded_oath64() -> ec_goldilocks::CurveParams {
     use goldilocks_field::GoldilocksField;
 
-    // True order: 18_446_744_077_729_562_113 (exceeds u64::MAX)
-    // Truncated: 18_446_744_077_729_562_113 mod 2^64
     const ORDER_FULL: u128 = 18_446_744_077_729_562_113;
     let order = (ORDER_FULL % (u64::MAX as u128 + 1)) as u64;
 
@@ -228,7 +298,7 @@ fn print_usage() {
     eprintln!();
     eprintln!("Commands:");
     eprintln!("  (default)          Run the full benchmark suite");
-    eprintln!("  export-qasm [FILE] Export Oath-64 circuit as OpenQASM 3.0");
+    eprintln!("  export-qasm [FILE] Export circuit as OpenQASM 3.0");
     eprintln!("  export-all-qasm    Export all Oath-N tiers as QASM files");
     eprintln!("  help               Show this help message");
 }
