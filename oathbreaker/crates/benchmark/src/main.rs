@@ -121,6 +121,38 @@ fn run_benchmarks() {
             let circuit = group_action_circuit::build_group_action_circuit_jacobian(curve, w);
             let summary = circuit.summary();
             counter::print_resource_table(&circuit);
+            // Print cost attribution for the largest tier
+            if let Some(ref attr) = summary.cost_attribution {
+                let total = summary.toffoli_gates.max(1);
+                println!();
+                println!("  Toffoli Cost Attribution:");
+                println!("  ┌─────────────────────┬──────────────┬────────┐");
+                println!("  │ Subsystem           │ Toffoli      │ Share  │");
+                println!("  ├─────────────────────┼──────────────┼────────┤");
+                let rows = [
+                    ("Doublings", attr.doubling_toffoli),
+                    ("QROM decode/load", attr.qrom_toffoli),
+                    ("Mixed additions", attr.addition_toffoli),
+                    ("Inversion (BGCD)", attr.inversion_toffoli),
+                    ("Affine recovery", attr.affine_recovery_toffoli),
+                ];
+                let mut accounted = 0;
+                for (name, cost) in &rows {
+                    let pct = *cost as f64 / total as f64 * 100.0;
+                    println!(
+                        "  │ {:<19} │ {:<12} │ {:>5.1}% │",
+                        name, cost, pct,
+                    );
+                    accounted += cost;
+                }
+                let other = total.saturating_sub(accounted);
+                let other_pct = other as f64 / total as f64 * 100.0;
+                println!(
+                    "  │ {:<19} │ {:<12} │ {:>5.1}% │",
+                    "Other/overhead", other, other_pct,
+                );
+                println!("  └─────────────────────┴──────────────┴────────┘");
+            }
             println!();
             measured.push((tier_name.to_string(), summary));
         }

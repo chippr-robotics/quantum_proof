@@ -29,6 +29,8 @@ pub struct GroupActionCircuit {
     pub qft_estimate: QftResourceEstimate,
     /// Overall resource summary.
     pub resources: ResourceCounter,
+    /// Per-subsystem Toffoli breakdown (Jacobian circuits only).
+    pub cost_attribution: Option<CostAttribution>,
 }
 
 /// Summary of the circuit's resource usage, suitable for publication.
@@ -52,6 +54,29 @@ pub struct CircuitSummary {
     pub point_doublings: usize,
     pub field_inversions: usize,
     pub field_multiplications: usize,
+    /// Per-subsystem Toffoli breakdown (populated for Jacobian circuits).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_attribution: Option<CostAttribution>,
+}
+
+/// Per-subsystem Toffoli cost breakdown.
+///
+/// Populated by instrumenting the circuit builder with counter snapshots
+/// at key phase boundaries.  Enables data-driven optimization targeting.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct CostAttribution {
+    /// Toffoli from Jacobian point doublings (w per window × num_windows × 2 scalars).
+    pub doubling_toffoli: usize,
+    /// Toffoli from QROM decode/load/uncompute (per window × num_windows × 2 scalars).
+    pub qrom_toffoli: usize,
+    /// Toffoli from Jacobian mixed additions (1 per window × num_windows × 2 scalars).
+    pub addition_toffoli: usize,
+    /// Toffoli from register swaps/copies between EC ops.
+    pub swap_toffoli: usize,
+    /// Toffoli from the final inversion (Binary GCD or Fermat).
+    pub inversion_toffoli: usize,
+    /// Toffoli from affine recovery (Z⁻², Z⁻³, X·Z⁻², Y·Z⁻³).
+    pub affine_recovery_toffoli: usize,
 }
 
 /// Build the coherent double-scalar group-action circuit.
@@ -116,9 +141,10 @@ pub fn build_group_action_circuit(curve: &CurveParams, window_size: usize) -> Gr
         curve: curve.clone(),
         window_size,
         coordinate_system: "affine".to_string(),
-        gate_log: Vec::new(), // populated by forward_gates once implemented
+        gate_log: Vec::new(),
         qft_estimate,
         resources: counter,
+        cost_attribution: None,
     }
 }
 
@@ -163,7 +189,7 @@ pub fn build_group_action_circuit_jacobian(
 
     // Windowed Jacobian scalar multiplication for [a]G
     let scalar_mul_a = WindowedScalarMulJacobian::new(window_size, n);
-    let _gates_a = scalar_mul_a.forward_gates(
+    let (_gates_a, (dbl_a, qrom_a, add_a)) = scalar_mul_a.forward_gates(
         0,     // reg_a offset
         2 * n, // point_X offset
         3 * n, // point_Y offset
@@ -175,7 +201,7 @@ pub fn build_group_action_circuit_jacobian(
 
     // Windowed Jacobian scalar multiplication for [b]Q (adds to accumulator)
     let scalar_mul_b = WindowedScalarMulJacobian::new(window_size, n);
-    let _gates_b = scalar_mul_b.forward_gates(
+    let (_gates_b, (dbl_b, qrom_b, add_b)) = scalar_mul_b.forward_gates(
         n,     // reg_b offset
         2 * n, // point_X offset (same accumulator)
         3 * n, // point_Y offset
@@ -185,10 +211,13 @@ pub fn build_group_action_circuit_jacobian(
         curve,
     );
 
+    // Track scalar mul subsystem costs
+    let scalar_mul_doubling = dbl_a + dbl_b;
+    let scalar_mul_qrom = qrom_a + qrom_b;
+    let scalar_mul_addition = add_a + add_b;
+
     // --- Single final inversion: convert Jacobian → affine ---
-    // Compute Z⁻¹ via Binary GCD (O(n²) Toffoli, much cheaper than Fermat's O(n^2.585)).
-    // Then: x = X · Z⁻², y = Y · Z⁻³
-    // Only 1 inversion for the entire computation.
+    let t_before_inv = counter.toffoli_count;
     let bgcd_ws_size = reversible_arithmetic::inverter::BinaryGcdInverter::workspace_size(n);
     let inv_workspace = ancilla_pool.allocate("final_inv_workspace", bgcd_ws_size, &mut counter);
     let z_inv_reg = ancilla_pool.allocate("z_inv", n, &mut counter);
@@ -199,6 +228,8 @@ pub fn build_group_action_circuit_jacobian(
         inv_workspace.offset,
         &mut counter,
     );
+
+    let t_after_inv = counter.toffoli_count;
 
     // Compute Z⁻² = Z⁻¹ · Z⁻¹ and Z⁻³ = Z⁻² · Z⁻¹
     let z_inv2_reg = ancilla_pool.allocate("z_inv2", n, &mut counter);
@@ -238,6 +269,18 @@ pub fn build_group_action_circuit_jacobian(
         &mut counter,
     );
 
+    let t_after_affine = counter.toffoli_count;
+
+    // Build cost attribution
+    let attribution = CostAttribution {
+        doubling_toffoli: scalar_mul_doubling,
+        qrom_toffoli: scalar_mul_qrom,
+        addition_toffoli: scalar_mul_addition,
+        swap_toffoli: 0, // CNOT swaps contribute 0 Toffoli
+        inversion_toffoli: t_after_inv - t_before_inv,
+        affine_recovery_toffoli: t_after_affine - t_after_inv,
+    };
+
     // QFT resource estimate
     let qft_estimate = QftResourceEstimate::for_dual_register(n);
 
@@ -248,6 +291,7 @@ pub fn build_group_action_circuit_jacobian(
         gate_log: Vec::new(),
         qft_estimate,
         resources: counter,
+        cost_attribution: Some(attribution),
     }
 }
 
@@ -281,10 +325,11 @@ impl GroupActionCircuit {
             },
             field_multiplications: total_ec_ops
                 * if self.coordinate_system == "jacobian" {
-                    16
+                    11
                 } else {
                     6
                 },
+            cost_attribution: self.cost_attribution.clone(),
         }
     }
 

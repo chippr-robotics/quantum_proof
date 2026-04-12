@@ -58,6 +58,8 @@ impl WindowedScalarMulJacobian {
     /// 2. 1 QROM table lookup (affine point loaded into ancilla)
     /// 3. 1 Jacobian mixed addition (0 inversions)
     /// 4. Uncompute QROM ancillae
+    /// Generate the complete gate sequence for windowed scalar multiplication
+    /// and return a per-subsystem Toffoli breakdown: (doubling, qrom, addition).
     #[allow(clippy::too_many_arguments)]
     pub fn forward_gates(
         &self,
@@ -68,7 +70,7 @@ impl WindowedScalarMulJacobian {
         ancilla_pool: &mut AncillaPool,
         counter: &mut ResourceCounter,
         curve: &CurveParams,
-    ) -> Vec<Gate> {
+    ) -> (Vec<Gate>, (usize, usize, usize)) {
         let n = curve.field_bits;
         let num_windows = self.num_windows();
         let w = self.window_size;
@@ -102,8 +104,15 @@ impl WindowedScalarMulJacobian {
         let doubler = reversible_arithmetic::ec_double_jacobian::ReversibleJacobianDouble::new(n);
         let adder = reversible_arithmetic::ec_add_jacobian::ReversibleJacobianMixedAdd::new(n);
 
+        // Per-subsystem Toffoli accumulators for cost attribution.
+        let mut doubling_toffoli: usize = 0;
+        let mut qrom_toffoli: usize = 0;
+        let mut addition_toffoli: usize = 0;
+        let mut swap_toffoli: usize = 0;
+
         for window_idx in 0..num_windows {
             // --- Step 1: w Jacobian doublings of the accumulator ---
+            let t_before_dbl = counter.toffoli_count;
             for _dbl in 0..w {
                 let dbl_gates = doubler.forward_gates(
                     point_x_offset,
@@ -145,6 +154,9 @@ impl WindowedScalarMulJacobian {
                     }
                 }
             }
+
+            let t_after_dbl = counter.toffoli_count;
+            doubling_toffoli += t_after_dbl - t_before_dbl;
 
             // --- Step 2: QROM table lookup (one-hot binary decode) ---
             //
@@ -297,8 +309,12 @@ impl WindowedScalarMulJacobian {
             gates.extend(qrom_gates.clone());
             ancilla_pool.record_for_uncompute(qrom_gates);
 
+            let t_after_qrom = counter.toffoli_count;
+            qrom_toffoli += t_after_qrom - t_after_dbl;
+
             // --- Step 3: Jacobian mixed addition ---
             // accumulator (Jacobian) += lookup point (affine)
+            let t_before_add = counter.toffoli_count;
             let add_gates = adder.forward_gates(
                 point_x_offset,
                 point_y_offset,
@@ -341,14 +357,21 @@ impl WindowedScalarMulJacobian {
                 }
             }
 
+            let t_after_add = counter.toffoli_count;
+            addition_toffoli += t_after_add - t_before_add;
+
             // --- Step 4: Uncompute QROM lookup ---
             // Replays the QROM gates in reverse to clean lookup registers.
             // This re-decodes the one-hot, undoes the table load, then
             // uncomputes the one-hot again.
             let uncompute = ancilla_pool.flush_uncompute(counter);
             gates.extend(uncompute);
+
+            let t_after_uncompute = counter.toffoli_count;
+            // QROM uncompute Toffoli goes into the QROM bucket
+            qrom_toffoli += t_after_uncompute - t_after_add;
         }
 
-        gates
+        (gates, (doubling_toffoli, qrom_toffoli, addition_toffoli))
     }
 }
