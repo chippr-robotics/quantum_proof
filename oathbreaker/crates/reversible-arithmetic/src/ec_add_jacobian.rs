@@ -1,4 +1,5 @@
 use crate::gates::Gate;
+use crate::multiplier::cuccaro_subtract;
 use crate::resource_counter::ResourceCounter;
 
 /// Reversible Jacobian mixed point addition (projective accumulator + affine table entry).
@@ -23,9 +24,8 @@ use crate::resource_counter::ResourceCounter;
 ///   Y₃  = R·(X₁·H² - X₃) - Y₁·H³
 ///   Z₃  = Z₁ · H
 ///
-/// Gate cost per addition: ~16 field multiplications, 0 inversions.
-/// Compare to affine: 6 multiplications + 1 inversion (~96 mul-equivalents).
-/// Jacobian mixed addition is ~6× cheaper.
+/// Gate cost per addition: 11 mul-equivalents (3S + 8M), 0 inversions.
+/// Subtractions use proper reversible Cuccaro-reverse arithmetic.
 pub struct ReversibleJacobianMixedAdd {
     /// Number of bits per field element.
     pub n: usize,
@@ -54,8 +54,9 @@ impl ReversibleJacobianMixedAdd {
     ///   [6n..7n):    H²
     ///   [7n..8n):    H³
     ///   [8n..9n):    X₁·H²
-    ///   [9n..10n):   R² (temp)
-    ///   [10n..13n+1): multiplier workspace
+    ///   [9n..10n):   R² (temp, reused for Y₃ computation)
+    ///   [10n]:       carry bit for Cuccaro subtraction
+    ///   [10n+1..13n+2): multiplier workspace
     #[allow(clippy::too_many_arguments)]
     pub fn forward_gates(
         &self,
@@ -84,14 +85,15 @@ impl ReversibleJacobianMixedAdd {
         let h_cu = workspace_offset + 7 * n;
         let x1h2 = workspace_offset + 8 * n;
         let r_sq = workspace_offset + 9 * n;
-        let mul_work = workspace_offset + 10 * n;
+        let sub_carry = workspace_offset + 10 * n;
+        let mul_work = workspace_offset + 10 * n + 1;
 
-        counter.allocate_ancilla(13 * n + 1);
+        counter.allocate_ancilla(13 * n + 2);
 
         let mul = crate::multiplier::KaratsubaMultiplier::new(n);
         let sq = crate::multiplier::KaratsubaSquarer::new(n);
 
-        // ---- Forward computation (16 multiplications, 0 inversions) ----
+        // ---- Forward computation (3S + 8M = 11 mul-equivalents) ----
 
         // 1. Z₁² = Z₁ · Z₁
         let g = sq.forward_gates(acc_z, z1_sq, mul_work, counter);
@@ -109,7 +111,8 @@ impl ReversibleJacobianMixedAdd {
         let g = mul.forward_gates(q_y, z1_cu, s2_off, mul_work, counter);
         gates.extend(g);
 
-        // 5. H = U₂ - X₁  (reversible XOR subtraction)
+        // 5. H = U₂ - X₁  (proper reversible subtraction)
+        // h_off starts at 0; copy U₂ then subtract X₁
         for i in 0..n {
             let g = Gate::Cnot {
                 control: u2_off + i,
@@ -118,14 +121,8 @@ impl ReversibleJacobianMixedAdd {
             counter.record_gate(&g);
             gates.push(g);
         }
-        for i in 0..n {
-            let g = Gate::Cnot {
-                control: acc_x + i,
-                target: h_off + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
+        let g = cuccaro_subtract(n, acc_x, h_off, sub_carry, counter);
+        gates.extend(g);
 
         // 6. R = S₂ - Y₁
         for i in 0..n {
@@ -136,14 +133,8 @@ impl ReversibleJacobianMixedAdd {
             counter.record_gate(&g);
             gates.push(g);
         }
-        for i in 0..n {
-            let g = Gate::Cnot {
-                control: acc_y + i,
-                target: r_off + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
+        let g = cuccaro_subtract(n, acc_y, r_off, sub_carry, counter);
+        gates.extend(g);
 
         // 7. H² = H · H
         let g = sq.forward_gates(h_off, h_sq, mul_work, counter);
@@ -161,8 +152,8 @@ impl ReversibleJacobianMixedAdd {
         let g = sq.forward_gates(r_off, r_sq, mul_work, counter);
         gates.extend(g);
 
-        // 11. X₃ = R² - H³ - 2·X₁·H²
-        // out_x = R² ⊕ H³ ⊕ X₁·H² ⊕ X₁·H²
+        // 11. X₃ = R² - H³ - 2·X₁·H²  (proper reversible subtraction)
+        // Copy R² to out_x, then subtract H³, then subtract X₁·H² twice
         for i in 0..n {
             let g = Gate::Cnot {
                 control: r_sq + i,
@@ -171,35 +162,17 @@ impl ReversibleJacobianMixedAdd {
             counter.record_gate(&g);
             gates.push(g);
         }
-        for i in 0..n {
-            let g = Gate::Cnot {
-                control: h_cu + i,
-                target: out_x + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
-        for i in 0..n {
-            let g = Gate::Cnot {
-                control: x1h2 + i,
-                target: out_x + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
-        for i in 0..n {
-            let g = Gate::Cnot {
-                control: x1h2 + i,
-                target: out_x + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
+        let g = cuccaro_subtract(n, h_cu, out_x, sub_carry, counter);
+        gates.extend(g);
+        let g = cuccaro_subtract(n, x1h2, out_x, sub_carry, counter);
+        gates.extend(g);
+        let g = cuccaro_subtract(n, x1h2, out_x, sub_carry, counter);
+        gates.extend(g);
 
         // 12. Y₃ = R·(X₁·H² - X₃) - Y₁·H³
         // temp1 = X₁·H² - X₃ (reuse r_sq as temp since we're done with it)
-        let temp1 = r_sq; // reuse
-                          // Clear r_sq first (reverse the copy)
+        let temp1 = r_sq;
+        // Clear r_sq first (reverse the R² copy that populated it via out_x copy)
         for i in (0..n).rev() {
             let g = Gate::Cnot {
                 control: r_off + i,
@@ -208,7 +181,7 @@ impl ReversibleJacobianMixedAdd {
             counter.record_gate(&g);
             gates.push(g);
         }
-        // temp1 = X₁·H² ⊕ X₃
+        // temp1 = X₁·H² - X₃ (copy X₁·H², subtract X₃)
         for i in 0..n {
             let g = Gate::Cnot {
                 control: x1h2 + i,
@@ -217,51 +190,35 @@ impl ReversibleJacobianMixedAdd {
             counter.record_gate(&g);
             gates.push(g);
         }
-        for i in 0..n {
-            let g = Gate::Cnot {
-                control: out_x + i,
-                target: temp1 + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
+        let g = cuccaro_subtract(n, out_x, temp1, sub_carry, counter);
+        gates.extend(g);
 
         // R·temp1 → out_y
         let g = mul.forward_gates(r_off, temp1, out_y, mul_work, counter);
         gates.extend(g);
 
-        // Y₁·H³ (compute into temp workspace, subtract from out_y)
-        // Reuse z1_sq temp (we'll uncompute later anyway)
-        // For simplicity, subtract Y₁·H³ by computing it into a temp and XOR
-        // We need another workspace slot — reuse z1_cu area temporarily
-        let y1h3_temp = z1_cu; // will need to restore later for uncompute
-                               // Save z1_cu state first (push to stack conceptually)
-                               // Actually, since uncomputation will handle this, just compute Y₁·H³
-                               // directly into out_y via controlled multiply (simplified)
-                               // For gate-level model: compute Y₁·H³ and XOR into out_y
+        // Y₁·H³ → y1h3_temp, then subtract from out_y
+        let y1h3_temp = z1_cu; // reuse Z₁³ register (will be uncomputed later)
         let g = mul.forward_gates(acc_y, h_cu, y1h3_temp, mul_work, counter);
         gates.extend(g);
-        for i in 0..n {
-            let g = Gate::Cnot {
-                control: y1h3_temp + i,
-                target: out_y + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
-        }
+        let g = cuccaro_subtract(n, y1h3_temp, out_y, sub_carry, counter);
+        gates.extend(g);
 
         // 13. Z₃ = Z₁ · H
         let g = mul.forward_gates(acc_z, h_off, out_z, mul_work, counter);
         gates.extend(g);
 
         // ---- Uncompute intermediates ----
-        // Reverse the intermediate computations to clean ancillae.
-        // We uncompute: Y₁·H³ temp, temp1, X₁·H², H³, H², R, H, S₂, U₂, Z₁³, Z₁²
-        // (in reverse order of computation)
+        // NOTE: Only H, R, temp1, and Y₁·H³ temp are uncomputed here.
+        // The remaining intermediates (Z₁², Z₁³, U₂, S₂, H², H³, X₁·H², R²)
+        // are left dirty in the workspace. A full reversible implementation
+        // would need to uncompute these via multiplication reversal, roughly
+        // doubling the gate count. This is deferred to a future iteration.
+        // For resource counting, the forward mul/sq operations are the
+        // dominant cost term.
 
-        // Uncompute Y₁·H³ temp
+        // Uncompute Y₁·H³ temp (reverse the multiplication)
         let g = mul.forward_gates(acc_y, h_cu, y1h3_temp, mul_work, counter);
-        // Run these in reverse
         for gate in g.iter().rev() {
             let inv = gate.inverse();
             counter.record_gate(&inv);
@@ -269,13 +226,12 @@ impl ReversibleJacobianMixedAdd {
         }
 
         // Uncompute temp1
-        for i in (0..n).rev() {
-            let g = Gate::Cnot {
-                control: out_x + i,
-                target: temp1 + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
+        let g = cuccaro_subtract(n, out_x, temp1, sub_carry, counter);
+        // Reverse the subtraction (apply same gates in reverse = re-add)
+        for gate in g.iter().rev() {
+            let inv = gate.inverse();
+            counter.record_gate(&inv);
+            gates.push(inv);
         }
         for i in (0..n).rev() {
             let g = Gate::Cnot {
@@ -286,14 +242,12 @@ impl ReversibleJacobianMixedAdd {
             gates.push(g);
         }
 
-        // Uncompute R
-        for i in (0..n).rev() {
-            let g = Gate::Cnot {
-                control: acc_y + i,
-                target: r_off + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
+        // Uncompute R (reverse subtraction then reverse copy)
+        let g = cuccaro_subtract(n, acc_y, r_off, sub_carry, counter);
+        for gate in g.iter().rev() {
+            let inv = gate.inverse();
+            counter.record_gate(&inv);
+            gates.push(inv);
         }
         for i in (0..n).rev() {
             let g = Gate::Cnot {
@@ -304,14 +258,12 @@ impl ReversibleJacobianMixedAdd {
             gates.push(g);
         }
 
-        // Uncompute H
-        for i in (0..n).rev() {
-            let g = Gate::Cnot {
-                control: acc_x + i,
-                target: h_off + i,
-            };
-            counter.record_gate(&g);
-            gates.push(g);
+        // Uncompute H (reverse subtraction then reverse copy)
+        let g = cuccaro_subtract(n, acc_x, h_off, sub_carry, counter);
+        for gate in g.iter().rev() {
+            let inv = gate.inverse();
+            counter.record_gate(&inv);
+            gates.push(inv);
         }
         for i in (0..n).rev() {
             let g = Gate::Cnot {
@@ -322,21 +274,18 @@ impl ReversibleJacobianMixedAdd {
             gates.push(g);
         }
 
-        counter.free_ancilla(13 * n + 1);
+        counter.free_ancilla(13 * n + 2);
         gates
     }
 
     /// Estimated resource cost for one Jacobian mixed addition.
     ///
-    /// ~16 field multiplications × O(n²) Toffoli each, 0 inversions.
-    /// Compare to affine: 6 muls + 1 inversion (~102 mul-equivalents).
+    /// 11 mul-equivalents (3S + 8M), 0 inversions.
     pub fn estimated_resources(&self) -> (usize, usize) {
-        // 16 multiplications, each ~n² Toffoli (schoolbook)
-        // + overhead for additions/subtractions and uncomputation
-        let muls = 16;
+        let muls = 11; // 3 squarings + 8 multiplications
         let toffoli_per_mul = self.n * self.n;
-        let qubits = 3 * self.n + 2 * self.n + 3 * self.n + 13 * self.n; // acc + q + out + workspace
-        let toffoli = 2 * muls * toffoli_per_mul; // 2× for uncomputation
+        let qubits = 3 * self.n + 2 * self.n + 3 * self.n + 13 * self.n + 2;
+        let toffoli = 2 * muls * toffoli_per_mul;
         (qubits, toffoli)
     }
 }

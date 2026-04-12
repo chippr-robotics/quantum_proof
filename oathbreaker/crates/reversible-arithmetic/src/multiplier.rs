@@ -611,7 +611,7 @@ fn add_with_carryout(
 ///
 /// Cost: O(n) Toffoli + O(2n) CNOT (same as addition).
 /// `carry` is a 1-bit ancilla that starts and ends at 0.
-fn cuccaro_subtract(
+pub fn cuccaro_subtract(
     n: usize,
     a: usize,     // n-bit register (preserved)
     b: usize,     // n-bit register (overwritten with b - a)
