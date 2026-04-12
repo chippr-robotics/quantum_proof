@@ -5,13 +5,16 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# SP1 guest programs are compiled to RISC-V, so dependencies
-# must support no_std or the SP1 guest runtime.
 [dependencies]
-# sp1-zkvm = "4"  # Uncomment when SP1 toolchain is installed
+sp1-zkvm = { workspace = true, optional = true }
 goldilocks-field = { workspace = true }
 ec-goldilocks = { workspace = true }
 reversible-arithmetic = { workspace = true }
 group-action-circuit = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 sha2 = { workspace = true }
+
+[features]
+default = []
+sp1 = ["dep:sp1-zkvm"]

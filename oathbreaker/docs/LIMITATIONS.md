@@ -6,7 +6,7 @@
 - **Reversible consistency**: Every gate is self-inverse; the circuit can be run forward and backward.
 - **Ancilla cleanup**: All ancilla qubits return to |0> after uncomputation on all tested inputs.
 - **Resource count accuracy**: The circuit uses exactly the reported number of qubits and gates.
-- **Execution trace correctness**: The SP1 Groth16 proof attests that the above properties hold for N random inputs.
+- **Execution trace correctness**: The SP1 Groth16 proof attests that the above properties hold for N random inputs. The SP1 guest program builds the circuit, verifies all test cases, and commits resource counts and a circuit hash as public values.
 - **Cost attribution accuracy**: Per-subsystem Toffoli costs (doublings, additions, inversion, QROM, affine recovery) are measured via ResourceCounter snapshots, not estimated.
 
 ## What This Project Does NOT Prove

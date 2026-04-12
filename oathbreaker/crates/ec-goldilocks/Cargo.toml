@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 goldilocks-field = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 rand = { workspace = true }
 
 [dev-dependencies]

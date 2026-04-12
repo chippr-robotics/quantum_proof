@@ -142,11 +142,14 @@ jobs:
         run: cargo run --release -p benchmark
 
   # ---------------------------------------------------------------------------
-  # SP1 crate compilation — verify sp1-program and sp1-host compile cleanly.
-  # (SP1 toolchain not required; the SDK deps are commented out in v1.)
+  # SP1 crate compilation & classical verification — verify sp1-program and
+  # sp1-host compile cleanly and run classical mode end-to-end.
+  # SP1 toolchain is NOT required; classical mode verifies the full data
+  # pipeline (param loading → test generation → circuit build → verification)
+  # without generating a ZK proof.
   # ---------------------------------------------------------------------------
   sp1-compilation:
-    name: "functional / sp1 compilation"
+    name: "functional / sp1 classical verification"
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -168,11 +171,20 @@ jobs:
           restore-keys: |
             sp1-${{ runner.os }}-cargo-
 
-      - name: Build sp1-program
+      - name: Build sp1-program (classical mode)
         run: cargo build -p sp1-program --verbose
 
-      - name: Build sp1-host
+      - name: Build sp1-host (classical mode)
         run: cargo build -p sp1-host --verbose
+
+      - name: Run sp1-program self-test
+        run: cargo run --release -p sp1-program
+
+      - name: "Classical verification: Oath-8 (5 test cases)"
+        run: cargo run --release -p sp1-host -- --tier oath-8 --num-cases 5
+
+      - name: "Classical verification: Oath-16 (3 test cases)"
+        run: cargo run --release -p sp1-host -- --tier oath-16 --num-cases 3
 
   # ---------------------------------------------------------------------------
   # Summary gate — all functional test jobs must pass.

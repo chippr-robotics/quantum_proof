@@ -34,8 +34,8 @@ quantum_proof/
 │   │   ├── reversible-arithmetic/              # Reversible gates, Karatsuba multiplier, Binary GCD
 │   │   ├── group-action-circuit/               # Coherent [a]G + [b]Q circuit assembly
 │   │   ├── benchmark/                          # Resource counting, cost attribution, scaling
-│   │   ├── sp1-program/                        # SP1 guest program (proven inside zkVM)
-│   │   └── sp1-host/                           # SP1 host: proof generation + verification
+│   │   ├── sp1-program/                        # SP1 guest program (circuit verification inside zkVM)
+│   │   └── sp1-host/                           # SP1 host: classical verification + Groth16 proof generation
 │   ├── sage/                                   # SageMath curve generation + verification scripts
 │   ├── proofs/                                 # Generated proof artifacts
 │   ├── docs/                                   # Architecture, benchmarking, paper draft
@@ -56,6 +56,7 @@ A fully implemented reversible circuit framework for Shor's ECDLP algorithm on t
 - **Circuit assembly** — windowed scalar multiplication with one-hot QROM decode, precomputed lookup tables, coherent double-scalar map [a]G + [b]Q
 - **Benchmarking** — measured resource counts for Oath-8/16/32, per-subsystem cost attribution, window-size sweep, three-model scaling projections to 256-bit
 - **Classical verification** — Pollard's rho ECDLP solver for independent ground-truth checking
+- **ZK proof** — SP1 guest/host programs with feature-gated Groth16 SNARK generation, classical verification mode for CI, following Google's zkp_ecc architecture
 - **Curve verification** — SageMath SEA verification of all Oath-N parameters in CI
 
 **Current results (Oath-32, measured)**: 2,848 qubits, 5.76M Toffoli gates.

@@ -6,7 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-# sp1-sdk = "4"  # Uncomment when SP1 toolchain is installed
 goldilocks-field = { workspace = true }
 ec-goldilocks = { workspace = true }
 group-action-circuit = { workspace = true }
@@ -14,3 +13,17 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 rand = { workspace = true }
+clap = { workspace = true }
+
+# SP1 SDK is optional — classical verification works without it.
+# Enable with: cargo run -p sp1-host --features sp1
+sp1-sdk = { workspace = true, optional = true }
+
+[build-dependencies]
+# SP1 build tool compiles the guest program to RISC-V ELF.
+# Only active when the `sp1` feature is enabled.
+sp1-build = { workspace = true, optional = true }
+
+[features]
+default = []
+sp1 = ["dep:sp1-sdk", "dep:sp1-build"]

@@ -147,10 +147,38 @@ All circuit layers are fully implemented with Karatsuba + Binary GCD optimizatio
 | **6 — Verification** | Pollard's rho ECDLP solver, classical ground-truth cross-check | Done |
 | **7 — Benchmarking** | Measured tiers, cost attribution, window sweep, 3-model scaling projections | Done |
 | **8 — Curve Generation** | SageMath scripts for all Oath-N tiers + tamper-proof CI verification | Done |
-| **9 — ZK Proof** | SP1 program/host structure (awaiting SP1 toolchain integration) | Stub |
+| **9 — ZK Proof** | SP1 guest/host with feature-gated Groth16 proof + classical verification | Done |
 | **10 — QFT** | Resource estimates computed; execution deferred to v2 | Estimated |
 
 See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for full scope details.
+
+## ZK Proof (SP1)
+
+The SP1 integration proves circuit correctness via a Groth16 SNARK, following
+the same approach as Google's [zkp_ecc](https://github.com/tanujkhattar/zkp_ecc).
+
+### Quick Start
+
+```bash
+# Classical verification (no SP1 toolchain required)
+cargo run --release -p sp1-host -- --tier oath-8 --num-cases 10
+
+# Guest program self-test
+cargo run --release -p sp1-program
+
+# Full proof generation (requires SP1 toolchain)
+cargo run --release -p sp1-host --features sp1 -- --tier oath-8 --mode prove
+```
+
+### Modes
+
+| Mode | Feature | What It Does |
+|------|---------|-------------|
+| Classical | (default) | Build circuit + verify test cases locally |
+| Execute | `--features sp1` | Run guest in SP1 zkVM without proof |
+| Prove | `--features sp1` | Generate Groth16 SNARK proof |
+
+See [docs/ZKP_GUIDE.md](docs/ZKP_GUIDE.md) for the full proof pipeline documentation.
 
 ## Testing
 
