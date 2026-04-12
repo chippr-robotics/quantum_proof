@@ -126,6 +126,106 @@ fn run_benchmarks() {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Phase 2b: Window-size sweep.
+    //           For each measured tier, try all valid window sizes and report
+    //           the Toffoli / qubit tradeoff.  This determines whether the
+    //           current default w is optimal under the new QROM + Karatsuba
+    //           cost structure.
+    // -----------------------------------------------------------------------
+    println!("=== Window-Size Sweep ===\n");
+    println!("┌───────────┬────────┬──────────────┬─────────────┬──────────────────┐");
+    println!(
+        "│ {:<9} │ {:<6} │ {:<12} │ {:<11} │ {:<16} │",
+        "Tier", "Window", "Toffoli", "Qubits", "Total gates"
+    );
+    println!("├───────────┼────────┼──────────────┼─────────────┼──────────────────┤");
+
+    // Track the best window per tier for use in projections
+    let mut best_per_tier: Vec<(String, group_action_circuit::CircuitSummary)> = Vec::new();
+
+    for tier_name in &measurable_tiers {
+        if let Some((_, curve)) = all_curves.iter().find(|(n, _)| n == *tier_name) {
+            let n = curve.field_bits;
+            // Valid window sizes: must divide n, range 1..=n
+            let valid_windows: Vec<usize> = (1..=n)
+                .filter(|w| n % w == 0 && *w <= 8) // cap at 8 to keep QROM table ≤ 256
+                .collect();
+
+            let mut best_toffoli = usize::MAX;
+            let mut best_summary = None;
+            for &w in &valid_windows {
+                let circuit =
+                    group_action_circuit::build_group_action_circuit_jacobian(curve, w);
+                let summary = circuit.summary();
+                let marker = if summary.toffoli_gates < best_toffoli {
+                    best_toffoli = summary.toffoli_gates;
+                    best_summary = Some(summary.clone());
+                    " ◄ best"
+                } else {
+                    ""
+                };
+                println!(
+                    "│ {:<9} │ w={:<4} │ {:<12} │ {:<11} │ {:<16} │{}",
+                    tier_name,
+                    w,
+                    summary.toffoli_gates,
+                    summary.logical_qubits_peak,
+                    summary.total_reversible_gates,
+                    marker,
+                );
+            }
+
+            if let Some(s) = best_summary {
+                best_per_tier.push((tier_name.to_string(), s));
+            }
+
+            // Separator between tiers
+            if tier_name != measurable_tiers.last().unwrap() {
+                println!("├───────────┼────────┼──────────────┼─────────────┼──────────────────┤");
+            }
+        }
+    }
+    println!("└───────────┴────────┴──────────────┴─────────────┴──────────────────┘");
+    println!();
+
+    // Use the best-window results for the largest tier as our projection base
+    if !best_per_tier.is_empty() {
+        let (ref best_name, ref best_summary) = best_per_tier[best_per_tier.len() - 1];
+        let default_w = window_for_field(best_summary.field_bits);
+        let (_, ref default_summary) = measured[measured.len() - 1];
+
+        if best_summary.toffoli_gates < default_summary.toffoli_gates {
+            println!(
+                "Window sweep found a better configuration for {}:",
+                best_name
+            );
+            println!(
+                "  Default (w={}): {} Toffoli, {} qubits",
+                default_w, default_summary.toffoli_gates, default_summary.logical_qubits_peak,
+            );
+            println!(
+                "  Best:           {} Toffoli, {} qubits",
+                best_summary.toffoli_gates, best_summary.logical_qubits_peak,
+            );
+            println!(
+                "  Improvement:    {:.1}% fewer Toffoli\n",
+                (1.0 - best_summary.toffoli_gates as f64 / default_summary.toffoli_gates as f64)
+                    * 100.0,
+            );
+
+            // Replace the measured entry with the best-window version
+            if let Some(entry) = measured.last_mut() {
+                *entry = (best_name.clone(), best_summary.clone());
+            }
+        } else {
+            println!(
+                "Default window (w={}) is already optimal for {}.\n",
+                default_w, best_name,
+            );
+        }
+    }
+
     // Note about Oath-64
     println!("Note: Oath-64 full circuit construction materializes ~90M+ gate objects");
     println!("      (~3 GB RAM) and is omitted from CI. Resource counts are projected");
