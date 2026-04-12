@@ -8,14 +8,16 @@
 | Reversible consistency           | PROVEN   |
 | Ancilla cleanup (return to 0)   | PROVEN   |
 | Resource count accuracy          | PROVEN   |
+| Cost attribution accuracy        | PROVEN   |
 | Jacobian ↔ affine equivalence   | PROVEN   |
+| Curve parameter integrity        | PROVEN   |
 | Quantum superposition behavior   | ASSUMED  |
 | QFT + measurement recovery      | DEFERRED |
 | Hardware execution success       | UNKNOWN  |
 
 ## Multi-Layer Verification
 
-### Layer 1: Unit Tests (38 tests across 4 crates)
+### Layer 1: Unit Tests (40 tests across 4 crates)
 
 Every reversible gate and arithmetic operation is independently tested:
 
@@ -27,7 +29,7 @@ Every reversible gate and arithmetic operation is independently tested:
 - Exponentiation and Legendre symbol
 - 7 property-based tests (proptest) verifying field axioms over random inputs
 
-**ec-goldilocks** (8 tests):
+**ec-goldilocks** (10 tests):
 - Infinity as identity element for point addition
 - Scalar multiplication by zero returns infinity
 - Point negation (finite and infinity)
@@ -35,6 +37,7 @@ Every reversible gate and arithmetic operation is independently tested:
 - Jacobian mixed addition matches affine point addition
 - Jacobian doubling matches affine doubling
 - On-curve verification for generator and scalar multiples
+- Double-scalar multiplication [a]G + [b]Q consistency
 
 **reversible-arithmetic** (7 tests):
 - NOT gate is self-inverse
@@ -59,7 +62,7 @@ Every reversible gate and arithmetic operation is independently tested:
 
 ### Layer 3: Classical Ground Truth
 
-For each ECDLP instance on the Oath-64 curve:
+For each ECDLP instance on the Oath curves:
 1. Generate random (a, b, k), set Q = [k]G
 2. Compute [a]G + [b]Q via classical reference
 3. Execute the reversible circuit on the same basis-state inputs
@@ -67,7 +70,21 @@ For each ECDLP instance on the Oath-64 curve:
 5. Cross-check: verify [a + k*b]G equals the result
 6. Pollard's rho independently solves Q -> k on a subset
 
-### Layer 4: ZK Proof (SP1 Groth16)
+### Layer 4: Curve Parameter Verification
+
+All Oath-N curve parameters are independently verified via SageMath's SEA (Schoof-Elkies-Atkin) algorithm:
+1. Prime field verification
+2. Non-singular discriminant
+3. Group order recomputed from scratch (independent of generation script)
+4. Prime order (no cofactor)
+5. Non-anomalous (order != field characteristic, prevents Smart's attack)
+6. Embedding degree > 4 (prevents MOV/Weil transfer)
+7. Generator on-curve and full-order
+8. Hasse bound satisfied
+
+This runs as a CI workflow (`curve-verification.yml`) on every push, creating a tamper-proof audit trail with SHA-256 fingerprints of all parameter files.
+
+### Layer 5: ZK Proof (SP1 Groth16)
 
 - The SP1 guest program executes the circuit inside the zkVM
 - Every arithmetic operation in the execution trace is proven correct
@@ -82,13 +99,15 @@ algorithm will succeed on hardware, or that QFT recovery works.
 
 ## Continuous Integration
 
-Three GitHub Actions workflows enforce correctness on every push and PR:
+Five GitHub Actions workflows enforce correctness on every push and PR:
 
 | Workflow | What it verifies |
 |----------|-----------------|
 | `unit-tests.yml` | Per-crate unit tests (debug + release) + proptest with 1024 cases/property |
 | `functional-tests.yml` | Workspace integration, dependency-chain validation (field → EC → gates → circuit), benchmark execution, SP1 compilation |
 | `code-quality.yml` | `rustfmt` formatting, `clippy` linting (strict `-D warnings` on core crates), `cargo doc` build |
+| `benchmark.yml` | Full benchmark suite with resource tables, QASM export, scaling projections; results in PR job summary |
+| `curve-verification.yml` | SageMath SEA verification of all Oath-N parameters; SHA-256 fingerprints in job summary |
 
 The dependency-chain job runs crates in order — goldilocks-field, then ec-goldilocks,
 then reversible-arithmetic, then group-action-circuit — validating that algebraic
@@ -97,20 +116,23 @@ guarantees compose correctly across layers.
 ## Running Verification
 
 ```bash
-# All 38 tests across 4 core crates
+# All 40 tests across 4 core crates
 cargo test --workspace
 
 # Per-crate testing
-cargo test -p goldilocks-field
-cargo test -p ec-goldilocks
-cargo test -p reversible-arithmetic
-cargo test -p group-action-circuit
+cargo test -p goldilocks-field        # 20 tests
+cargo test -p ec-goldilocks           # 10 tests
+cargo test -p reversible-arithmetic   # 7 tests
+cargo test -p group-action-circuit    # 3 tests
 
-# Classical ground truth (requires Sage-generated Oath-64 params)
+# Classical ground truth (requires Sage-generated Oath params)
 cargo test -p ec-goldilocks -- --test-threads=1
 
-# Benchmark suite (resource counting + Oath-N tiers)
+# Benchmark suite (resource counting + scaling projections + cost attribution)
 cargo run --release -p benchmark
+
+# QASM export
+cargo run --release -p benchmark -- export-qasm
 
 # Full pipeline with ZK proof
 ./scripts/full_pipeline.sh

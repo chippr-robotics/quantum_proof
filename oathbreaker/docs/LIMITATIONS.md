@@ -7,6 +7,7 @@
 - **Ancilla cleanup**: All ancilla qubits return to |0> after uncomputation on all tested inputs.
 - **Resource count accuracy**: The circuit uses exactly the reported number of qubits and gates.
 - **Execution trace correctness**: The SP1 Groth16 proof attests that the above properties hold for N random inputs.
+- **Cost attribution accuracy**: Per-subsystem Toffoli costs (doublings, additions, inversion, QROM, affine recovery) are measured via ResourceCounter snapshots, not estimated.
 
 ## What This Project Does NOT Prove
 
@@ -25,22 +26,22 @@ These are well-understood published constructions and are deferred to v2.
 No quantum computer currently exists that can execute this circuit. The circuit description is a specification for future hardware, not a claim of current executability.
 
 ### Resource projections are estimates
-Scaling projections from 32-bit to 256-bit are based on asymptotic scaling laws (O(n) qubits, O(n^2.585) Toffoli with Karatsuba). The benchmark reports three projection models:
-- **Karatsuba O(n^2.585)**: Primary model reflecting the implemented Karatsuba multiplier
-- **Schoolbook O(n^3)**: Legacy model for comparison
-- **Empirical fit**: Least-squares fit from measured 16-bit and 32-bit tiers
+Scaling projections from 32-bit to 256-bit are based on asymptotic scaling laws. The benchmark reports three projection models:
+- **Karatsuba O(n^2.585)**: Primary model reflecting the implemented Karatsuba multiplier — projects ~1.2B Toffoli at 256-bit
+- **Empirical fit**: Least-squares fit from measured 16-bit and 32-bit tiers (exponent ~2.46)
+- **Schoolbook O(n^3)**: Legacy model for comparison — projects ~3.4B Toffoli at 256-bit
 
 Actual 256-bit circuits would differ due to:
 - Constant factor improvements in industrial implementations
 - Hardware-specific compilation optimizations
 - Measurement-based uncomputation (not implemented; requires mid-circuit measurement)
+- Multi-limb arithmetic overhead (256-bit requires 4× 64-bit limbs)
 
-### Fermat inversion is suboptimal
-The v1 implementation uses Fermat's little theorem for the single final inversion
-(Jacobian Z → affine conversion), contributing O(n^2.585) gates (using Karatsuba multiplier). Known optimizations include:
-- **Projective coordinates**: Implemented in v1 — Jacobian projective coordinates eliminate all per-addition inversions, reducing the total from ~128 inversions (affine) to exactly 1 (final affine conversion)
-- **Binary GCD / Kaliski inversion**: O(n^2) reversible gates — implemented as an alternative inverter, though Fermat remains the default
-- **Karatsuba multiplication**: Implemented — reduces per-multiply cost from O(n^2) to O(n^1.585), changing overall scaling from O(n^3) to O(n^2.585)
+### No measurement-based uncomputation
+The circuit uses Bennett's compute-copy-uncompute pattern exclusively, resulting in ~2x gate overhead compared to measurement-based approaches (e.g., Litinski 2023). Measurement-based uncomputation requires mid-circuit measurement and classical feedforward, which is hardware-dependent and not universally available.
+
+### Intermediate uncomputation is incomplete
+The Jacobian mixed addition and doubling circuits leave some intermediate registers dirty (Z1^2, Z1^3, U2, S2, H^2, H^3, X1*H^2 in mixed-add; analogous intermediates in doubling). Full uncomputation would approximately double the gate count. This is a known limitation documented in the source code.
 
 ### Comparison to Google is approximate
 Google's March 2026 paper discloses resource estimates but not the circuit itself. Our comparison is based on published numbers and scaling projections. Google's implementation uses unknown optimizations that may significantly reduce gate counts.
@@ -53,6 +54,8 @@ Google's March 2026 paper discloses resource estimates but not the circuit itsel
 | Reversible consistency           | PROVEN   |
 | Ancilla cleanup (return to 0)   | PROVEN   |
 | Resource count accuracy          | PROVEN   |
+| Cost attribution accuracy        | PROVEN   |
 | Quantum superposition behavior   | ASSUMED  |
+| Measurement-based uncomputation  | NOT IMPL |
 | QFT + measurement recovery      | DEFERRED |
 | Hardware execution success       | UNKNOWN  |
