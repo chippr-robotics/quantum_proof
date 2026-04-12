@@ -18,6 +18,7 @@ clap = { workspace = true }
 # SP1 SDK is optional — classical verification works without it.
 # Enable with: cargo run -p sp1-host --features sp1
 sp1-sdk = { workspace = true, optional = true }
+tokio = { version = "1", features = ["rt", "macros"], optional = true }
 
 [build-dependencies]
 # SP1 build tool compiles the guest program to RISC-V ELF.
@@ -26,4 +27,4 @@ sp1-build = { workspace = true, optional = true }
 
 [features]
 default = []
-sp1 = ["dep:sp1-sdk", "dep:sp1-build"]
+sp1 = ["dep:sp1-sdk", "dep:sp1-build", "dep:tokio"]

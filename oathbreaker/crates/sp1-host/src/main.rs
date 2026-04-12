@@ -17,9 +17,10 @@ use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-/// When compiled with --features sp1, include the guest program ELF.
+/// When compiled with --features sp1, embed the guest program ELF binary.
+/// The ELF is compiled from sp1-program by sp1-build in build.rs.
 #[cfg(feature = "sp1")]
-sp1_sdk::include_elf!("sp1-program");
+const SP1_PROGRAM_ELF: &[u8] = sp1_sdk::include_elf!("sp1-program");
 
 /// Oathbreaker SP1 Host — ZK proof generation for quantum circuit verification.
 #[derive(Parser, Debug)]
@@ -267,119 +268,139 @@ fn run_classical(input: &ProofInput) -> ProofOutput {
     }
 }
 
+/// Create a tokio runtime for SP1 async operations.
+#[cfg(feature = "sp1")]
+fn sp1_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Runtime::new().expect("Failed to create tokio runtime")
+}
+
 /// SP1 execute mode: run the guest program in the zkVM without proof generation.
 /// This validates the guest logic quickly (seconds for small tiers).
 #[cfg(feature = "sp1")]
 fn run_sp1_execute(input: &ProofInput) -> ProofOutput {
-    use sp1_sdk::ProverClient;
+    let rt = sp1_runtime();
+    rt.block_on(async {
+        println!("[3/5] Initializing SP1 prover client...");
+        let client = sp1_sdk::ProverClient::from_env().await;
 
-    println!("[3/5] Initializing SP1 prover client...");
-    let client = ProverClient::from_env();
+        println!("[4/5] Executing guest program in SP1 zkVM (no proof)...");
+        let mut stdin = sp1_sdk::SP1Stdin::new();
+        stdin.write(input);
 
-    println!("[4/5] Executing guest program in SP1 zkVM (no proof)...");
-    let mut stdin = sp1_sdk::SP1Stdin::new();
-    stdin.write(input);
+        let (output, report) = client
+            .execute(SP1_PROGRAM_ELF, &stdin)
+            .run()
+            .await
+            .expect("SP1 execution failed");
 
-    let (output, report) = client
-        .execute(SP1_PROGRAM_ELF, &stdin)
-        .run()
-        .expect("SP1 execution failed");
+        println!(
+            "  Execution complete: {} cycles",
+            report.total_instruction_count()
+        );
 
-    println!(
-        "  Execution complete: {} cycles",
-        report.total_instruction_count()
-    );
+        let proof_output: ProofOutput = output.read();
 
-    let proof_output: ProofOutput = output.read();
-
-    println!("[5/5] Guest program verified all test cases.");
-    proof_output
+        println!("[5/5] Guest program verified all test cases.");
+        proof_output
+    })
 }
 
 /// SP1 prove mode: generate a ZK proof with the specified proof type.
 #[cfg(feature = "sp1")]
 fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> ProofOutput {
-    use sp1_sdk::ProverClient;
+    let proof_type_owned = proof_type.to_string();
+    let output_dir_owned = output_dir.to_path_buf();
 
-    println!("[3/7] Initializing SP1 prover client...");
-    let client = ProverClient::from_env();
+    let rt = sp1_runtime();
+    rt.block_on(async move {
+        println!("[3/7] Initializing SP1 prover client...");
+        let client = sp1_sdk::ProverClient::from_env().await;
 
-    println!("[4/7] Setting up proving and verification keys...");
-    let (pk, vk) = client.setup(SP1_PROGRAM_ELF);
+        println!("[4/7] Setting up proving and verification keys...");
+        let (pk, vk) = client.setup(SP1_PROGRAM_ELF);
 
-    let mut stdin = sp1_sdk::SP1Stdin::new();
-    stdin.write(input);
+        let mut stdin = sp1_sdk::SP1Stdin::new();
+        stdin.write(input);
 
-    let proof_type_label = match proof_type {
-        "core" => "Core STARK",
-        "compressed" => "Compressed STARK",
-        "groth16" => "Groth16 SNARK",
-        other => {
-            eprintln!(
-                "Error: Unknown proof type '{}'. Use: core, compressed, or groth16",
-                other
-            );
-            std::process::exit(1);
-        }
-    };
+        let proof_type_label = match proof_type_owned.as_str() {
+            "core" => "Core STARK",
+            "compressed" => "Compressed STARK",
+            "groth16" => "Groth16 SNARK",
+            other => {
+                eprintln!(
+                    "Error: Unknown proof type '{}'. Use: core, compressed, or groth16",
+                    other
+                );
+                std::process::exit(1);
+            }
+        };
 
-    println!(
-        "[5/7] Generating {} proof (this may take a while)...",
-        proof_type_label
-    );
+        println!(
+            "[5/7] Generating {} proof (this may take a while)...",
+            proof_type_label
+        );
 
-    let proof = match proof_type {
-        "core" => client.prove(&pk, &stdin).run().expect("Core proof failed"),
-        "compressed" => client
-            .prove(&pk, &stdin)
-            .compressed()
-            .run()
-            .expect("Compressed proof failed"),
-        "groth16" => client
-            .prove(&pk, &stdin)
-            .groth16()
-            .run()
-            .expect("Groth16 proof failed"),
-        _ => unreachable!(),
-    };
+        let proof = match proof_type_owned.as_str() {
+            "core" => client
+                .prove(&pk, &stdin)
+                .run()
+                .await
+                .expect("Core proof failed"),
+            "compressed" => client
+                .prove(&pk, &stdin)
+                .compressed()
+                .run()
+                .await
+                .expect("Compressed proof failed"),
+            "groth16" => client
+                .prove(&pk, &stdin)
+                .groth16()
+                .run()
+                .await
+                .expect("Groth16 proof failed"),
+            _ => unreachable!(),
+        };
 
-    println!("[6/7] Verifying proof...");
-    client
-        .verify(&proof, &vk)
-        .expect("Proof verification failed — this should never happen");
-    println!("  Proof verified successfully.");
+        println!("[6/7] Verifying proof...");
+        client
+            .verify(&proof, &vk)
+            .await
+            .expect("Proof verification failed — this should never happen");
+        println!("  Proof verified successfully.");
 
-    // Read public values from the proof
-    let proof_output: ProofOutput = proof.public_values.read();
+        // Read public values from the proof
+        let proof_output: ProofOutput = proof.public_values.read();
 
-    // Write artifacts
-    println!(
-        "[7/7] Writing proof artifacts to {}...",
-        output_dir.display()
-    );
-    std::fs::create_dir_all(output_dir).expect("Failed to create output directory");
+        // Write artifacts
+        println!(
+            "[7/7] Writing proof artifacts to {}...",
+            output_dir_owned.display()
+        );
+        std::fs::create_dir_all(&output_dir_owned).expect("Failed to create output directory");
 
-    // Use SP1's built-in save for the proof (handles serialization internally)
-    let proof_path = output_dir.join("proof.bin");
-    proof.save(&proof_path).expect("Failed to save proof");
+        // Use SP1's built-in save for the proof (handles serialization internally)
+        let proof_path = output_dir_owned.join("proof.bin");
+        proof.save(&proof_path).expect("Failed to save proof");
 
-    // Serialize verification key as JSON for portability
-    let vk_json = serde_json::to_string_pretty(&vk).expect("Failed to serialize verification key");
-    std::fs::write(output_dir.join("vk.json"), vk_json).expect("Failed to write vk.json");
+        // Serialize verification key as JSON for portability
+        let vk_json =
+            serde_json::to_string_pretty(&vk).expect("Failed to serialize verification key");
+        std::fs::write(output_dir_owned.join("vk.json"), vk_json).expect("Failed to write vk.json");
 
-    // Write circuit summary (public values)
-    std::fs::write(
-        output_dir.join("circuit_summary.json"),
-        serde_json::to_string_pretty(&proof_output).expect("Failed to serialize output"),
-    )
-    .expect("Failed to write circuit_summary.json");
+        // Write circuit summary (public values)
+        std::fs::write(
+            output_dir_owned.join("circuit_summary.json"),
+            serde_json::to_string_pretty(&proof_output).expect("Failed to serialize output"),
+        )
+        .expect("Failed to write circuit_summary.json");
 
-    println!("  Artifacts written:");
-    println!("    proof.bin            — {} proof", proof_type_label);
-    println!("    vk.json              — Verification key");
-    println!("    circuit_summary.json — Public values (resource counts + circuit hash)");
+        println!("  Artifacts written:");
+        println!("    proof.bin            — {} proof", proof_type_label);
+        println!("    vk.json              — Verification key");
+        println!("    circuit_summary.json — Public values (resource counts + circuit hash)");
 
-    proof_output
+        proof_output
+    })
 }
 
 fn main() {
