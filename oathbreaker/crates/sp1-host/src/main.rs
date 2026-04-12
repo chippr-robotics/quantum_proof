@@ -4,7 +4,7 @@
 // Three modes of operation:
 //   1. Classical (default): Build circuit + verify test cases without SP1
 //   2. Execute (--features sp1, --mode execute): Run guest in SP1 without proof
-//   3. Prove (--features sp1, --mode prove): Generate Groth16 SNARK proof
+//   3. Prove (--features sp1, --mode prove): Generate a ZK proof (core/compressed/groth16)
 
 use clap::Parser;
 use ec_goldilocks::curve::CurveParams;
@@ -40,9 +40,17 @@ struct Args {
     ///
     /// - classical: Build circuit and verify locally (no SP1 needed)
     /// - execute: Run guest in SP1 zkVM without proof generation (fast)
-    /// - prove: Generate a Groth16 SNARK proof (slow, requires SP1 toolchain)
+    /// - prove: Generate a ZK proof (requires SP1 toolchain)
     #[arg(long, default_value = "classical")]
     mode: String,
+
+    /// Proof type when mode=prove: core, compressed, or groth16.
+    ///
+    /// - core: STARK proof, variable size, fastest (~minutes)
+    /// - compressed: Constant-size STARK, moderate (~5-10 min)
+    /// - groth16: Groth16 SNARK, on-chain verifiable (~30+ min, needs Docker)
+    #[arg(long, default_value = "compressed")]
+    proof_type: String,
 
     /// Directory for proof artifacts (proof.bin, vk.bin, circuit_summary.json).
     #[arg(long, default_value = "../../proofs")]
@@ -288,9 +296,9 @@ fn run_sp1_execute(input: &ProofInput) -> ProofOutput {
     proof_output
 }
 
-/// SP1 prove mode: generate a Groth16 SNARK proof.
+/// SP1 prove mode: generate a ZK proof with the specified proof type.
 #[cfg(feature = "sp1")]
-fn run_sp1_prove(input: &ProofInput, output_dir: &Path) -> ProofOutput {
+fn run_sp1_prove(input: &ProofInput, proof_type: &str, output_dir: &Path) -> ProofOutput {
     use sp1_sdk::ProverClient;
 
     println!("[3/7] Initializing SP1 prover client...");
@@ -302,12 +310,38 @@ fn run_sp1_prove(input: &ProofInput, output_dir: &Path) -> ProofOutput {
     let mut stdin = sp1_sdk::SP1Stdin::new();
     stdin.write(input);
 
-    println!("[5/7] Generating Groth16 SNARK proof (this may take a while)...");
-    let proof = client
-        .prove(&pk, &stdin)
-        .groth16()
-        .run()
-        .expect("Proof generation failed");
+    let proof_type_label = match proof_type {
+        "core" => "Core STARK",
+        "compressed" => "Compressed STARK",
+        "groth16" => "Groth16 SNARK",
+        other => {
+            eprintln!(
+                "Error: Unknown proof type '{}'. Use: core, compressed, or groth16",
+                other
+            );
+            std::process::exit(1);
+        }
+    };
+
+    println!(
+        "[5/7] Generating {} proof (this may take a while)...",
+        proof_type_label
+    );
+
+    let proof = match proof_type {
+        "core" => client.prove(&pk, &stdin).run().expect("Core proof failed"),
+        "compressed" => client
+            .prove(&pk, &stdin)
+            .compressed()
+            .run()
+            .expect("Compressed proof failed"),
+        "groth16" => client
+            .prove(&pk, &stdin)
+            .groth16()
+            .run()
+            .expect("Groth16 proof failed"),
+        _ => unreachable!(),
+    };
 
     println!("[6/7] Verifying proof...");
     client
@@ -325,18 +359,15 @@ fn run_sp1_prove(input: &ProofInput, output_dir: &Path) -> ProofOutput {
     );
     std::fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
-    std::fs::write(
-        output_dir.join("proof.bin"),
-        bincode::serialize(&proof).expect("Failed to serialize proof"),
-    )
-    .expect("Failed to write proof.bin");
+    // Use SP1's built-in save for the proof (handles serialization internally)
+    let proof_path = output_dir.join("proof.bin");
+    proof.save(&proof_path).expect("Failed to save proof");
 
-    std::fs::write(
-        output_dir.join("vk.bin"),
-        bincode::serialize(&vk).expect("Failed to serialize verification key"),
-    )
-    .expect("Failed to write vk.bin");
+    // Serialize verification key as JSON for portability
+    let vk_json = serde_json::to_string_pretty(&vk).expect("Failed to serialize verification key");
+    std::fs::write(output_dir.join("vk.json"), vk_json).expect("Failed to write vk.json");
 
+    // Write circuit summary (public values)
     std::fs::write(
         output_dir.join("circuit_summary.json"),
         serde_json::to_string_pretty(&proof_output).expect("Failed to serialize output"),
@@ -344,8 +375,8 @@ fn run_sp1_prove(input: &ProofInput, output_dir: &Path) -> ProofOutput {
     .expect("Failed to write circuit_summary.json");
 
     println!("  Artifacts written:");
-    println!("    proof.bin           — Groth16 SNARK proof");
-    println!("    vk.bin              — Verification key");
+    println!("    proof.bin            — {} proof", proof_type_label);
+    println!("    vk.json              — Verification key");
     println!("    circuit_summary.json — Public values (resource counts + circuit hash)");
 
     proof_output
@@ -358,6 +389,9 @@ fn main() {
     println!("Tier:       {}", args.tier);
     println!("Test cases: {}", args.num_cases);
     println!("Mode:       {}", args.mode);
+    if args.mode == "prove" {
+        println!("Proof type: {}", args.proof_type);
+    }
     println!();
 
     // Step 1: Load curve parameters
@@ -409,7 +443,7 @@ fn main() {
         #[cfg(feature = "sp1")]
         "execute" => run_sp1_execute(&input),
         #[cfg(feature = "sp1")]
-        "prove" => run_sp1_prove(&input, &args.output_dir),
+        "prove" => run_sp1_prove(&input, &args.proof_type, &args.output_dir),
         #[cfg(not(feature = "sp1"))]
         "execute" | "prove" => {
             eprintln!("Error: SP1 modes require the `sp1` feature.");

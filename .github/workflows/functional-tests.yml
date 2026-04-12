@@ -142,13 +142,12 @@ jobs:
         run: cargo run --release -p benchmark
 
   # ---------------------------------------------------------------------------
-  # SP1 crate compilation & classical verification — verify sp1-program and
-  # sp1-host compile cleanly and run classical mode end-to-end.
-  # SP1 toolchain is NOT required; classical mode verifies the full data
-  # pipeline (param loading → test generation → circuit build → verification)
-  # without generating a ZK proof.
+  # SP1 classical verification — verify sp1-program and sp1-host compile
+  # cleanly and run classical mode end-to-end.
+  # Classical mode verifies the full data pipeline without the SP1 toolchain:
+  #   param loading → test generation → circuit build → verification
   # ---------------------------------------------------------------------------
-  sp1-compilation:
+  sp1-classical:
     name: "functional / sp1 classical verification"
     runs-on: ubuntu-latest
     defaults:
@@ -167,9 +166,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             oathbreaker/target
-          key: sp1-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          key: sp1-classical-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
           restore-keys: |
-            sp1-${{ runner.os }}-cargo-
+            sp1-classical-${{ runner.os }}-cargo-
 
       - name: Build sp1-program (classical mode)
         run: cargo build -p sp1-program --verbose
@@ -187,12 +186,72 @@ jobs:
         run: cargo run --release -p sp1-host -- --tier oath-16 --num-cases 3
 
   # ---------------------------------------------------------------------------
+  # SP1 ZK proof generation — install SP1 toolchain, compile the guest to
+  # RISC-V, execute inside the zkVM, and generate a compressed STARK proof.
+  # Uploads proof artifacts for downstream consumption.
+  # ---------------------------------------------------------------------------
+  sp1-proof:
+    name: "functional / sp1 proof generation"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          echo "$HOME/.sp1/bin" >> "$GITHUB_PATH"
+
+      - name: Install SP1 (sp1up)
+        run: |
+          export PATH="$HOME/.sp1/bin:$PATH"
+          sp1up
+
+      - name: Cache cargo registry & SP1 build artifacts
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: sp1-proof-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            sp1-proof-${{ runner.os }}-cargo-
+
+      - name: "SP1 execute: Oath-8 (validate guest in zkVM)"
+        run: cargo run --release -p sp1-host --features sp1 -- --tier oath-8 --num-cases 5 --mode execute
+
+      - name: "SP1 prove: Oath-8 (generate compressed STARK proof)"
+        run: cargo run --release -p sp1-host --features sp1 -- --tier oath-8 --num-cases 5 --mode prove --proof-type compressed --output-dir proofs
+
+      - name: List proof artifacts
+        run: ls -la proofs/
+
+      - name: Display circuit summary
+        run: cat proofs/circuit_summary.json
+
+      - name: Upload proof artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sp1-proof-oath8
+          path: |
+            oathbreaker/proofs/proof.bin
+            oathbreaker/proofs/vk.json
+            oathbreaker/proofs/circuit_summary.json
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
   # Summary gate — all functional test jobs must pass.
   # ---------------------------------------------------------------------------
   functional-tests-pass:
     name: "All functional tests pass"
     if: always()
-    needs: [workspace-test, dependency-chain, benchmark, sp1-compilation]
+    needs: [workspace-test, dependency-chain, benchmark, sp1-classical, sp1-proof]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all functional test results
@@ -200,7 +259,8 @@ jobs:
           results=("${{ needs.workspace-test.result }}" \
                    "${{ needs.dependency-chain.result }}" \
                    "${{ needs.benchmark.result }}" \
-                   "${{ needs.sp1-compilation.result }}")
+                   "${{ needs.sp1-classical.result }}" \
+                   "${{ needs.sp1-proof.result }}")
           for r in "${results[@]}"; do
             if [[ "$r" != "success" ]]; then
               echo "::error::One or more functional tests failed or were cancelled"
