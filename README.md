@@ -5,7 +5,7 @@
 This repository contains two complementary projects:
 
 1. **Educational explainer** of Google Quantum AI's March 2026 zero-knowledge proof for ECDLP circuit resource estimates
-2. **Oathbreaker** — a fully open-source reversible circuit framework implementing the coherent group-action map for Shor's ECDLP algorithm over the Goldilocks field, with Jacobian projective coordinates, classical verification, and a standardized quantum hardware benchmark (the Oathbreaker Scale)
+2. **Oathbreaker** — a fully open-source reversible circuit framework implementing the coherent group-action map for Shor's ECDLP algorithm over Goldilocks-form fields, with Jacobian projective coordinates, Karatsuba multiplication, Binary GCD inversion, classical verification, and a standardized quantum hardware benchmark (the Oathbreaker Scale)
 
 ## Background
 
@@ -27,36 +27,41 @@ quantum_proof/
 ├── index.html                                  # GitHub Pages blog post
 ├── notebook/
 │   └── quantum_verification_walkthrough.ipynb   # Interactive Jupyter walkthrough
-├── cryptocurrency-whitepaper.pdf                # Source paper (Google Quantum AI)
 ├── oathbreaker/                                # Reversible circuit framework
 │   ├── crates/
 │   │   ├── goldilocks-field/                   # GF(p) arithmetic, p = 2^64 - 2^32 + 1
 │   │   ├── ec-goldilocks/                      # EC ops, Jacobian + affine, ECDLP solvers
-│   │   ├── reversible-arithmetic/              # Reversible gates, adders, multipliers, EC ops
+│   │   ├── reversible-arithmetic/              # Reversible gates, Karatsuba multiplier, Binary GCD
 │   │   ├── group-action-circuit/               # Coherent [a]G + [b]Q circuit assembly
-│   │   ├── benchmark/                          # Resource counting, Oath-N tiers, comparisons
+│   │   ├── benchmark/                          # Resource counting, cost attribution, scaling
 │   │   ├── sp1-program/                        # SP1 guest program (proven inside zkVM)
 │   │   └── sp1-host/                           # SP1 host: proof generation + verification
-│   ├── sage/                                   # SageMath curve generation scripts
+│   ├── sage/                                   # SageMath curve generation + verification scripts
 │   ├── proofs/                                 # Generated proof artifacts
-│   ├── docs/                                   # Architecture, benchmarking, limitations
+│   ├── docs/                                   # Architecture, benchmarking, paper draft
+│   │   └── paper/                              # LaTeX technical paper
 │   └── README.md                               # Oathbreaker project documentation
-├── .github/workflows/                          # CI: unit tests, functional tests, code quality
+├── .github/workflows/                          # CI: tests, benchmarks, curve verification
 └── README.md                                   # This file
 ```
 
 ### Oathbreaker Framework (`oathbreaker/`)
 
-A fully implemented reversible circuit framework for Shor's ECDLP algorithm on the **Oath-64** curve (Goldilocks field, p = 2^64 - 2^32 + 1). The framework implements every layer of the circuit stack:
+A fully implemented reversible circuit framework for Shor's ECDLP algorithm on the **Oath curve family** (Goldilocks-form prime fields). The framework implements every layer of the circuit stack:
 
 - **Goldilocks field arithmetic** — addition, multiplication, inversion, square root (Tonelli-Shanks), with property-based testing of all field axioms
 - **Elliptic curve operations** — point addition, doubling, and scalar multiplication in both affine and Jacobian projective coordinates
-- **Reversible circuit primitives** — NOT/CNOT/Toffoli gates, Cuccaro ripple-carry adder, schoolbook multiplier, Fermat and binary GCD inverters
-- **Reversible EC operations** — point addition and doubling in both affine and Jacobian coordinates, with full intermediate uncomputation
-- **Circuit assembly** — windowed scalar multiplication, precomputed lookup tables, coherent double-scalar map [a]G + [b]Q
+- **Reversible circuit primitives** — NOT/CNOT/Toffoli gates, Cuccaro ripple-carry adder, Karatsuba multiplier (O(n^1.585)), symmetry-optimized squarer, Binary GCD and Fermat inverters
+- **Reversible EC operations** — point addition and doubling in both affine and Jacobian coordinates, with proper Cuccaro subtraction for all field operations
+- **Circuit assembly** — windowed scalar multiplication with one-hot QROM decode, precomputed lookup tables, coherent double-scalar map [a]G + [b]Q
+- **Benchmarking** — measured resource counts for Oath-8/16/32, per-subsystem cost attribution, window-size sweep, three-model scaling projections to 256-bit
 - **Classical verification** — Pollard's rho ECDLP solver for independent ground-truth checking
+- **Curve verification** — SageMath SEA verification of all Oath-N parameters in CI
 
-38 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
+**Current results (Oath-32, measured)**: 2,848 qubits, 5.76M Toffoli gates.
+**256-bit projection**: ~1.2B Toffoli (Karatsuba model), ~24x gap to Litinski's 50M.
+
+40 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
 
 See [oathbreaker/README.md](oathbreaker/README.md) for full details.
 
@@ -94,22 +99,27 @@ jupyter notebook notebook/quantum_verification_walkthrough.ipynb
 # Build the oathbreaker workspace
 cd oathbreaker && cargo build --workspace
 
-# Run all tests (38 tests across 4 core crates)
+# Run all tests (40 tests across 4 core crates)
 cargo test --workspace
 
-# Run the benchmark suite
+# Run the benchmark suite (resource counting + scaling projections)
 cargo run --release -p benchmark
+
+# Export OpenQASM 3.0 circuit
+cargo run --release -p benchmark -- export-qasm
 ```
 
 ## Continuous Integration
 
-Three GitHub Actions workflows enforce correctness at every layer:
+Five GitHub Actions workflows enforce correctness at every layer:
 
 | Workflow | What it checks |
 |----------|---------------|
 | **Unit Tests** | Per-crate isolation testing + property-based tests (1024 cases/property) |
 | **Functional Tests** | Workspace integration, dependency-chain validation, benchmark execution, SP1 compilation |
 | **Code Quality** | `rustfmt` formatting, `clippy` linting (strict on core crates), `cargo doc` build |
+| **Benchmark** | Full resource counting suite, QASM export, scaling projections, PR job summary |
+| **Curve Verification** | SageMath SEA verification of all Oath-N parameters, SHA-256 audit trail |
 
 ## Key Concepts
 
@@ -119,14 +129,18 @@ Three GitHub Actions workflows enforce correctness at every layer:
 - **Fiat-Shamir Heuristic**: A technique that derives challenge values from the prover's own commitment, converting an interactive proof into a non-interactive one.
 - **SP1 zkVM**: A zero-knowledge virtual machine that executes RISC-V programs and generates cryptographic proofs of correct execution.
 - **Groth16 SNARK**: A succinct non-interactive argument of knowledge that provides zero-knowledge and fast verification.
-- **Jacobian Projective Coordinates**: A coordinate system for elliptic curves that eliminates per-operation modular inversions, reducing gate cost by ~6x compared to affine coordinates.
+- **Jacobian Projective Coordinates**: A coordinate system for elliptic curves that eliminates per-operation modular inversions, reducing gate cost by ~25x compared to affine coordinates.
+- **Karatsuba Multiplication**: A divide-and-conquer algorithm achieving O(n^1.585) gate cost per multiplication, replacing O(n^2) schoolbook multiplication.
+- **Binary GCD Inversion**: An O(n^2) algorithm for modular inversion, replacing Fermat's O(n^2.585) method. Based on Kaliski's variant of the extended GCD.
 - **The Oathbreaker Scale**: A standardized quantum hardware benchmark — score a quantum computer by which Oath-N curve it can crack.
 
 ## References
 
 - Babbush, Zalcman, Gidney et al. "Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities" (2026) — [PDF](https://quantumai.google/static/site-assets/downloads/cryptocurrency-whitepaper.pdf)
 - Litinski, D. "How to compute a 256-bit elliptic curve private key with only 50 million Toffoli gates" (2023)
+- Roetteler, M. et al. "Quantum resource estimates for computing elliptic curve discrete logarithms" (ASIACRYPT 2017)
 - Groth, J. "On the Size of Pairing-based Non-interactive Arguments" (2016)
+- Cuccaro, S. et al. "A new quantum ripple-carry addition circuit" (2004)
 - [SP1 zkVM — Succinct Labs](https://github.com/succinctlabs/sp1)
 
 ## Disclaimer
