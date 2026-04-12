@@ -33,7 +33,7 @@ jobs:
       image: sagemath/sagemath:latest
       options: --user root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Verify parameter files exist
         working-directory: oathbreaker/sage
@@ -83,7 +83,7 @@ jobs:
 
       - name: Upload verification log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: curve-verification-log
           path: /tmp/verification.log
@@ -117,7 +117,7 @@ jobs:
             bits: 64
             file: oath64_params.json
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Verify ${{ matrix.tier }} curve parameters"
         working-directory: oathbreaker/sage
