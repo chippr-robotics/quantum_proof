@@ -3,7 +3,7 @@
 ## Open Reversible Circuit Framework for ECDLP over the Goldilocks Field
 ### With zk-Proven Execution Trace, Karatsuba Arithmetic, and Resource Benchmarking
 
-**Project: Chippr Robotics LLC — Open Source Research**
+**Project: Quantum Open Source Research**
 **Status: Complete Shor's Algorithm (v2.0) — April 2026**
 
 ---
