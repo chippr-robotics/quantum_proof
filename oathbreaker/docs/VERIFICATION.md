@@ -11,15 +11,16 @@
 | Cost attribution accuracy        | PROVEN   |
 | Jacobian ↔ affine equivalence   | PROVEN   |
 | Curve parameter integrity        | PROVEN   |
+| QFT gate correctness (small n)   | PROVEN   |
+| Shor's end-to-end recovery       | PROVEN   |
 | Quantum superposition behavior   | ASSUMED  |
-| QFT + measurement recovery      | DEFERRED |
 | Hardware execution success       | UNKNOWN  |
 
 ## Multi-Layer Verification
 
-### Layer 1: Unit Tests (40 tests across 4 crates)
+### Layer 1: Unit Tests (91 tests across 4 crates)
 
-Every reversible gate and arithmetic operation is independently tested:
+Every reversible gate, arithmetic operation, and Shor sub-system is independently tested:
 
 **goldilocks-field** (20 tests):
 - Field axioms: addition/multiplication identity, commutativity, distributivity
@@ -48,10 +49,16 @@ Every reversible gate and arithmetic operation is independently tested:
 - Resource counter accuracy (Toffoli/CNOT/NOT counting)
 - All gate types are provably self-inverse
 
-**group-action-circuit** (3 tests):
-- QFT resource estimates for single 64-qubit register
-- QFT resource estimates for dual 64-qubit register (2x single)
-- QFT resource estimates for small register (4-qubit)
+**group-action-circuit** (54 tests):
+- QFT resource estimates (3 tests: single/dual/small register)
+- QFT gate generation (6 tests: counts match estimates, gate sequence structure, inverse negates phases, offset correctness, dual-register + measurement)
+- QFT classical simulation (6 tests: basis state |0⟩ → uniform, inverse recovers state, gate-by-gate matches direct DFT for 3 and 4 qubits, unitarity preservation)
+- QuantumGate QASM export (4 tests: reversible gates, Hadamard/CR/Swap/Measure formatting, gate counts, qubit indices)
+- Continued fractions (11 tests: mod_inverse, direct secret recovery, multi-measurement recovery, CF convergents for 7/3, 355/113, Fibonacci, gcd)
+- Measurement simulation (4 tests: Shor relation c+kd≡0, batch generation, d nonzero, c in range)
+- End-to-end Shor's (6 tests: circuit build, classical verification, various secrets k∈{1,2,7,42,100,255}, zero secret, summary format, gate count consistency)
+- QASM export (3 tests: group-action export, full Shor export with QFT+measurement, stats JSON)
+- Group-action integration (2 tests: classical correctness on multiple (a,b) pairs, linearity [a]G+[b]Q=[a+kb]G)
 
 ### Layer 2: Integration Tests
 
@@ -94,8 +101,8 @@ This runs as a CI workflow (`curve-verification.yml`) on every push, creating a 
 **The proof certifies**: correct execution on sampled basis-state inputs,
 deterministic circuit construction, and exact resource counts.
 
-**The proof does NOT certify**: quantum superposition behavior, that Shor's
-algorithm will succeed on hardware, or that QFT recovery works.
+**The proof does NOT certify**: quantum superposition behavior or that Shor's
+algorithm will succeed on quantum hardware.
 
 ## Continuous Integration
 
@@ -116,14 +123,14 @@ guarantees compose correctly across layers.
 ## Running Verification
 
 ```bash
-# All 40 tests across 4 core crates
+# All 91 tests across 4 core crates
 cargo test --workspace
 
 # Per-crate testing
 cargo test -p goldilocks-field        # 20 tests
 cargo test -p ec-goldilocks           # 10 tests
 cargo test -p reversible-arithmetic   # 7 tests
-cargo test -p group-action-circuit    # 3 tests
+cargo test -p group-action-circuit    # 54 tests
 
 # Classical ground truth (requires Sage-generated Oath params)
 cargo test -p ec-goldilocks -- --test-threads=1

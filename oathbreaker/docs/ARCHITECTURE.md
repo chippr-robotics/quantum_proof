@@ -49,7 +49,7 @@ graph BT
 | `goldilocks-field` | Modular arithmetic over p = 2^64 - 2^32 + 1 | `GoldilocksField` |
 | `ec-goldilocks` | Classical elliptic curve operations + ECDLP solvers | `AffinePoint`, `JacobianPoint`, `CurveParams` |
 | `reversible-arithmetic` | Reversible gate primitives and arithmetic circuits | `Gate`, `CuccaroAdder`, `KaratsubaMultiplier`, `BinaryGcdInverter` |
-| `group-action-circuit` | Assembles the coherent [a]G + [b]Q circuit | `GroupActionCircuit`, `WindowedScalarMulJacobian` |
+| `group-action-circuit` | Complete Shor's circuit: group-action + QFT + measurement + recovery | `ShorsEcdlp`, `GroupActionCircuit`, `Qft`, `QuantumGate` |
 | `benchmark` | Measures resources, projects to 256-bit, compares to literature | `ScalingProjection`, `CostAttribution` |
 
 ---
@@ -432,8 +432,13 @@ oathbreaker/
 │   │   ├── double_scalar.rs    # GroupActionCircuit builder, CostAttribution
 │   │   ├── scalar_mul_jacobian.rs # Windowed scalar mul + QROM one-hot decode
 │   │   ├── precompute.rs       # Classical QROM table generation
-│   │   ├── qft_stub.rs         # QFT resource estimates (deferred to v2)
-│   │   └── export.rs           # OpenQASM 3.0 export
+│   │   ├── quantum_gate.rs     # Extended gate enum (Hadamard, CR, Swap, Measure)
+│   │   ├── qft.rs              # QFT/inverse QFT gate generation + classical DFT sim
+│   │   ├── qft_stub.rs         # QFT resource estimates (backward compat)
+│   │   ├── measurement.rs      # Shor measurement outcome simulation
+│   │   ├── continued_fraction.rs # CF expansion + ECDLP secret recovery
+│   │   ├── shor.rs             # End-to-end Shor's ECDLP pipeline (ShorsEcdlp)
+│   │   └── export.rs           # OpenQASM 3.0 export (full Shor circuit)
 │   │
 │   └── benchmark/src/
 │       ├── main.rs             # Benchmark orchestration, window sweep

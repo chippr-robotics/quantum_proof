@@ -5,7 +5,7 @@
 This repository contains two complementary projects:
 
 1. **Educational explainer** of Google Quantum AI's March 2026 zero-knowledge proof for ECDLP circuit resource estimates
-2. **Oathbreaker** — a fully open-source reversible circuit framework implementing the coherent group-action map for Shor's ECDLP algorithm over Goldilocks-form fields, with Jacobian projective coordinates, Karatsuba multiplication, Binary GCD inversion, classical verification, and a standardized quantum hardware benchmark (the Oathbreaker Scale)
+2. **Oathbreaker** — a fully open-source reversible circuit framework implementing Shor's ECDLP algorithm over Goldilocks-form fields, with Jacobian projective coordinates, Karatsuba multiplication, Binary GCD inversion, QFT, measurement, classical post-processing, and a standardized quantum hardware benchmark (the Oathbreaker Scale)
 
 ## Background
 
@@ -47,13 +47,15 @@ quantum_proof/
 
 ### Oathbreaker Framework (`oathbreaker/`)
 
-A fully implemented reversible circuit framework for Shor's ECDLP algorithm on the **Oath curve family** (Goldilocks-form prime fields). The framework implements every layer of the circuit stack:
+A complete implementation of Shor's ECDLP algorithm on the **Oath curve family** (Goldilocks-form prime fields). The framework implements every layer of the circuit stack:
 
 - **Goldilocks field arithmetic** — addition, multiplication, inversion, square root (Tonelli-Shanks), with property-based testing of all field axioms
 - **Elliptic curve operations** — point addition, doubling, and scalar multiplication in both affine and Jacobian projective coordinates
 - **Reversible circuit primitives** — NOT/CNOT/Toffoli gates, Cuccaro ripple-carry adder, Karatsuba multiplier (O(n^1.585)), symmetry-optimized squarer, Binary GCD and Fermat inverters
 - **Reversible EC operations** — point addition and doubling in both affine and Jacobian coordinates, with proper Cuccaro subtraction for all field operations
 - **Circuit assembly** — windowed scalar multiplication with one-hot QROM decode, precomputed lookup tables, coherent double-scalar map [a]G + [b]Q
+- **Quantum Fourier Transform** — full forward/inverse QFT gate generation, classical DFT simulation verified gate-by-gate, QASM export with Hadamard, controlled-phase, and SWAP gates
+- **Measurement + classical recovery** — Shor measurement simulation, continued fraction expansion, direct modular inversion, and multi-measurement lattice recovery of the discrete log
 - **Benchmarking** — measured resource counts for Oath-8/16/32, per-subsystem cost attribution, window-size sweep, three-model scaling projections to 256-bit
 - **Classical verification** — Pollard's rho ECDLP solver for independent ground-truth checking
 - **ZK proof** — SP1 guest/host programs with feature-gated Groth16 SNARK generation, classical verification mode for CI, following Google's zkp_ecc architecture
@@ -62,7 +64,7 @@ A fully implemented reversible circuit framework for Shor's ECDLP algorithm on t
 **Current results (Oath-32, measured)**: 2,848 qubits, 5.76M Toffoli gates.
 **256-bit projection**: ~1.2B Toffoli (Karatsuba model), ~24x gap to Litinski's 50M.
 
-40 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
+91 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
 
 See [oathbreaker/README.md](oathbreaker/README.md) for full details.
 
@@ -100,7 +102,7 @@ jupyter notebook notebook/quantum_verification_walkthrough.ipynb
 # Build the oathbreaker workspace
 cd oathbreaker && cargo build --workspace
 
-# Run all tests (40 tests across 4 core crates)
+# Run all tests (91 tests across 4 core crates)
 cargo test --workspace
 
 # Run the benchmark suite (resource counting + scaling projections)
