@@ -132,7 +132,7 @@ mod qft_tests {
         // All qubit indices should be in [64, 68)
         for gate in &gates {
             for &q in &gate.qubits() {
-                assert!(q >= 64 && q < 68, "Qubit {} out of offset range", q);
+                assert!((64..68).contains(&q), "Qubit {} out of offset range", q);
             }
         }
     }
@@ -191,16 +191,16 @@ mod qft_classical_sim_tests {
         let result = apply_qft_direct(&state, n);
 
         let expected_amp = 1.0 / (size as f64).sqrt();
-        for y in 0..size {
+        for (y, r) in result.iter().enumerate() {
             assert!(
-                (result[y].re - expected_amp).abs() < 1e-10,
+                (r.re - expected_amp).abs() < 1e-10,
                 "QFT|0⟩ amplitude wrong at y={}: got {}, expected {}",
                 y,
-                result[y].re,
+                r.re,
                 expected_amp
             );
             assert!(
-                result[y].im.abs() < 1e-10,
+                r.im.abs() < 1e-10,
                 "QFT|0⟩ should have zero imaginary part at y={}",
                 y
             );
@@ -221,14 +221,14 @@ mod qft_classical_sim_tests {
         let recovered = apply_inverse_qft_direct(&after_qft, n);
 
         // Should recover |5⟩
-        for y in 0..size {
+        for (y, r) in recovered.iter().enumerate() {
             let expected = if y == 5 { 1.0 } else { 0.0 };
             assert!(
-                (recovered[y].re - expected).abs() < 1e-10 && recovered[y].im.abs() < 1e-10,
+                (r.re - expected).abs() < 1e-10 && r.im.abs() < 1e-10,
                 "Round-trip failed at y={}: got ({}, {}), expected {}",
                 y,
-                recovered[y].re,
-                recovered[y].im,
+                r.re,
+                r.im,
                 expected
             );
         }
