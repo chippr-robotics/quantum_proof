@@ -13,8 +13,11 @@ use crate::scalar_mul_jacobian::WindowedScalarMulJacobian;
 /// The coherent double-scalar group-action circuit: |a⟩|b⟩|O⟩ → |a⟩|b⟩|\[a\]G + \[b\]Q⟩
 ///
 /// This is the computationally dominant component of Shor's ECDLP algorithm,
-/// consuming >99% of the qubits and gates. The QFT (applied in v2) adds
-/// only O(n²) gates per register — trivial relative to the EC arithmetic.
+/// consuming >99% of the qubits and gates. The QFT adds only O(n²) gates
+/// per register — trivial relative to the EC arithmetic.
+///
+/// For the complete Shor circuit (group-action + QFT + measurement),
+/// use [`crate::shor::ShorsEcdlp::build`].
 #[derive(Clone, Debug)]
 pub struct GroupActionCircuit {
     /// Curve parameters (Oath-64).
@@ -47,8 +50,9 @@ pub struct CircuitSummary {
     pub total_reversible_gates: usize,
     pub circuit_depth: usize,
     pub ancilla_high_water: usize,
-    /// QFT resources (estimated, not executed in v1).
+    /// QFT Hadamard gates (estimated from resource model).
     pub qft_hadamards_estimated: usize,
+    /// QFT controlled-rotation gates (estimated from resource model).
     pub qft_rotations_estimated: usize,
     pub point_additions: usize,
     pub point_doublings: usize,
