@@ -12,6 +12,6 @@ fn main() {
             features: vec!["sp1".to_string()],
             ..Default::default()
         };
-        sp1_build::build_program_with_args("../sp1-program", &args);
+        sp1_build::build_program_with_args("../sp1-program", args);
     }
 }
