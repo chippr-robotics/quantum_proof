@@ -90,8 +90,7 @@ pub fn recover_secret_multi(measurements: &[(u64, u64)], order: u64) -> Option<u
 
             if let Some(k) = recover_secret_direct(dc, dd, order) {
                 // Verify against the original measurements
-                let check1 =
-                    (c1 as u128 + k as u128 * d1 as u128).is_multiple_of(order as u128);
+                let check1 = (c1 as u128 + k as u128 * d1 as u128).is_multiple_of(order as u128);
                 if check1 {
                     return Some(k);
                 }
@@ -134,8 +133,12 @@ pub fn continued_fraction_convergents(numerator: u64, denominator: u64) -> Vec<(
         let quotient = a / b;
         let remainder = a % b;
 
-        let p_next = quotient.checked_mul(p_prev1).and_then(|v| v.checked_add(p_prev2));
-        let q_next = quotient.checked_mul(q_prev1).and_then(|v| v.checked_add(q_prev2));
+        let p_next = quotient
+            .checked_mul(p_prev1)
+            .and_then(|v| v.checked_add(p_prev2));
+        let q_next = quotient
+            .checked_mul(q_prev1)
+            .and_then(|v| v.checked_add(q_prev2));
 
         match (p_next, q_next) {
             (Some(p), Some(q)) => {
@@ -240,8 +243,8 @@ mod tests {
 
         for k in [0, 1, 2, 100, 1000, 65535, 65536] {
             let d = 12345u64;
-            let c = ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128)
-                as u64;
+            let c =
+                ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128) as u64;
 
             let recovered = recover_secret_direct(c, d, order);
             assert_eq!(recovered, Some(k), "Failed to recover k={}", k);
@@ -256,9 +259,8 @@ mod tests {
         // Generate 5 valid pairs
         let pairs: Vec<(u64, u64)> = (1..=5u64)
             .map(|d| {
-                let c =
-                    ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128)
-                        as u64;
+                let c = ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128)
+                    as u64;
                 (c, d)
             })
             .collect();
@@ -310,10 +312,10 @@ mod tests {
 
         let d1 = 7u64;
         let d2 = 3u64;
-        let c1 = ((order as u128 - (k as u128 * d1 as u128) % order as u128) % order as u128)
-            as u64;
-        let c2 = ((order as u128 - (k as u128 * d2 as u128) % order as u128) % order as u128)
-            as u64;
+        let c1 =
+            ((order as u128 - (k as u128 * d1 as u128) % order as u128) % order as u128) as u64;
+        let c2 =
+            ((order as u128 - (k as u128 * d2 as u128) % order as u128) % order as u128) as u64;
 
         let recovered = recover_secret_multi(&[(c1, d1), (c2, d2)], order);
         assert_eq!(recovered, Some(k));

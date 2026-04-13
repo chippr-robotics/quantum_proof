@@ -224,8 +224,7 @@ mod qft_classical_sim_tests {
         for y in 0..size {
             let expected = if y == 5 { 1.0 } else { 0.0 };
             assert!(
-                (recovered[y].re - expected).abs() < 1e-10
-                    && recovered[y].im.abs() < 1e-10,
+                (recovered[y].re - expected).abs() < 1e-10 && recovered[y].im.abs() < 1e-10,
                 "Round-trip failed at y={}: got ({}, {}), expected {}",
                 y,
                 recovered[y].re,
@@ -296,14 +295,8 @@ mod qft_classical_sim_tests {
         let size = 1usize << n;
 
         let mut state = vec![Complex::ZERO; size];
-        state[2] = Complex {
-            re: 0.6,
-            im: 0.0,
-        };
-        state[5] = Complex {
-            re: 0.0,
-            im: 0.8,
-        };
+        state[2] = Complex { re: 0.6, im: 0.0 };
+        state[5] = Complex { re: 0.0, im: 0.8 };
 
         let norm_before: f64 = state.iter().map(|c| c.norm_sq()).sum();
         let result = apply_qft_direct(&state, n);
@@ -366,8 +359,8 @@ mod continued_fraction_tests {
         let order = 251u64; // Prime
         for k in [0, 1, 42, 100, 250] {
             let d = 100u64;
-            let c = ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128)
-                as u64;
+            let c =
+                ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128) as u64;
             let recovered = recover_secret_direct(c, d, order);
             assert_eq!(recovered, Some(k), "Failed to recover k={}", k);
         }
@@ -379,8 +372,8 @@ mod continued_fraction_tests {
         let k = 42u64;
 
         for d in [1, 2, 5, 13, 100, 500, 996] {
-            let c = ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128)
-                as u64;
+            let c =
+                ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128) as u64;
             let recovered = recover_secret_direct(c, d, order);
             assert_eq!(recovered, Some(k), "Failed for d={}", d);
         }
@@ -393,9 +386,8 @@ mod continued_fraction_tests {
 
         let pairs: Vec<(u64, u64)> = (1..=5u64)
             .map(|d| {
-                let c =
-                    ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128)
-                        as u64;
+                let c = ((order as u128 - (k as u128 * d as u128) % order as u128) % order as u128)
+                    as u64;
                 (c, d)
             })
             .collect();
@@ -766,30 +758,14 @@ mod group_action_integration_tests {
         let target_q = scalar_mul(k, &curve.generator, &curve);
 
         // Test several (a, b) pairs
-        let test_cases: Vec<(u64, u64)> = vec![
-            (0, 0),
-            (1, 0),
-            (0, 1),
-            (1, 1),
-            (3, 5),
-            (7, 11),
-            (100, 200),
-        ];
+        let test_cases: Vec<(u64, u64)> =
+            vec![(0, 0), (1, 0), (0, 1), (1, 1), (3, 5), (7, 11), (100, 200)];
 
         for (a, b) in test_cases {
             let circuit_result = circuit.execute_classical(a, b, &target_q);
-            let reference = ec_goldilocks::double_scalar_mul(
-                a,
-                &curve.generator,
-                b,
-                &target_q,
-                &curve,
-            );
-            assert_eq!(
-                circuit_result, reference,
-                "Mismatch for a={}, b={}",
-                a, b
-            );
+            let reference =
+                ec_goldilocks::double_scalar_mul(a, &curve.generator, b, &target_q, &curve);
+            assert_eq!(circuit_result, reference, "Mismatch for a={}, b={}", a, b);
         }
     }
 
@@ -805,7 +781,8 @@ mod group_action_integration_tests {
         for (a, b) in [(1, 1), (3, 5), (7, 11)] {
             let result = circuit.execute_classical(a, b, &target_q);
             // [a + b*k]G should equal [a]G + [b]Q
-            let combined_scalar = ((a as u128 + b as u128 * k as u128) % curve.order as u128) as u64;
+            let combined_scalar =
+                ((a as u128 + b as u128 * k as u128) % curve.order as u128) as u64;
             let expected = scalar_mul(combined_scalar, &curve.generator, &curve);
             assert_eq!(
                 result, expected,

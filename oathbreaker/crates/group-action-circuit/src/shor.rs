@@ -11,10 +11,10 @@ use crate::quantum_gate::{QuantumGate, QuantumGateCount};
 /// Complete Shor's ECDLP algorithm: circuit construction + classical recovery.
 ///
 /// Shor's algorithm for the Elliptic Curve Discrete Logarithm Problem:
-///   Given G (generator) and Q = [k]G, find the secret scalar k.
+///   Given G (generator) and Q = \[k\]G, find the secret scalar k.
 ///
 /// The quantum circuit has three stages:
-/// 1. **Group-action map** (>99% of cost): |a⟩|b⟩|O⟩ → |a⟩|b⟩|[a]G + [b]Q⟩
+/// 1. **Group-action map** (>99% of cost): |a⟩|b⟩|O⟩ → |a⟩|b⟩|\[a\]G + \[b\]Q⟩
 /// 2. **Inverse QFT**: applied to both exponent registers (a, b)
 /// 3. **Measurement**: both exponent registers measured → (c, d)
 ///
@@ -39,7 +39,7 @@ pub struct ShorsEcdlp {
 pub struct ShorResult {
     /// The recovered secret scalar k.
     pub recovered_k: Option<u64>,
-    /// Whether [k]G == Q was verified.
+    /// Whether \[k\]G == Q was verified.
     pub verified: bool,
     /// Number of measurement trials used.
     pub num_trials: usize,
@@ -59,7 +59,7 @@ impl ShorsEcdlp {
     /// Build the complete Shor's ECDLP quantum circuit.
     ///
     /// Composes:
-    /// 1. Jacobian group-action circuit for [a]G + [b]Q
+    /// 1. Jacobian group-action circuit for \[a\]G + \[b\]Q
     /// 2. Inverse QFT on both exponent registers
     /// 3. Measurement of both exponent registers
     pub fn build(curve: &CurveParams, window_size: usize) -> Self {
@@ -96,13 +96,13 @@ impl ShorsEcdlp {
     /// Run classical verification of Shor's algorithm.
     ///
     /// This simulates what a quantum computer would do:
-    /// 1. Verify the group-action circuit produces correct [a]G + [b]Q
+    /// 1. Verify the group-action circuit produces correct \[a\]G + \[b\]Q
     /// 2. Simulate measurement outcomes (c, d) satisfying c + k·d ≡ 0 (mod r)
     /// 3. Run classical post-processing to recover k
-    /// 4. Verify [k]G == Q
+    /// 4. Verify \[k\]G == Q
     ///
     /// Parameters:
-    /// - `target_q`: The public point Q = [k]G
+    /// - `target_q`: The public point Q = \[k\]G
     /// - `k`: The secret scalar (used to generate measurement outcomes)
     /// - `num_trials`: Number of simulated measurement trials
     pub fn run_classical_verification(
@@ -118,7 +118,9 @@ impl ShorsEcdlp {
         // Use a few random (a, b) pairs to confirm [a]G + [b]Q
         let test_scalars: Vec<(u64, u64)> = vec![(1, 0), (0, 1), (3, 5), (7, 11)];
         for (a, b) in &test_scalars {
-            let result = self.group_action_circuit.execute_classical(*a, *b, target_q);
+            let result = self
+                .group_action_circuit
+                .execute_classical(*a, *b, target_q);
             let expected = ec_goldilocks::double_scalar_mul(
                 *a,
                 &self.curve.generator,
@@ -167,18 +169,17 @@ impl ShorsEcdlp {
 
         // Step 4: Verify [k]G == Q
         let verified = if let Some(rk) = recovered_k {
-            let computed_q = ec_goldilocks::point_ops::scalar_mul(
-                rk,
-                &self.curve.generator,
-                &self.curve,
-            );
+            let computed_q =
+                ec_goldilocks::point_ops::scalar_mul(rk, &self.curve.generator, &self.curve);
             computed_q == *target_q
         } else {
             false
         };
 
         let qft_gate_count = self.qft_measurement_gates.len()
-            - self.qft_measurement_gates.iter()
+            - self
+                .qft_measurement_gates
+                .iter()
                 .filter(|g| matches!(g, QuantumGate::Measure { .. }))
                 .count();
 

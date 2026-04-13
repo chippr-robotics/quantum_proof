@@ -1,5 +1,5 @@
-use crate::quantum_gate::QuantumGate;
 use crate::qft_stub::QftResourceEstimate;
+use crate::quantum_gate::QuantumGate;
 
 /// Quantum Fourier Transform circuit generator.
 ///
@@ -12,12 +12,15 @@ use crate::qft_stub::QftResourceEstimate;
 /// computational basis states that can be measured.
 ///
 /// Gate decomposition (standard textbook QFT):
+///
+/// ```text
 ///   for j = 0 to n-1:
 ///       H(q[j])
 ///       for m = 2 to n-j:
 ///           CR_m(control=q[j+m-1], target=q[j])
 ///   for j = 0 to ⌊n/2⌋-1:
 ///       SWAP(q[j], q[n-1-j])
+/// ```
 ///
 /// Gate counts per register:
 ///   Hadamard:           n
@@ -34,9 +37,7 @@ impl Qft {
 
         for j in 0..n {
             // Hadamard on qubit j
-            gates.push(QuantumGate::Hadamard {
-                target: offset + j,
-            });
+            gates.push(QuantumGate::Hadamard { target: offset + j });
 
             // Controlled phase rotations: CR_m for m = 2, 3, ..., n-j
             for m in 2..=(n - j) {
@@ -91,9 +92,7 @@ impl Qft {
             }
 
             // Hadamard (self-adjoint)
-            gates.push(QuantumGate::Hadamard {
-                target: offset + j,
-            });
+            gates.push(QuantumGate::Hadamard { target: offset + j });
         }
 
         gates

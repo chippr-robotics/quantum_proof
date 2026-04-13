@@ -34,10 +34,7 @@ pub enum QuantumGate {
     Swap { qubit_a: usize, qubit_b: usize },
 
     /// Measurement in the computational basis.
-    Measure {
-        qubit: usize,
-        classical_bit: usize,
-    },
+    Measure { qubit: usize, classical_bit: usize },
 }
 
 impl QuantumGate {
