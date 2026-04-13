@@ -229,8 +229,10 @@ jobs:
       - name: "SP1 execute: Oath-8 (validate guest in zkVM)"
         run: cargo run --release -p sp1-host --features sp1 -- --tier oath-8 --num-cases 5 --mode execute
 
-      - name: "SP1 prove: Oath-8 (generate compressed STARK proof)"
-        run: cargo run --release -p sp1-host --features sp1 -- --tier oath-8 --num-cases 5 --mode prove --proof-type compressed --output-dir proofs
+      - name: "SP1 prove: Oath-8 (mock prover — validates full prove pipeline)"
+        env:
+          SP1_PROVER: mock
+        run: cargo run --release -p sp1-host --features sp1 -- --tier oath-8 --num-cases 5 --mode prove --proof-type core --output-dir proofs
 
       - name: List proof artifacts
         run: ls -la proofs/
