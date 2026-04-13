@@ -27,7 +27,10 @@ Goldilocks-form prime fields.
 
 - Correctness over quantum superpositions (assumed via reversibility)
 - That Shor's algorithm succeeds on quantum hardware
-- That the QFT + measurement pipeline recovers k (deferred to v2)
+
+Note: The QFT + measurement + classical recovery pipeline is now fully implemented
+and tested (54 tests in `group-action-circuit`), but the ZK proof covers only the
+group-action map portion, not the QFT/measurement stages.
 
 ## Architecture
 

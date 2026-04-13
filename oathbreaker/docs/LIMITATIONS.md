@@ -8,19 +8,16 @@
 - **Resource count accuracy**: The circuit uses exactly the reported number of qubits and gates.
 - **Execution trace correctness**: The SP1 Groth16 proof attests that the above properties hold for N random inputs. The SP1 guest program builds the circuit, verifies all test cases, and commits resource counts and a circuit hash as public values.
 - **Cost attribution accuracy**: Per-subsystem Toffoli costs (doublings, additions, inversion, QROM, affine recovery) are measured via ResourceCounter snapshots, not estimated.
+- **QFT gate correctness**: The gate-by-gate QFT simulation matches the direct O(N^2) DFT matrix for 3-qubit and 4-qubit registers, confirming the Hadamard + controlled-phase + SWAP decomposition is correct.
+- **Shor's classical recovery correctness**: End-to-end tests verify that the classical post-processing (modular inversion / continued fractions) correctly recovers the secret discrete log k from simulated measurement outcomes, and that [k]G = Q, for multiple secret values.
 
 ## What This Project Does NOT Prove
 
 ### No quantum execution or amplitude simulation
 The circuit is executed classically on individual basis states. We do not simulate quantum superposition, entanglement, or amplitude interference. Correctness over superpositions is **assumed** via the reversibility property: a reversible circuit that produces correct outputs on all classical basis inputs will produce correct outputs on arbitrary superpositions thereof. This is a mathematical property of unitary operations, not something we demonstrate empirically.
 
-### No full Shor algorithm in v1
-The project implements the **coherent group-action map** [a]G + [b]Q — the computationally dominant component (>99% of qubits and gates). The remaining components for full Shor completion are:
-- Dual-register Quantum Fourier Transform (O(n^2) gates, <0.1% of cost)
-- Quantum measurement + classical reconstruction loop
-- Continued fraction / lattice recovery of the discrete log
-
-These are well-understood published constructions and are deferred to v2.
+### No full quantum state simulation for QFT
+The QFT gate sequence is generated and verified for correctness on small registers (3-4 qubits) via full state-vector simulation against the direct DFT matrix. For 64-qubit registers, full state-vector simulation is infeasible (O(2^64) memory). The QFT is a standard textbook construction; its correctness at arbitrary scale follows from the verified gate decomposition.
 
 ### No quantum hardware execution
 No quantum computer currently exists that can execute this circuit. The circuit description is a specification for future hardware, not a claim of current executability.
@@ -55,7 +52,8 @@ Google's March 2026 paper discloses resource estimates but not the circuit itsel
 | Ancilla cleanup (return to 0)   | PROVEN   |
 | Resource count accuracy          | PROVEN   |
 | Cost attribution accuracy        | PROVEN   |
+| QFT gate correctness (small n)   | PROVEN   |
+| Shor's end-to-end recovery       | PROVEN   |
 | Quantum superposition behavior   | ASSUMED  |
 | Measurement-based uncomputation  | NOT IMPL |
-| QFT + measurement recovery      | DEFERRED |
 | Hardware execution success       | UNKNOWN  |

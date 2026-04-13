@@ -76,7 +76,13 @@ The tradeoff: +qubits, dramatically fewer Toffoli (elimination of per-op inversi
 4. Affine recovery:
    - x = X·Z⁻², y = Y·Z⁻³ (2 Karatsuba multiplications)
 
-5. QFT on both exponent registers (v2 — estimated, not executed in v1)
+5. Inverse QFT on both exponent registers
+   - Hadamard + controlled-phase rotations + SWAP (bit reversal)
+   - Applied independently to register A and register B
+
+6. Measurement of both exponent registers → (c, d)
+
+7. Classical post-processing: k = -c · d⁻¹ (mod order)
 ```
 
 ## Gate Decomposition: Multiplication
@@ -214,12 +220,72 @@ Applied independently to both scalar registers:
 
 w=8 is monotonically best for Toffoli across all measured tiers.
 
-## QFT Component (v2)
+## QFT Component
 
-QFT applied to each n-qubit exponent register (n=64 for Oath-64):
-- 128 Hadamard gates (64 per register)
-- 4,032 controlled phase rotations
-- 64 SWAP gates
-- Total: ~4,224 gates (<0.1% of EC arithmetic cost)
+The inverse QFT is applied independently to both n-qubit exponent registers after the
+group-action map. This converts phase information into computational basis states for
+measurement.
 
-Described and resource-counted in v1. Execution deferred to v2.
+### Gate Decomposition (per register)
+
+The standard n-qubit QFT uses:
+- **n Hadamard gates**: create superposition
+- **n(n-1)/2 controlled phase rotations**: CR_k with angle 2π/2^k for k=2..n
+- **⌊n/2⌋ SWAP gates**: bit reversal
+
+The inverse QFT reverses the gate order and conjugates all phases (sign → -sign
+on controlled rotations). Hadamard and SWAP are self-adjoint.
+
+### Gate Counts (Oath-64, dual register)
+
+| Gate Type | Per Register | Total (×2) |
+|-----------|-------------|------------|
+| Hadamard | 64 | 128 |
+| Controlled-Phase | 2,016 | 4,032 |
+| SWAP | 32 | 64 |
+| **Total QFT** | **2,112** | **4,224** |
+
+This is <0.1% of the EC arithmetic cost (~90M Toffoli for Oath-64).
+
+### Extended Gate Set
+
+QFT gates are represented by the `QuantumGate` enum (in `quantum_gate.rs`), which
+wraps the existing reversible `Gate` (NOT/CNOT/Toffoli) plus:
+- `Hadamard { target }` — creates/destroys superposition
+- `ControlledPhase { control, target, k, sign }` — phase rotation 2π/2^k
+- `Swap { qubit_a, qubit_b }` — QFT bit reversal
+- `Measure { qubit, classical_bit }` — computational basis measurement
+
+All gates export to valid OpenQASM 3.0 via `to_qasm()`.
+
+### Classical Verification
+
+The QFT implementation is verified by gate-by-gate state-vector simulation on small
+registers (3-4 qubits), confirming exact agreement with the O(N^2) direct DFT matrix.
+This verifies the gate decomposition, qubit ordering convention (LSB-first), and
+phase signs for both forward and inverse QFT.
+
+## Measurement + Classical Recovery
+
+After inverse QFT, both exponent registers are measured in the computational basis,
+yielding a pair (c, d) satisfying:
+
+```
+c + k·d ≡ 0 (mod r)
+```
+
+where k is the secret discrete log and r is the group order.
+
+### Recovery Methods
+
+1. **Direct modular inversion**: k = -c · d⁻¹ (mod r). Requires gcd(d, r) = 1.
+   For prime r, this succeeds for all d ≠ 0.
+
+2. **Multi-measurement recovery**: Combines multiple (c, d) pairs via pairwise
+   differences to handle cases where individual d values share factors with r.
+
+3. **Continued fraction expansion**: Extracts rational approximations from
+   measurement outcomes when the group order must be inferred (general Shor).
+
+The end-to-end `ShorsEcdlp` pipeline (in `shor.rs`) composes all stages and
+verifies recovery by checking [k]G = Q.

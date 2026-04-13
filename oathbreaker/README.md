@@ -4,23 +4,23 @@
 ### With zk-Proven Execution Trace, Karatsuba Arithmetic, and Resource Benchmarking
 
 **Project: Chippr Robotics LLC — Open Source Research**
-**Status: Optimization Phase (v1.1) — April 2026**
+**Status: Complete Shor's Algorithm (v2.0) — April 2026**
 
 ---
 
 ## Overview
 
-A reversible circuit framework implementing the arithmetic and coherent group-action
-components required by Shor's algorithm for ECDLP, on the **Oath curve family** — toy
+A complete implementation of Shor's ECDLP algorithm on the **Oath curve family** — toy
 elliptic curves over Goldilocks-form prime fields (p = 2^n - 2^(n/2) + 1).
 
-The circuit implements the coherent double-scalar map **[a]G + [b]Q** — the
-computationally dominant component (>99% of qubits and gates) of Shor's ECDLP
-algorithm. Uses **Jacobian projective coordinates** to eliminate per-operation
-inversions, **Karatsuba multiplication** (O(n^1.585) per multiply), **symmetry-optimized
-squaring**, and **Binary GCD inversion** (O(n^2) vs Fermat's O(n^2.585)). Independently
-verified against classical ground truth via Pollard's rho, with ZK proof via SP1
-Groth16 SNARK.
+The framework implements all stages of Shor's algorithm: the coherent double-scalar
+group-action map **[a]G + [b]Q** (>99% of circuit cost), **inverse QFT** on both
+exponent registers, **measurement**, and **classical post-processing** (continued
+fraction / modular inversion recovery of the discrete log). Uses **Jacobian projective
+coordinates** to eliminate per-operation inversions, **Karatsuba multiplication**
+(O(n^1.585) per multiply), **symmetry-optimized squaring**, and **Binary GCD inversion**
+(O(n^2) vs Fermat's O(n^2.585)). Independently verified against classical ground truth
+via Pollard's rho, with ZK proof via SP1 Groth16 SNARK.
 
 ### Current Results (Measured)
 
@@ -45,8 +45,10 @@ Groth16 SNARK.
 
 ## What This Is
 
-- A fully implemented reversible circuit framework + classical simulator of quantum arithmetic subroutines
+- A complete Shor's ECDLP algorithm: group-action map + QFT + measurement + classical recovery
 - The coherent group-action map [a]G + [b]Q, resource-counted and QASM-exportable
+- Full inverse QFT gate generation (Hadamard + controlled-phase + SWAP), verified against direct DFT
+- Measurement simulation + continued fraction / modular inversion recovery of the discrete log
 - Jacobian projective coordinate system eliminating per-op modular inversions (single final inversion)
 - Karatsuba O(n^1.585) multiplication with symmetry-optimized squaring (~50% fewer Toffoli)
 - Binary GCD (Kaliski) O(n^2) inversion replacing Fermat O(n^2.585)
@@ -58,7 +60,6 @@ Groth16 SNARK.
 
 - Not a quantum computer execution (no hardware exists at 64-bit scale)
 - Not an attack tool (64-bit curves have ~32-bit security, trivially breakable)
-- Not a full Shor implementation in v1 (QFT + measurement deferred to v2)
 - Not a reproduction of withheld industrial circuits, but an open analogue
 
 ## The Oathbreaker Scale
@@ -113,11 +114,16 @@ oathbreaker/
 │   │                               #   ec_add_jacobian.rs — reversible Jacobian mixed addition (3S+8M)
 │   │                               #   ec_double_jacobian.rs — reversible Jacobian doubling (6S+3M)
 │   │                               #   resource_counter.rs — Toffoli/CNOT/NOT gate counting
-│   ├── group-action-circuit/       # Coherent [a]G + [b]Q circuit assembly
+│   ├── group-action-circuit/       # Complete Shor's ECDLP circuit
+│   │                               #   double_scalar.rs — group-action circuit builder + CostAttribution
 │   │                               #   scalar_mul_jacobian.rs — windowed scalar mul (Jacobian) + QROM
-│   │                               #   double_scalar.rs — full circuit builder + CostAttribution
 │   │                               #   precompute.rs — QROM precomputation tables
-│   │                               #   export.rs — OpenQASM 3.0 export
+│   │                               #   quantum_gate.rs — extended gate enum (Hadamard, CR, Swap, Measure)
+│   │                               #   qft.rs — QFT/inverse QFT gate generation + classical DFT sim
+│   │                               #   measurement.rs — Shor measurement outcome simulation
+│   │                               #   continued_fraction.rs — CF expansion + ECDLP secret recovery
+│   │                               #   shor.rs — end-to-end Shor's ECDLP pipeline
+│   │                               #   export.rs — OpenQASM 3.0 export (full Shor circuit)
 │   ├── sp1-program/                # SP1 guest program (proven inside zkVM)
 │   ├── sp1-host/                   # SP1 host: proof generation + verification
 │   └── benchmark/                  # Resource counting, Oath-N tiers, comparisons
@@ -133,9 +139,9 @@ oathbreaker/
 └── scripts/                        # Pipeline and export scripts
 ```
 
-## Implemented (v1.1)
+## Implemented (v2.0)
 
-All circuit layers are fully implemented with Karatsuba + Binary GCD optimizations:
+All circuit layers are fully implemented — complete Shor's algorithm:
 
 | Layer | Component | Status |
 |-------|-----------|--------|
@@ -144,11 +150,13 @@ All circuit layers are fully implemented with Karatsuba + Binary GCD optimizatio
 | **3 — Reversible Arithmetic** | Cuccaro adder, Karatsuba multiplier, symmetry squarer, Binary GCD inverter | Done |
 | **4 — Reversible EC** | EC add/double in affine + Jacobian with proper Cuccaro subtraction | Done |
 | **5 — Circuit Assembly** | Windowed scalar mul, one-hot QROM, coherent [a]G + [b]Q (affine + Jacobian) | Done |
-| **6 — Verification** | Pollard's rho ECDLP solver, classical ground-truth cross-check | Done |
-| **7 — Benchmarking** | Measured tiers, cost attribution, window sweep, 3-model scaling projections | Done |
-| **8 — Curve Generation** | SageMath scripts for all Oath-N tiers + tamper-proof CI verification | Done |
-| **9 — ZK Proof** | SP1 guest/host with feature-gated Groth16 proof + classical verification | Done |
-| **10 — QFT** | Resource estimates computed; execution deferred to v2 | Estimated |
+| **6 — QFT** | Forward/inverse QFT gate generation, classical DFT simulation, QASM export | Done |
+| **7 — Measurement** | Shor measurement simulation, continued fraction recovery, modular inversion | Done |
+| **8 — End-to-End Shor** | Complete pipeline: build circuit → QFT → measure → recover k → verify [k]G=Q | Done |
+| **9 — Verification** | Pollard's rho ECDLP solver, classical ground-truth cross-check | Done |
+| **10 — Benchmarking** | Measured tiers, cost attribution, window sweep, 3-model scaling projections | Done |
+| **11 — Curve Generation** | SageMath scripts for all Oath-N tiers + tamper-proof CI verification | Done |
+| **12 — ZK Proof** | SP1 guest/host with feature-gated Groth16 proof + classical verification | Done |
 
 See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for full scope details.
 
@@ -182,7 +190,7 @@ See [docs/ZKP_GUIDE.md](docs/ZKP_GUIDE.md) for the full proof pipeline documenta
 
 ## Testing
 
-40 tests pass across 4 core crates:
+91 tests pass across 4 core crates:
 
 ```bash
 # Run all tests
@@ -192,7 +200,7 @@ cargo test --workspace
 cargo test -p goldilocks-field        # 20 tests (12 unit + 7 proptest + Legendre)
 cargo test -p ec-goldilocks           # 10 tests (affine, Jacobian, on-curve, scalar mul)
 cargo test -p reversible-arithmetic   # 7 tests (gates, registers, resource counting)
-cargo test -p group-action-circuit    # 3 tests (QFT resource estimates)
+cargo test -p group-action-circuit    # 54 tests (QFT, Shor, measurement, CF, QASM export)
 ```
 
 Property-based tests (proptest) verify field axioms — commutativity, associativity,
