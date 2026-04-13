@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 serde = { workspace = true }
-rand = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+rand = { workspace = true }
