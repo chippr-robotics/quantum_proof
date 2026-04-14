@@ -94,6 +94,26 @@ impl AncillaPool {
         uncompute_gates
     }
 
+    /// Reset the pool so future allocations reuse qubit indices from the start.
+    ///
+    /// Call this between independent circuit phases (e.g., between the two
+    /// scalar multiplications in the group-action circuit) when all previously
+    /// allocated ancillae have been either:
+    /// - Properly uncomputed to |0⟩, or
+    /// - Left dirty in workspace that will be overwritten (Bennett pattern)
+    ///
+    /// The `ResourceCounter` is updated to reflect the freed qubits so that
+    /// `qubit_high_water` remains the true peak across all phases.
+    pub fn reset_for_reuse(&mut self, counter: &mut ResourceCounter) {
+        let freed = self.next_qubit - self.base_offset;
+        if freed > 0 {
+            counter.free_ancilla(freed);
+        }
+        self.next_qubit = self.base_offset;
+        self.registers.clear();
+        self.deferred_gates.clear();
+    }
+
     /// Total ancilla qubits currently allocated (excludes the base offset).
     pub fn total_allocated(&self) -> usize {
         self.next_qubit - self.base_offset

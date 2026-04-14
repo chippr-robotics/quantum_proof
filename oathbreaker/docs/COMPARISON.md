@@ -26,17 +26,18 @@
 | Litinski | 2023 | N/A | 50M | Measurement-based uncomputation |
 | INRIA (Chevignard et al.) | 2026 | TBD | TBD | EUROCRYPT 2026 |
 | Google (Babbush et al.) | 2026 | ≤1,450 | ≤90M | Low-gate variant; circuit withheld |
-| **Oathbreaker (projected)** | **2026** | **~22,800** | **~1.2B** | **Oath-32 → 256 Karatsuba projection** |
+| **Oathbreaker (projected, Bennett)** | **2026** | **~8,208** | **~1.2B** | **Oath-32 → 256 Karatsuba projection** |
+| **Oathbreaker (projected, meas-based)** | **2026** | **~5,890** | **~1.2B** | **With measurement-based uncomputation** |
 
 ## Measured Oathbreaker Results
 
 ### Per-Tier Circuit Measurements
 
-| Tier | Qubits | Toffoli | Window | Multiplier |
-|------|--------|---------|--------|------------|
-| Oath-8 | 295 | 162K | w=4 | Karatsuba |
-| Oath-16 | 855 | 997K | w=4 | Karatsuba |
-| Oath-32 | 2,848 | 5.76M | w=8 | Karatsuba |
+| Tier | Qubits (Bennett) | Qubits (meas-based) | Toffoli | Window | Multiplier |
+|------|-------------------|---------------------|---------|--------|------------|
+| Oath-8 | 210 | 186 | 112K | w=4 | Karatsuba |
+| Oath-16 | 402 | 370 | 929K | w=4 | Karatsuba |
+| Oath-32 | 1,026 | 738 | 5.76M | w=8 | Karatsuba |
 
 ### Coordinate System Comparison (Oath-8)
 

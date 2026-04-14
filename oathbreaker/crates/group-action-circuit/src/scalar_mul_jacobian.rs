@@ -111,6 +111,11 @@ impl WindowedScalarMulJacobian {
         let mut addition_toffoli: usize = 0;
         let _swap_toffoli: usize = 0;
 
+        // All workspace is pre-allocated above. Inner operations (EC doubling,
+        // mixed addition, multipliers, squarers) use offsets within these
+        // allocations and must not re-count them toward qubit_high_water.
+        counter.enter_pre_allocated();
+
         for window_idx in 0..num_windows {
             // --- Step 1: w Jacobian doublings of the accumulator ---
             let t_before_dbl = counter.toffoli_count;
@@ -372,6 +377,8 @@ impl WindowedScalarMulJacobian {
             // QROM uncompute Toffoli goes into the QROM bucket
             qrom_toffoli += t_after_uncompute - t_after_add;
         }
+
+        counter.exit_pre_allocated();
 
         (gates, (doubling_toffoli, qrom_toffoli, addition_toffoli))
     }
