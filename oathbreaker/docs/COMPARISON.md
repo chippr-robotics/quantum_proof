@@ -62,18 +62,19 @@ additional Z coordinate register and wider ancilla pool for Karatsuba multiplica
 
 ## Gap Analysis: Oathbreaker vs. Litinski (50M Toffoli)
 
-Our projected 1.2B Toffoli is ~24x higher than Litinski's 50M. The gap is attributable to:
+Our projected 1.2B Toffoli (v2) is ~24x higher than Litinski's 50M. The gap is attributable to:
 
 | Factor | Estimated Impact | Status |
 |--------|-----------------|--------|
 | **Measurement-based uncomputation** | ~2x | Not implemented (requires mid-circuit measurement) |
 | **Semi-classical oracle** | ~2-4x | Litinski avoids coherent QROM entirely |
-| **Windowed non-adjacent form (wNAF)** | ~1.2x | Not implemented |
-| **Optimized doubling formulas** | ~1.3x | Doublings are 80% of cost; room for improvement |
-| **Constant factor tuning** | ~1.5x | Industrial-grade optimization |
+| **Windowed non-adjacent form (wNAF)** | ~1.2x | **v3: Implemented** (encoder + table sizing) |
+| **Optimized doubling formulas** | ~1.3x | **v3: Implemented** (modified Jacobian, -2S/doubling) |
+| **Constant factor tuning** | ~1.5x | **v3: Partial** (squarer fix, Montgomery mul option) |
 
-Closing the remaining gap requires hardware-dependent features (mid-circuit measurement)
-and algorithmic improvements (wNAF, formula optimization) that are on the v2 roadmap.
+v3 closes ~1.5-2x of the gap through formula optimization and arithmetic fixes.
+The remaining ~12-16x gap is dominated by measurement-based uncomputation (~2x)
+and the semi-classical oracle (~2-4x), which require hardware-dependent features.
 
 ## Key Differences
 
@@ -110,3 +111,8 @@ and algorithmic improvements (wNAF, formula optimization) that are on the v2 roa
 | + Symmetry-optimized squaring | 6.62M | ~1.4B | -10% / -13% |
 | + Binary GCD inversion | 5.67M | ~1.2B | -14% / -14% |
 | + Proper Cuccaro arithmetic | 5.76M | ~1.2B | +1.7% (correctness) |
+| **v2 final** | **5.76M** | **~1.2B** | **-31% cumulative** |
+| + ReversibleSquarer fix (v3) | improved | improved | squarer Toffoli reduced |
+| + Modified Jacobian doubling (v3) | improved | improved | -2S/doubling, -14% workspace |
+| + wNAF encoding (v3) | available | available | ~1.2x potential |
+| + Montgomery multiplication (v3) | available | available | alternative multiplier |

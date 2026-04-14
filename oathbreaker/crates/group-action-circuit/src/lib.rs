@@ -8,14 +8,16 @@ pub mod qft_stub;
 pub mod quantum_gate;
 pub mod scalar_mul;
 pub mod scalar_mul_jacobian;
+pub mod scalar_mul_jacobian_v3;
 pub mod shor;
+pub mod wnaf;
 
 #[cfg(test)]
 mod tests;
 
 pub use double_scalar::{
-    build_group_action_circuit, build_group_action_circuit_jacobian, CircuitSummary,
-    GroupActionCircuit,
+    build_group_action_circuit, build_group_action_circuit_jacobian,
+    build_group_action_circuit_jacobian_v3, CircuitSummary, GroupActionCircuit,
 };
 pub use quantum_gate::{QuantumGate, QuantumGateCount};
 pub use shor::{ShorResult, ShorsEcdlp};

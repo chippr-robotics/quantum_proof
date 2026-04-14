@@ -197,6 +197,88 @@ mod ec_tests {
     }
 
     #[test]
+    fn test_modified_jacobian_double_matches_affine() {
+        use crate::curve::ModifiedJacobianPoint;
+        use crate::point_ops::{modified_jacobian_double, point_double};
+
+        let curve = test_curve();
+        let g = &curve.generator;
+
+        // Compute 2G via affine
+        let two_g_affine = point_double(g, &curve);
+
+        // Compute 2G via modified Jacobian
+        let g_mj = ModifiedJacobianPoint::from_affine(g, &curve);
+        let two_g_mj = modified_jacobian_double(&g_mj, &curve);
+        let two_g_from_mj = two_g_mj.to_affine();
+
+        assert_eq!(
+            two_g_affine, two_g_from_mj,
+            "Modified Jacobian doubling should match affine doubling"
+        );
+
+        // Chain: 4G = 2(2G), 8G = 2(4G), etc.
+        let mut mj = two_g_mj;
+        let mut affine = two_g_affine;
+        for k in [4, 8, 16, 32] {
+            affine = point_double(&affine, &curve);
+            mj = modified_jacobian_double(&mj, &curve);
+            let mj_affine = mj.to_affine();
+            assert_eq!(
+                affine, mj_affine,
+                "Modified Jacobian chain doubling disagrees at {}G",
+                k,
+            );
+        }
+    }
+
+    #[test]
+    fn test_modified_jacobian_scalar_mul() {
+        // Test modified Jacobian doubling through a scalar multiplication
+        // that uses repeated doubling.
+        use crate::curve::ModifiedJacobianPoint;
+        use crate::point_ops::{jacobian_mixed_add, modified_jacobian_double};
+
+        let curve = test_curve();
+        let g = &curve.generator;
+
+        // Compute [k]G using modified Jacobian doubling + mixed addition
+        for k in [2u64, 3, 5, 7, 10, 42, 100, 255] {
+            let expected = scalar_mul(k, g, &curve);
+
+            // Left-to-right double-and-add using modified Jacobian
+            let bits = 64 - k.leading_zeros();
+            let mut result_mj = ModifiedJacobianPoint::from_affine(&AffinePoint::Infinity, &curve);
+
+            for i in (0..bits).rev() {
+                // Double in modified Jacobian
+                result_mj = modified_jacobian_double(&result_mj, &curve);
+                if (k >> i) & 1 == 1 {
+                    // Add G (affine) — convert to standard Jacobian for mixed add
+                    let jac = result_mj.to_jacobian();
+                    let sum = jacobian_mixed_add(&jac, g, &curve);
+                    // Convert back to modified Jacobian
+                    let z2 = sum.z * sum.z;
+                    let z4 = z2 * z2;
+                    result_mj = ModifiedJacobianPoint {
+                        x: sum.x,
+                        y: sum.y,
+                        z: sum.z,
+                        az4: curve.a * z4,
+                    };
+                }
+            }
+
+            let actual = result_mj.to_affine();
+            assert_eq!(
+                expected, actual,
+                "Modified Jacobian scalar mul disagrees for k={}",
+                k,
+            );
+        }
+    }
+
+    #[test]
     fn test_on_curve_verification() {
         let curve = test_curve();
         let g = &curve.generator;

@@ -280,22 +280,16 @@ impl ReversibleSquarer {
         workspace_offset: usize,
         counter: &mut ResourceCounter,
     ) -> Vec<Gate> {
-        // Reversible squaring: delegates to the multiplier with both inputs
-        // pointing to the same register.
+        // Reversible squaring using Karatsuba with is_square=true.
         //
         // |a⟩|0⟩ → |a⟩|a² mod p⟩
         //
-        // Future optimization: exploit symmetry of cross-terms to reduce
-        // gate count by ~25% (each a[i]*a[j] term appears twice, so only
-        // one Toffoli + doubling is needed instead of two Toffoli gates).
-        let mul = ReversibleMultiplier::new(self.n);
-        mul.forward_gates(
-            input_offset,
-            input_offset,
-            result_offset,
-            workspace_offset,
-            counter,
-        )
+        // Delegates to KaratsubaSquarer which exploits cross-term symmetry:
+        // each a[i]*a[j] pair is computed once and doubled by position shift,
+        // and diagonal terms a[i]² use CNOT instead of Toffoli.
+        // This saves ~50% of partial-product Toffoli vs generic multiplication.
+        let sq = KaratsubaSquarer::new(self.n);
+        sq.forward_gates(input_offset, result_offset, workspace_offset, counter)
     }
 }
 

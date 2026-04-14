@@ -9,6 +9,7 @@ use crate::precompute::PrecomputeTable;
 use crate::qft_stub::QftResourceEstimate;
 use crate::scalar_mul::WindowedScalarMul;
 use crate::scalar_mul_jacobian::WindowedScalarMulJacobian;
+use crate::scalar_mul_jacobian_v3::WindowedScalarMulJacobianV3;
 
 /// The coherent double-scalar group-action circuit: |a⟩|b⟩|O⟩ → |a⟩|b⟩|\[a\]G + \[b\]Q⟩
 ///
@@ -425,5 +426,158 @@ impl GroupActionCircuit {
     /// Circuit depth.
     pub fn depth(&self) -> usize {
         self.resources.depth
+    }
+}
+
+/// Build the V3 optimized double-scalar group-action circuit.
+///
+/// Optimizations over `build_group_action_circuit_jacobian`:
+/// 1. **Modified Jacobian doubling**: caches aZ⁴ across doublings,
+///    eliminating 2 squarings per doubling (12n+2 vs 14n+2 workspace).
+/// 2. **Fixed ReversibleSquarer**: routes through KaratsubaSquarer
+///    with symmetry optimization.
+/// 3. **Reduced workspace**: tighter register scheduling.
+///
+/// Register layout:
+///   exponent_a:  n qubits
+///   exponent_b:  n qubits
+///   point_X:     n qubits (Modified Jacobian X)
+///   point_Y:     n qubits (Modified Jacobian Y)
+///   point_Z:     n qubits (Modified Jacobian Z)
+///   point_aZ4:   n qubits (Modified Jacobian aZ⁴)
+///   Total primary: 6n qubits (vs 5n in v2 — +n for cached aZ⁴)
+pub fn build_group_action_circuit_jacobian_v3(
+    curve: &CurveParams,
+    window_size: usize,
+) -> GroupActionCircuit {
+    let n = curve.field_bits;
+    let mut counter = ResourceCounter::new();
+    let mut ancilla_pool = AncillaPool::new(UncomputeStrategy::Eager);
+
+    // Two exponent registers
+    let _reg_a = QuantumRegister::new("exponent_a", n);
+    let _reg_b = QuantumRegister::new("exponent_b", n);
+
+    // Point accumulator — Modified Jacobian (X, Y, Z, aZ⁴)
+    let _point_x = QuantumRegister::new("point_X", n);
+    let _point_y = QuantumRegister::new("point_Y", n);
+    let _point_z = QuantumRegister::new("point_Z", n);
+    let _point_az4 = QuantumRegister::new("point_aZ4", n);
+
+    // 6n primary qubits
+    counter.allocate_qubits(6 * n);
+
+    // Precompute table
+    let _table_g = PrecomputeTable::generate_for_point(curve, &curve.generator, window_size);
+
+    // V3 scalar multiplication for [a]G
+    let scalar_mul_a = WindowedScalarMulJacobianV3::new(window_size, n);
+    let (_gates_a, (dbl_a, qrom_a, add_a)) = scalar_mul_a.forward_gates(
+        0,     // reg_a offset
+        2 * n, // point_X offset
+        3 * n, // point_Y offset
+        4 * n, // point_Z offset
+        5 * n, // point_aZ4 offset
+        &mut ancilla_pool,
+        &mut counter,
+        curve,
+    );
+
+    ancilla_pool.reset_for_reuse(&mut counter);
+
+    // V3 scalar multiplication for [b]Q
+    let scalar_mul_b = WindowedScalarMulJacobianV3::new(window_size, n);
+    let (_gates_b, (dbl_b, qrom_b, add_b)) = scalar_mul_b.forward_gates(
+        n,     // reg_b offset
+        2 * n, // point_X offset
+        3 * n, // point_Y offset
+        4 * n, // point_Z offset
+        5 * n, // point_aZ4 offset
+        &mut ancilla_pool,
+        &mut counter,
+        curve,
+    );
+
+    let scalar_mul_doubling = dbl_a + dbl_b;
+    let scalar_mul_qrom = qrom_a + qrom_b;
+    let scalar_mul_addition = add_a + add_b;
+
+    ancilla_pool.reset_for_reuse(&mut counter);
+
+    // --- Single final inversion: convert Jacobian → affine ---
+    let t_before_inv = counter.toffoli_count;
+    let bgcd_ws_size = reversible_arithmetic::inverter::BinaryGcdInverter::workspace_size(n);
+    let inv_workspace = ancilla_pool.allocate("final_inv_workspace", bgcd_ws_size, &mut counter);
+    let z_inv_reg = ancilla_pool.allocate("z_inv", n, &mut counter);
+    let inverter = reversible_arithmetic::inverter::BinaryGcdInverter::new(n);
+
+    counter.enter_pre_allocated();
+    let _inv_gates = inverter.forward_gates(
+        4 * n,            // point_Z input
+        z_inv_reg.offset, // Z⁻¹ output
+        inv_workspace.offset,
+        &mut counter,
+    );
+    counter.exit_pre_allocated();
+
+    let t_after_inv = counter.toffoli_count;
+
+    // Compute Z⁻² = Z⁻¹ · Z⁻¹ and Z⁻³ = Z⁻² · Z⁻¹
+    let z_inv2_reg = ancilla_pool.allocate("z_inv2", n, &mut counter);
+    let z_inv3_reg = ancilla_pool.allocate("z_inv3", n, &mut counter);
+    let mul = reversible_arithmetic::multiplier::KaratsubaMultiplier::new(n);
+    let sq = reversible_arithmetic::multiplier::KaratsubaSquarer::new(n);
+
+    counter.enter_pre_allocated();
+    let _sq_gates = sq.forward_gates(
+        z_inv_reg.offset,
+        z_inv2_reg.offset,
+        inv_workspace.offset,
+        &mut counter,
+    );
+    let _mul_gates = mul.forward_gates(
+        z_inv2_reg.offset,
+        z_inv_reg.offset,
+        z_inv3_reg.offset,
+        inv_workspace.offset,
+        &mut counter,
+    );
+    let _mul_x = mul.forward_gates(
+        2 * n,
+        z_inv2_reg.offset,
+        2 * n,
+        inv_workspace.offset,
+        &mut counter,
+    );
+    let _mul_y = mul.forward_gates(
+        3 * n,
+        z_inv3_reg.offset,
+        3 * n,
+        inv_workspace.offset,
+        &mut counter,
+    );
+    counter.exit_pre_allocated();
+
+    let t_after_affine = counter.toffoli_count;
+
+    let attribution = CostAttribution {
+        doubling_toffoli: scalar_mul_doubling,
+        qrom_toffoli: scalar_mul_qrom,
+        addition_toffoli: scalar_mul_addition,
+        swap_toffoli: 0,
+        inversion_toffoli: t_after_inv - t_before_inv,
+        affine_recovery_toffoli: t_after_affine - t_after_inv,
+    };
+
+    let qft_estimate = QftResourceEstimate::for_dual_register(n);
+
+    GroupActionCircuit {
+        curve: curve.clone(),
+        window_size,
+        coordinate_system: "jacobian-v3".to_string(),
+        gate_log: Vec::new(),
+        qft_estimate,
+        resources: counter,
+        cost_attribution: Some(attribution),
     }
 }
