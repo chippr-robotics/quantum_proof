@@ -37,6 +37,54 @@ pub enum UncomputeStrategy {
     Deferred,
 }
 
+/// Configuration for Bennett's pebble game time-space tradeoff.
+///
+/// Controls how aggressively intermediates are kept alive vs uncomputed.
+/// With `max_pebbles` pebbles, a chain of n operations can be computed
+/// reversibly in O(n^(1+1/max_pebbles)) time using O(max_pebbles · log n)
+/// space.
+///
+/// In practice, this controls how many window iterations' worth of
+/// intermediates are kept alive before batch uncomputation.
+#[derive(Clone, Debug)]
+pub struct PebblingConfig {
+    /// Maximum number of "pebbles" (retained intermediate states).
+    /// Higher = more qubits but fewer gates (less re-computation).
+    /// Default: 2 (retain current and previous iteration's intermediates).
+    pub max_pebbles: usize,
+    /// Flush interval: uncompute after this many operations.
+    /// Default: 1 (flush every operation = eager behavior).
+    /// Set to window_size for per-window-batch pebbling.
+    pub flush_interval: usize,
+}
+
+impl Default for PebblingConfig {
+    fn default() -> Self {
+        Self {
+            max_pebbles: 2,
+            flush_interval: 1,
+        }
+    }
+}
+
+impl PebblingConfig {
+    /// Create a config for eager uncomputation (equivalent to Eager strategy).
+    pub fn eager() -> Self {
+        Self {
+            max_pebbles: 1,
+            flush_interval: 1,
+        }
+    }
+
+    /// Create a config for deferred uncomputation within window boundaries.
+    pub fn deferred_per_window(window_size: usize) -> Self {
+        Self {
+            max_pebbles: window_size,
+            flush_interval: window_size,
+        }
+    }
+}
+
 impl AncillaPool {
     pub fn new(strategy: UncomputeStrategy) -> Self {
         Self {

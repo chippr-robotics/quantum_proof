@@ -107,3 +107,65 @@ impl JacobianPoint {
         }
     }
 }
+
+/// A point in Modified Jacobian coordinates (X, Y, Z, aZ⁴).
+///
+/// Modified Jacobian coordinates cache the value aZ⁴ to avoid recomputing
+/// it in each doubling. This reduces the doubling cost from 4S + 4M to
+/// 3S + 4M by eliminating the Z₁² → Z₁⁴ → aZ₁⁴ chain.
+///
+/// The affine point is recovered as (X/Z², Y/Z³), same as standard Jacobian.
+/// The fourth coordinate aZ⁴ is maintained consistently across doublings:
+///   if 2P = (X₃, Y₃, Z₃, aZ₃⁴), then aZ₃⁴ is computed as part of the
+///   doubling formula rather than derived from Z₃.
+#[derive(Clone, Copy, Debug)]
+pub struct ModifiedJacobianPoint {
+    pub x: GoldilocksField,
+    pub y: GoldilocksField,
+    pub z: GoldilocksField,
+    /// Cached value: a · Z⁴ mod p
+    pub az4: GoldilocksField,
+}
+
+impl ModifiedJacobianPoint {
+    /// Convert from affine to modified Jacobian coordinates.
+    pub fn from_affine(p: &AffinePoint, curve: &CurveParams) -> Self {
+        match p {
+            AffinePoint::Infinity => Self {
+                x: GoldilocksField::ONE,
+                y: GoldilocksField::ONE,
+                z: GoldilocksField::ZERO,
+                az4: GoldilocksField::ZERO,
+            },
+            AffinePoint::Finite { x, y } => Self {
+                x: *x,
+                y: *y,
+                z: GoldilocksField::ONE,
+                az4: curve.a, // Z=1, so aZ⁴ = a·1 = a
+            },
+        }
+    }
+
+    /// Convert from modified Jacobian back to affine coordinates.
+    pub fn to_affine(&self) -> AffinePoint {
+        if self.z.to_canonical() == 0 {
+            return AffinePoint::Infinity;
+        }
+        let z_inv = self.z.inverse().unwrap();
+        let z_inv2 = z_inv * z_inv;
+        let z_inv3 = z_inv2 * z_inv;
+        AffinePoint::Finite {
+            x: self.x * z_inv2,
+            y: self.y * z_inv3,
+        }
+    }
+
+    /// Convert to standard Jacobian (drop the cached aZ⁴).
+    pub fn to_jacobian(&self) -> JacobianPoint {
+        JacobianPoint {
+            x: self.x,
+            y: self.y,
+            z: self.z,
+        }
+    }
+}

@@ -105,6 +105,78 @@ mod reversible_tests {
     }
 
     #[test]
+    fn test_squarer_fewer_toffoli_than_multiplier() {
+        // The KaratsubaSquarer (used by ReversibleSquarer) should produce
+        // fewer Toffoli gates than a generic KaratsubaMultiplier for the
+        // same operand size, because squaring exploits cross-term symmetry.
+        use crate::multiplier::{KaratsubaMultiplier, KaratsubaSquarer};
+
+        for n in [8, 16, 32] {
+            let mut sq_counter = ResourceCounter::new();
+            let mut mul_counter = ResourceCounter::new();
+
+            let squarer = KaratsubaSquarer::new(n);
+            let multiplier = KaratsubaMultiplier::new(n);
+
+            // Registers: a[0..n], result[n..2n], workspace[2n..]
+            let _ = squarer.forward_gates(0, n, 2 * n, &mut sq_counter);
+            let _ = multiplier.forward_gates(0, 0, n, 2 * n, &mut mul_counter);
+
+            assert!(
+                sq_counter.toffoli_count < mul_counter.toffoli_count,
+                "Squarer should use fewer Toffoli than multiplier at n={}: sq={} vs mul={}",
+                n,
+                sq_counter.toffoli_count,
+                mul_counter.toffoli_count,
+            );
+        }
+    }
+
+    #[test]
+    fn test_v3_doubler_fewer_squarings_than_v2() {
+        // The v3 modified Jacobian doubler should use fewer workspace qubits
+        // and fewer total field operations than the v2 standard Jacobian doubler.
+        use crate::ec_double_jacobian::ReversibleJacobianDouble;
+        use crate::ec_double_jacobian_v3::ReversibleJacobianDoubleV3;
+
+        let n = 16;
+        let v2 = ReversibleJacobianDouble::new(n);
+        let v3 = ReversibleJacobianDoubleV3::new(n);
+
+        let mut v2_counter = ResourceCounter::new();
+        let mut v3_counter = ResourceCounter::new();
+
+        // v2: in(3n) + out(3n) + workspace(14n+2)
+        let _ = v2.forward_gates(0, n, 2 * n, 3 * n, 4 * n, 5 * n, 6 * n, &mut v2_counter);
+
+        // v3: in(3n+n=4n) + out(3n+n=4n) + workspace(11n+2)
+        let _ = v3.forward_gates(
+            0, n, 2 * n, 3 * n,           // in: X, Y, Z, aZ⁴
+            4 * n, 5 * n, 6 * n, 7 * n,   // out: X₃, Y₃, Z₃, aZ₃⁴
+            8 * n,                          // workspace
+            &mut v3_counter,
+        );
+
+        // v3 should use fewer Toffoli gates (fewer field operations)
+        assert!(
+            v3_counter.toffoli_count < v2_counter.toffoli_count,
+            "v3 doubler should use fewer Toffoli than v2: v3={} vs v2={}",
+            v3_counter.toffoli_count,
+            v2_counter.toffoli_count,
+        );
+
+        // v3 workspace should be smaller
+        let v2_ws = 14 * n + 2;
+        let v3_ws = ReversibleJacobianDoubleV3::workspace_size(n);
+        assert!(
+            v3_ws < v2_ws,
+            "v3 workspace should be smaller: v3={} vs v2={}",
+            v3_ws,
+            v2_ws,
+        );
+    }
+
+    #[test]
     fn test_gate_inverse_is_self() {
         let gates = vec![
             Gate::Not { target: 0 },

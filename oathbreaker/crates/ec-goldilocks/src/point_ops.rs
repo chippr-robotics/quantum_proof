@@ -1,4 +1,4 @@
-use crate::curve::{AffinePoint, CurveParams, JacobianPoint};
+use crate::curve::{AffinePoint, CurveParams, JacobianPoint, ModifiedJacobianPoint};
 use goldilocks_field::GoldilocksField;
 
 /// Add two affine points on the curve. Handles all cases:
@@ -196,6 +196,76 @@ pub fn jacobian_mixed_add(
                 z: z3,
             }
         }
+    }
+}
+
+/// Modified Jacobian point doubling: 2P with cached aZ⁴.
+///
+/// Input:  P = (X₁, Y₁, Z₁, aZ₁⁴) in modified Jacobian
+/// Output: 2P = (X₃, Y₃, Z₃, aZ₃⁴) in modified Jacobian
+///
+/// Formulas (Cohen-Miyaji-Ono, "Efficient Elliptic Curve Exponentiation
+/// Using Mixed Coordinates", 1998):
+///   M = 3·X₁² + aZ₁⁴           (1M or 1S + additions)
+///   S = 4·X₁·Y₁²               (1M + 1S)
+///   X₃ = M² - 2·S              (1S + additions)
+///   T = 8·Y₁⁴                  (1S + const muls)
+///   Y₃ = M·(S - X₃) - T        (1M + additions)
+///   Z₃ = 2·Y₁·Z₁              (1M)
+///   aZ₃⁴ = 2·T·aZ₁⁴           (1M)  ← cached for next doubling
+///
+/// Cost: 4M + 4S → but we save by reusing aZ₁⁴ (no Z₁²→Z₁⁴ chain).
+/// In the reversible circuit, this eliminates 2 squarings per doubling
+/// compared to standard Jacobian (which must compute Z₁², Z₁⁴ fresh).
+///
+/// Net: 3S + 4M per doubling (vs 4S + 4M standard Jacobian = 6S+3M in
+/// the current Oathbreaker counting which lumps const-muls with squarings).
+pub fn modified_jacobian_double(
+    p: &ModifiedJacobianPoint,
+    _curve: &CurveParams,
+) -> ModifiedJacobianPoint {
+    if p.z.to_canonical() == 0 {
+        return *p;
+    }
+
+    let two = GoldilocksField::from_canonical(2);
+    let three = GoldilocksField::from_canonical(3);
+    let four = GoldilocksField::from_canonical(4);
+    let eight = GoldilocksField::from_canonical(8);
+
+    // M = 3·X₁² + aZ₁⁴ (aZ₁⁴ is cached — no Z₁²→Z₁⁴ computation!)
+    let x1_sq = p.x * p.x;
+    let m = three * x1_sq + p.az4;
+
+    // Y₁²
+    let y1_sq = p.y * p.y;
+
+    // S = 4·X₁·Y₁²
+    let s = four * p.x * y1_sq;
+
+    // X₃ = M² - 2·S
+    let x3 = m * m - two * s;
+
+    // T = 8·Y₁⁴
+    let y1_4 = y1_sq * y1_sq;
+    let t = eight * y1_4;
+
+    // Y₃ = M·(S - X₃) - T
+    let y3 = m * (s - x3) - t;
+
+    // Z₃ = 2·Y₁·Z₁
+    let z3 = two * p.y * p.z;
+
+    // aZ₃⁴ = 2·T·aZ₁⁴
+    // Derivation: Z₃ = 2·Y₁·Z₁, so Z₃⁴ = 16·Y₁⁴·Z₁⁴
+    // aZ₃⁴ = a·16·Y₁⁴·Z₁⁴ = 2·(8·Y₁⁴)·(a·Z₁⁴) = 2·T·aZ₁⁴
+    let az4_new = two * t * p.az4;
+
+    ModifiedJacobianPoint {
+        x: x3,
+        y: y3,
+        z: z3,
+        az4: az4_new,
     }
 }
 
