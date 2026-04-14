@@ -95,9 +95,10 @@ fn run_benchmarks() {
     }
 
     // -----------------------------------------------------------------------
-    // Phase 2: Build Jacobian circuits for each measurable tier.
-    //          Gate vectors are large for bigger fields, so we build up to
-    //          the largest tier that fits comfortably in CI memory.
+    // Phase 2: Build Jacobian v3 circuits for each measurable tier.
+    //          v3 uses modified Jacobian doubling (-2 squarings/doubling),
+    //          fixed KaratsubaSquarer delegation, and tighter register
+    //          layout (12n+2 workspace vs 14n+2 in v2).
     //
     //          The circuit construction materializes all gate objects in
     //          memory (~O(n^3) gates at ~32 bytes each). Practical limits:
@@ -106,7 +107,7 @@ fn run_benchmarks() {
     //            Oath-32:  ~15M gates   (~480 MB)  -- moderate
     //            Oath-64:  ~90M+ gates  (~3+ GB)   -- exceeds CI runners
     // -----------------------------------------------------------------------
-    println!("=== Measured Jacobian Circuit Resources ===\n");
+    println!("=== Measured Jacobian v3 Circuit Resources ===\n");
 
     let measurable_tiers: Vec<&str> = vec!["Oath-8", "Oath-16", "Oath-32"];
     let mut measured: Vec<(String, group_action_circuit::CircuitSummary)> = Vec::new();
@@ -115,10 +116,10 @@ fn run_benchmarks() {
         if let Some((_, curve)) = all_curves.iter().find(|(n, _)| n == *tier_name) {
             let w = window_for_field(curve.field_bits);
             println!(
-                "Building {} (Jacobian, {}-bit, window={})...",
+                "Building {} (Jacobian v3, {}-bit, window={})...",
                 tier_name, curve.field_bits, w
             );
-            let circuit = group_action_circuit::build_group_action_circuit_jacobian(curve, w);
+            let circuit = group_action_circuit::build_group_action_circuit_jacobian_v3(curve, w);
             let summary = circuit.summary();
             counter::print_resource_table(&circuit);
             // Print cost attribution for the largest tier
@@ -184,7 +185,7 @@ fn run_benchmarks() {
             let mut best_toffoli = usize::MAX;
             let mut best_summary = None;
             for &w in &valid_windows {
-                let circuit = group_action_circuit::build_group_action_circuit_jacobian(curve, w);
+                let circuit = group_action_circuit::build_group_action_circuit_jacobian_v3(curve, w);
                 let summary = circuit.summary();
                 let marker = if summary.toffoli_gates < best_toffoli {
                     best_toffoli = summary.toffoli_gates;

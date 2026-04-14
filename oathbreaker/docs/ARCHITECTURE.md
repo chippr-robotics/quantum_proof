@@ -263,25 +263,25 @@ of the 2^w one-hot qubits is set.
 
 ---
 
-## Cost Attribution (Oath-32, w=8)
+## Cost Attribution (Oath-32, v3, w=8)
 
-This is the measured Toffoli breakdown from the benchmark. It shows
+This is the measured Toffoli breakdown from the v3 benchmark. It shows
 where optimization effort should focus.
 
 ```mermaid
-pie title Toffoli Cost Attribution (Oath-32)
-    "Doublings (80.2%)" : 80.2
-    "Mixed Additions (17.1%)" : 17.1
+pie title Toffoli Cost Attribution (Oath-32, v3)
+    "Doublings (78.1%)" : 78.1
+    "Mixed Additions (19.2%)" : 19.2
     "Inversion — BGCD (1.9%)" : 1.9
     "Affine Recovery (0.7%)" : 0.7
     "QROM (0.1%)" : 0.1
 ```
 
 **Reading the chart:** Doublings dominate because each window iteration
-performs w=8 doublings but only 1 addition. Each doubling costs
-6S + 3M = 9 multiplication-equivalents; each addition costs 3S + 8M = 11.
-With 8 doublings per addition, doublings account for 72/(72+11) = 87%
-of the EC arithmetic, consistent with the measured 80%/17% split.
+performs w=8 doublings but only 1 addition. v3 modified Jacobian doubling
+reduced per-doubling cost from 6S+3M to 4S+4M, lowering the doubling share
+from 80.2% (v2) to 78.1% (v3). The remaining gap to Litinski's 50M is
+dominated by measurement-based uncomputation (~2x) and semi-classical oracle (~2-4x).
 
 ---
 

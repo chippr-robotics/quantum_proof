@@ -4,7 +4,7 @@
 ### With zk-Proven Execution Trace, Karatsuba Arithmetic, and Resource Benchmarking
 
 **Project: Quantum Open Source Research**
-**Status: Complete Shor's Algorithm (v2.0) — April 2026**
+**Status: Complete Shor's Algorithm (v3.0) — April 2026**
 
 ---
 
@@ -22,13 +22,13 @@ coordinates** to eliminate per-operation inversions, **Karatsuba multiplication*
 (O(n^2) vs Fermat's O(n^2.585)). Independently verified against classical ground truth
 via Pollard's rho, with ZK proof via SP1 Groth16 SNARK.
 
-### Current Results (Measured)
+### Current Results (v3 Measured)
 
 | Tier | Qubits | Toffoli | Window |
 |------|--------|---------|--------|
-| **Oath-8** | ~295 | ~162K | w=4 |
-| **Oath-16** | ~855 | ~997K | w=4 |
-| **Oath-32** | ~2,848 | ~5.76M | w=8 |
+| **Oath-8** | 218 | ~114K | w=4 |
+| **Oath-16** | 418 | ~934K | w=4 |
+| **Oath-32** | 1,058 | ~5.64M | w=8 |
 
 **256-bit ECDLP projection**: ~1.2B Toffoli (Karatsuba model), ~24x gap to Litinski's 50M.
 
@@ -41,7 +41,10 @@ via Pollard's rho, with ZK proof via SP1 Groth16 SNARK.
 | + Symmetry-optimized squaring | 6.62M | -10.1% |
 | + Binary GCD inversion | 5.67M | -14.5% |
 | + Proper Cuccaro arithmetic | 5.76M | +1.7% (correctness fix) |
-| **Cumulative** | **5.76M** | **-31.3%** |
+| **v2 final** | **5.76M** | **-31.3%** |
+| + Modified Jacobian doubling (v3) | 5.64M | -2.1% |
+| + ReversibleSquarer fix (v3) | — | included above |
+| **v3 final** | **5.64M** | **-32.7%** |
 
 ## What This Is
 
@@ -68,27 +71,28 @@ Score your quantum computer by which Oath curve it can crack:
 
 | Tier | Field | Measured Qubits | Measured Toffoli | Classical Difficulty | Target Era |
 |------|-------|-----------------|------------------|---------------------|-----------|
-| Oath-8 | 8-bit | 295 | 162K | Trivial | 2026-2027 |
-| Oath-16 | 16-bit | 855 | 997K | Trivial | 2027-2028 |
-| Oath-32 | 32-bit | 2,848 | 5.76M | Easy (~seconds) | 2029-2031 |
-| **Oath-64** | **64-bit** | **~5,696** | **~90M** | **Hours (Pollard rho)** | **2032-2035** |
+| Oath-8 | 8-bit | 218 | 114K | Trivial | 2026-2027 |
+| Oath-16 | 16-bit | 418 | 934K | Trivial | 2027-2028 |
+| Oath-32 | 32-bit | 1,058 | 5.64M | Easy (~seconds) | 2029-2031 |
+| **Oath-64** | **64-bit** | **~2,116** | **~34M** | **Hours (Pollard rho)** | **2032-2035** |
 
-Estimates use Jacobian projective coordinates with Karatsuba multiplication,
+Estimates use v3 modified Jacobian projective coordinates with Karatsuba multiplication,
 windowed scalar multiplication (w=8), symmetry-optimized squaring, and Binary GCD
 inversion. Oath-8/16/32 are measured; Oath-64 is projected via Karatsuba O(n^2.585) scaling.
 
-## Measured Cost Attribution (Oath-32, w=8)
+## Measured Cost Attribution (Oath-32, v3, w=8)
 
 | Subsystem | Toffoli | Share |
 |-----------|---------|-------|
-| Doublings | 4,541,952 | 80.2% |
-| Mixed additions | 971,616 | 17.1% |
+| Doublings | 4,408,320 | 78.1% |
+| Mixed additions | 1,080,736 | 19.2% |
 | Inversion (BGCD) | 107,008 | 1.9% |
 | Affine recovery | 36,868 | 0.7% |
 | QROM decode/load | 8,160 | 0.1% |
 
-**Key insight**: Doublings dominate at 80% of Toffoli cost. Next optimization
-target is doubling formula improvement, not mixed addition or QROM.
+**Key insight**: v3 modified Jacobian doubling reduced doubling cost by 4.9% (from 80.2% to 78.1% share),
+shifting relative weight toward mixed additions. Next optimization targets are
+measurement-based uncomputation and semi-classical oracle approaches.
 
 ## Architecture
 
@@ -139,7 +143,7 @@ oathbreaker/
 └── scripts/                        # Pipeline and export scripts
 ```
 
-## Implemented (v2.0)
+## Implemented (v3.0)
 
 All circuit layers are fully implemented — complete Shor's algorithm:
 
@@ -190,7 +194,7 @@ See [docs/ZKP_GUIDE.md](docs/ZKP_GUIDE.md) for the full proof pipeline documenta
 
 ## Testing
 
-91 tests pass across 4 core crates:
+112 tests pass across 4 core crates:
 
 ```bash
 # Run all tests

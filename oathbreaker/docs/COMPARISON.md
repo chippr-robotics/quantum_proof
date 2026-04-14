@@ -14,8 +14,8 @@
 | Multiplier | Unknown | Karatsuba O(n^1.585) with symmetry-optimized squaring |
 | Inverter | Unknown | Binary GCD (Kaliski) O(n^2) |
 | Benchmark spec | No | Yes (Oathbreaker Scale) |
-| Full Shor | Not claimed | Group-action core (v1); QFT deferred (v2) |
-| Tests | Unknown | 40 tests + proptest CI |
+| Full Shor | Not claimed | Complete Shor pipeline (v3) |
+| Tests | Unknown | 112 tests + proptest CI |
 
 ## Resource Estimates (256-bit ECDLP)
 
@@ -26,18 +26,18 @@
 | Litinski | 2023 | N/A | 50M | Measurement-based uncomputation |
 | INRIA (Chevignard et al.) | 2026 | TBD | TBD | EUROCRYPT 2026 |
 | Google (Babbush et al.) | 2026 | ≤1,450 | ≤90M | Low-gate variant; circuit withheld |
-| **Oathbreaker (projected, Bennett)** | **2026** | **~8,208** | **~1.2B** | **Oath-32 → 256 Karatsuba projection** |
-| **Oathbreaker (projected, meas-based)** | **2026** | **~5,890** | **~1.2B** | **With measurement-based uncomputation** |
+| **Oathbreaker v3 (projected, Bennett)** | **2026** | **~8,464** | **~1.2B** | **Oath-32 → 256 Karatsuba projection** |
+| **Oathbreaker v3 (projected, meas-based)** | **2026** | **~5,904** | **~1.2B** | **With measurement-based uncomputation** |
 
 ## Measured Oathbreaker Results
 
-### Per-Tier Circuit Measurements
+### Per-Tier Circuit Measurements (v3)
 
 | Tier | Qubits (Bennett) | Qubits (meas-based) | Toffoli | Window | Multiplier |
 |------|-------------------|---------------------|---------|--------|------------|
-| Oath-8 | 210 | 186 | 112K | w=4 | Karatsuba |
-| Oath-16 | 402 | 370 | 929K | w=4 | Karatsuba |
-| Oath-32 | 1,026 | 738 | 5.76M | w=8 | Karatsuba |
+| Oath-8 | 218 | 186 | 114K | w=4 | Karatsuba |
+| Oath-16 | 418 | 370 | 934K | w=4 | Karatsuba |
+| Oath-32 | 1,058 | 738 | 5.64M | w=8 | Karatsuba |
 
 ### Coordinate System Comparison (Oath-8)
 
@@ -50,19 +50,19 @@ The Jacobian circuit trades additional qubits for dramatically fewer Toffoli gat
 by eliminating per-addition field inversions. The qubit increase comes from the
 additional Z coordinate register and wider ancilla pool for Karatsuba multiplication.
 
-### Cost Attribution (Oath-32, w=8)
+### Cost Attribution (Oath-32, v3, w=8)
 
 | Subsystem | Toffoli | Share |
 |-----------|---------|-------|
-| Doublings | 4,541,952 | 80.2% |
-| Mixed additions | 971,616 | 17.1% |
+| Doublings | 4,408,320 | 78.1% |
+| Mixed additions | 1,080,736 | 19.2% |
 | Inversion (BGCD) | 107,008 | 1.9% |
 | Affine recovery | 36,868 | 0.7% |
 | QROM decode/load | 8,160 | 0.1% |
 
 ## Gap Analysis: Oathbreaker vs. Litinski (50M Toffoli)
 
-Our projected 1.2B Toffoli (v2) is ~24x higher than Litinski's 50M. The gap is attributable to:
+Our projected 1.2B Toffoli (v3) is ~24x higher than Litinski's 50M. The gap is attributable to:
 
 | Factor | Estimated Impact | Status |
 |--------|-----------------|--------|
@@ -112,7 +112,6 @@ and the semi-classical oracle (~2-4x), which require hardware-dependent features
 | + Binary GCD inversion | 5.67M | ~1.2B | -14% / -14% |
 | + Proper Cuccaro arithmetic | 5.76M | ~1.2B | +1.7% (correctness) |
 | **v2 final** | **5.76M** | **~1.2B** | **-31% cumulative** |
-| + ReversibleSquarer fix (v3) | improved | improved | squarer Toffoli reduced |
-| + Modified Jacobian doubling (v3) | improved | improved | -2S/doubling, -14% workspace |
-| + wNAF encoding (v3) | available | available | ~1.2x potential |
-| + Montgomery multiplication (v3) | available | available | alternative multiplier |
+| + Modified Jacobian doubling (v3) | 5.64M | ~1.2B | -2.1% |
+| + ReversibleSquarer fix (v3) | — | — | included above |
+| **v3 final** | **5.64M** | **~1.2B** | **-32.7% cumulative** |

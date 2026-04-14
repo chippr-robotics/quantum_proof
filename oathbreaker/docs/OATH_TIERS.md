@@ -15,10 +15,10 @@ scalar multiplication with one-hot QROM decode.
 
 | Tier | Field Size | Qubits (Bennett) | Qubits (meas-based est.) | Toffoli | Classical Difficulty | Target Hardware Era |
 |------|-----------|-------------------|--------------------------|---------|---------------------|-------------------|
-| **Oath-8** | ~8 bit | 210 | 186 | 112,000 | Trivial (by hand) | 2026-2027 |
-| **Oath-16** | ~16 bit | 402 | 370 | 929,000 | Trivial (milliseconds) | 2027-2028 |
-| **Oath-32** | ~32 bit | 1,026 | 738 | 5,760,000 | Easy (~seconds) | 2029-2031 |
-| **Oath-64** | 64 bit | ~2,052 (proj.) | ~1,474 (proj.) | ~35M (proj.) | Moderate (~hours Pollard rho) | 2032-2035 |
+| **Oath-8** | ~8 bit | 218 | 186 | 114,000 | Trivial (by hand) | 2026-2027 |
+| **Oath-16** | ~16 bit | 418 | 370 | 934,000 | Trivial (milliseconds) | 2027-2028 |
+| **Oath-32** | ~32 bit | 1,058 | 738 | 5,641,000 | Easy (~seconds) | 2029-2031 |
+| **Oath-64** | 64 bit | ~2,116 (proj.) | ~1,476 (proj.) | ~34M (proj.) | Moderate (~hours Pollard rho) | 2032-2035 |
 
 Oath-8/16/32 are measured from actual circuit construction with proper ancilla
 reuse between phases. Oath-64 is projected (circuit materialization exceeds CI
@@ -26,12 +26,12 @@ memory at ~3 GB). "Qubits (Bennett)" is the peak with standard reversible
 uncomputation. "Qubits (meas-based est.)" estimates the reduction achievable
 with mid-circuit measurement and classical feedforward.
 
-### Cost Attribution (Oath-32, w=8)
+### Cost Attribution (Oath-32, v3, w=8)
 
 | Subsystem | Toffoli | Share |
 |-----------|---------|-------|
-| Doublings | 4,541,952 | 80.2% |
-| Mixed additions | 971,616 | 17.1% |
+| Doublings | 4,408,320 | 78.1% |
+| Mixed additions | 1,080,736 | 19.2% |
 | Inversion (BGCD) | 107,008 | 1.9% |
 | Affine recovery | 36,868 | 0.7% |
 | QROM decode/load | 8,160 | 0.1% |
@@ -42,7 +42,7 @@ w=8 is confirmed optimal for Toffoli across all tiers:
 
 | Tier | w=1 | w=2 | w=4 | w=8 |
 |------|-----|-----|-----|-----|
-| Oath-32 | 13.4M | 9.5M | 7.6M | **5.76M** |
+| Oath-32 | 13.2M | 8.9M | 6.7M | **5.64M** |
 
 ## Scoring Rules
 
@@ -109,7 +109,7 @@ Produces OpenQASM 3.0 files for each Oath level, loadable in Qiskit, Cirq, and o
 
 | Tier | Field Size | Projected Qubits (Bennett) | Projected Qubits (meas-based) | Projected Toffoli | Notes |
 |------|-----------|---------------------------|-------------------------------|-------------------|-------|
-| Oath-128 | 128 bit | ~4,104 | ~2,946 | ~207M | Significant quantum resources required |
-| Oath-256 | 256 bit | ~8,208 | ~5,890 | ~1.2B | Equivalent to secp256k1 / P-256 |
-| Oath-384 | 384 bit | ~12,312 | ~8,834 | ~3.5B | P-384 difficulty |
-| Oath-521 | 521 bit | ~16,705 | ~11,985 | ~7.8B | P-521 (highest standard curve) |
+| Oath-128 | 128 bit | ~4,232 | ~2,952 | ~203M | Significant quantum resources required |
+| Oath-256 | 256 bit | ~8,464 | ~5,904 | ~1.2B | Equivalent to secp256k1 / P-256 |
+| Oath-384 | 384 bit | ~12,696 | ~8,856 | ~3.5B | P-384 difficulty |
+| Oath-521 | 521 bit | ~17,226 | ~12,016 | ~7.6B | P-521 (highest standard curve) |

@@ -12,19 +12,19 @@ All resource counts below are **measured** from actual circuit construction (Oat
 
 | Level | Curve | Field Size | Security | Qubits (Bennett) | Qubits (meas-based) | Toffoli | Classical Solve Time | Quantum Target |
 |-------|-------|------------|----------|-------------------|---------------------|---------|----------------------|----------------|
-| **Oath-8** | 8-bit Goldilocks | 8-bit | ~4-bit | 210 | 186 | 112K | Instant | Proof of concept |
-| **Oath-16** | 16-bit Goldilocks | 16-bit | ~8-bit | 402 | 370 | 929K | Instant | Near-term devices |
-| **Oath-32** | 32-bit Goldilocks | 32-bit | ~16-bit | 1,026 | 738 | 5.76M | Milliseconds | Medium-term milestone |
-| **Oath-64** | 64-bit Goldilocks | 64-bit | ~32-bit | ~2,052 | ~1,474 | ~35M | Minutes (Pollard rho) | Full benchmark target |
+| **Oath-8** | 8-bit Goldilocks | 8-bit | ~4-bit | 218 | 186 | 114K | Instant | Proof of concept |
+| **Oath-16** | 16-bit Goldilocks | 16-bit | ~8-bit | 418 | 370 | 934K | Instant | Near-term devices |
+| **Oath-32** | 32-bit Goldilocks | 32-bit | ~16-bit | 1,058 | 738 | 5.64M | Milliseconds | Medium-term milestone |
+| **Oath-64** | 64-bit Goldilocks | 64-bit | ~32-bit | ~2,116 | ~1,476 | ~34M | Minutes (Pollard rho) | Full benchmark target |
 
 Oath-8/16/32 are measured from actual circuit construction with proper ancilla reuse. Oath-64 is projected (circuit construction exceeds CI memory at ~3 GB). "Bennett" qubits are the peak with standard reversible uncomputation; "meas-based" estimates the qubit count achievable with mid-circuit measurement and classical feedforward.
 
-### Cost Attribution (Oath-32, w=8)
+### Cost Attribution (Oath-32, v3, w=8)
 
 | Subsystem | Toffoli | Share |
 |-----------|---------|-------|
-| Doublings | 4,541,952 | 80.2% |
-| Mixed additions | 971,616 | 17.1% |
+| Doublings | 4,408,320 | 78.1% |
+| Mixed additions | 1,080,736 | 19.2% |
 | Inversion (BGCD) | 107,008 | 1.9% |
 | Affine recovery | 36,868 | 0.7% |
 | QROM decode/load | 8,160 | 0.1% |
@@ -37,7 +37,7 @@ The benchmark includes a window-size sweep for each tier. Results confirm w=8 is
 
 | Tier | w=1 Toffoli | w=2 Toffoli | w=4 Toffoli | w=8 Toffoli |
 |------|------------|------------|------------|------------|
-| Oath-32 | 13.4M | 9.5M | 7.6M | 5.76M |
+| Oath-32 | 13.2M | 8.9M | 6.7M | 5.64M |
 
 The tradeoff is purely in qubits — w=8 adds ~20-50% more qubits from the 2^w one-hot selection register.
 
@@ -45,13 +45,13 @@ The tradeoff is purely in qubits — w=8 adds ~20-50% more qubits from the 2^w o
 
 Three projection models from measured 32-bit results to cryptographically relevant field sizes:
 
-| Field | Karatsuba O(n^2.585) | Empirical O(n^2.46) | Schoolbook O(n^3) |
+| Field | Karatsuba O(n^2.585) | Empirical O(n^2.59) | Schoolbook O(n^3) |
 |-------|---------------------|--------------------|--------------------|
-| 64-bit | ~34M | ~30M | ~46M |
-| 128-bit | ~208M | ~164M | ~368M |
-| **256-bit** | **~1.2B** | **~900M** | **~3.4B** |
-| 384-bit | ~3.7B | ~2.5B | ~12B |
-| 521-bit | ~9.3B | ~5.9B | ~35B |
+| 64-bit | ~34M | ~34M | ~45M |
+| 128-bit | ~203M | ~206M | ~361M |
+| **256-bit** | **~1.2B** | **~1.2B** | **~2.9B** |
+| 384-bit | ~3.5B | ~3.6B | ~9.7B |
+| 521-bit | ~7.6B | ~7.8B | ~24B |
 
 ## Input Format
 
@@ -100,7 +100,7 @@ Produces OpenQASM 3.0 files for each Oath level, loadable in Qiskit, Cirq, and o
 ## Future Levels
 
 As the project extends to larger fields:
-- **Oath-128**: ~4,104 qubits (Bennett) / ~2,946 (meas-based), ~207M Toffoli projected
-- **Oath-256**: ~8,208 / ~5,890 qubits, ~1.2B Toffoli — equivalent to secp256k1
-- **Oath-384**: ~12,312 / ~8,834 qubits, ~3.5B Toffoli — P-384 difficulty
-- **Oath-521**: ~16,705 / ~11,985 qubits, ~7.8B Toffoli — P-521 (highest standard curve)
+- **Oath-128**: ~4,232 qubits (Bennett) / ~2,952 (meas-based), ~203M Toffoli projected
+- **Oath-256**: ~8,464 / ~5,904 qubits, ~1.2B Toffoli — equivalent to secp256k1
+- **Oath-384**: ~12,696 / ~8,856 qubits, ~3.5B Toffoli — P-384 difficulty
+- **Oath-521**: ~17,226 / ~12,016 qubits, ~7.6B Toffoli — P-521 (highest standard curve)
