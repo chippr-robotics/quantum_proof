@@ -10,10 +10,14 @@ pub struct OathTier {
     pub name: String,
     /// Field size in bits.
     pub field_bits: usize,
-    /// Estimated logical qubits for the group-action circuit.
-    pub estimated_qubits: usize,
-    /// Estimated Toffoli gates.
-    pub estimated_toffoli: usize,
+    /// Logical qubits (peak) for the Jacobian group-action circuit.
+    /// Oath-8/16/32: measured from circuit construction.
+    /// Oath-64: projected via linear qubit scaling.
+    pub logical_qubits: usize,
+    /// Toffoli gate count for the Jacobian group-action circuit.
+    /// Oath-8/16/32: measured from circuit construction.
+    /// Oath-64: projected via Karatsuba O(n^2.585) scaling.
+    pub toffoli_gates: usize,
     /// Classical difficulty description.
     pub classical_difficulty: String,
     /// Target hardware era.
@@ -22,42 +26,47 @@ pub struct OathTier {
 
 /// Return the defined Oath-N benchmark tiers.
 ///
-/// Revised estimates based on Jacobian projective coordinate circuit
-/// (mixed addition, 0 per-op inversions, single final Fermat inversion).
-/// Qubit counts include exponent registers, Jacobian accumulator (X,Y,Z),
-/// and arithmetic ancillae. Toffoli counts reflect measured circuit
-/// construction, not back-of-envelope estimates.
+/// Qubit and Toffoli counts from Jacobian projective coordinate circuit
+/// (mixed addition, 0 per-op inversions, single final BGCD inversion,
+/// Karatsuba multiplication, windowed scalar mul with one-hot QROM).
+///
+/// Oath-8/16/32: measured from actual circuit construction.
+/// Oath-64: projected (circuit materialization exceeds CI memory at ~3 GB).
+///
+/// Qubit counts are peak logical qubits including exponent registers,
+/// Jacobian accumulator (X,Y,Z), and all arithmetic ancillae (BGCD
+/// workspace, Karatsuba workspace, QROM decode, intermediate registers).
 pub fn oath_tiers() -> Vec<OathTier> {
     vec![
         OathTier {
             name: "Oath-8".to_string(),
             field_bits: 8,
-            estimated_qubits: 35,
-            estimated_toffoli: 8_000,
+            logical_qubits: 295,
+            toffoli_gates: 162_000,
             classical_difficulty: "Trivial (by hand)".to_string(),
             target_era: "2026-2027".to_string(),
         },
         OathTier {
             name: "Oath-16".to_string(),
             field_bits: 16,
-            estimated_qubits: 100,
-            estimated_toffoli: 120_000,
+            logical_qubits: 855,
+            toffoli_gates: 997_000,
             classical_difficulty: "Trivial (milliseconds)".to_string(),
             target_era: "2027-2028".to_string(),
         },
         OathTier {
             name: "Oath-32".to_string(),
             field_bits: 32,
-            estimated_qubits: 280,
-            estimated_toffoli: 3_000_000,
+            logical_qubits: 2_848,
+            toffoli_gates: 5_760_000,
             classical_difficulty: "Easy (~seconds)".to_string(),
             target_era: "2029-2031".to_string(),
         },
         OathTier {
             name: "Oath-64".to_string(),
             field_bits: 64,
-            estimated_qubits: 700,
-            estimated_toffoli: 17_000_000,
+            logical_qubits: 5_696,
+            toffoli_gates: 90_000_000,
             classical_difficulty: "Moderate (~hours via Pollard rho)".to_string(),
             target_era: "2032-2035".to_string(),
         },
@@ -74,7 +83,7 @@ pub fn print_oath_tiers() {
         "┌──────────┬───────────┬──────────────┬──────────────┬──────────────────────────┬─────────────┐"
     );
     println!(
-        "│ Tier     │ Field     │ Est. Qubits  │ Est. Toffoli │ Classical Difficulty     │ Target Era  │"
+        "│ Tier     │ Field     │ Qubits       │ Toffoli      │ Classical Difficulty     │ Target Era  │"
     );
     println!(
         "├──────────┼───────────┼──────────────┼──────────────┼──────────────────────────┼─────────────┤"
@@ -84,8 +93,8 @@ pub fn print_oath_tiers() {
             "│ {:<8} │ {:<9} │ {:<12} │ {:<12} │ {:<24} │ {:<11} │",
             t.name,
             format!("{}-bit", t.field_bits),
-            t.estimated_qubits,
-            format_number(t.estimated_toffoli),
+            t.logical_qubits,
+            format_number(t.toffoli_gates),
             t.classical_difficulty,
             t.target_era,
         );
