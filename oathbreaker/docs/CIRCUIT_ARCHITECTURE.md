@@ -46,13 +46,17 @@ For an n-bit field:
 **Note**: Jacobian adds one n-bit Z register (+n qubits) vs affine.
 The tradeoff: +qubits, dramatically fewer Toffoli (elimination of per-op inversions).
 
-**Measured qubit counts** (including all ancillae):
+**Measured qubit counts (v3)** (including all ancillae):
 
-| Tier | Primary (5n) | One-Hot (2^w) | Ancillae | Total |
+| Tier | Primary (6n) | One-Hot (2^w) | Ancillae | Total |
 |------|-------------|--------------|----------|-------|
-| Oath-8 | 40 | 16 | ~239 | 295 |
-| Oath-16 | 80 | 16 | ~759 | 855 |
-| Oath-32 | 160 | 256 | ~2,432 | 2,848 |
+| Oath-8 | 48 | 16 | ~154 | 218 |
+| Oath-16 | 96 | 16 | ~306 | 418 |
+| Oath-32 | 192 | 256 | ~610 | 1,058 |
+
+Note: v3 uses 6n primary qubits (vs 5n in v2) due to the cached aZ⁴ register
+in modified Jacobian coordinates, but achieves lower total qubit count through
+tighter ancilla management (12n+2 doubler workspace vs 14n+2 in v2).
 
 ## Group-Action Circuit Flow
 
@@ -140,23 +144,29 @@ are in affine (x, y). Mixed addition avoids **all per-addition inversions**:
 
 **Total: 3 squarings + 8 multiplications, 0 inversions.**
 
-### Jacobian Point Doubling (6S + 3M = 9 field operations)
+### Jacobian Point Doubling
 
-Uses proper Cuccaro arithmetic for all constant multiplications (×2, ×3, ×4, ×8):
+**v3 (Modified Jacobian, 4S + 4M = 8 field operations)**:
 
-1. **Squaring** (X₁²): Karatsuba squarer
-2. **Squaring** (Y₁²) → A: Karatsuba squarer
-3. **Multiplication** (X₁ · A): Karatsuba multiplier
-4. **Constant multiply** (4·(X₁·A)) → B: 4 Cuccaro additions
-5. **Squaring** (A²): Karatsuba squarer
-6. **Constant multiply** (8·A²) → C: 8 Cuccaro additions
-7. **Constant multiply** (3·X₁²) → D: 3 Cuccaro additions
-8. **Squaring** (D²): Karatsuba squarer
-9. **Subtraction** (X₃ = D² - 2·B): Cuccaro subtract
-10. **Subtraction + multiplication** (Y₃ = D·(B - X₃) - C)
-11. **Multiplication + addition** (Z₃ = 2·Y₁·Z₁): Cuccaro add
+Uses modified Jacobian coordinates (X, Y, Z, aZ⁴), caching aZ⁴ to eliminate
+two squarings per doubling:
 
-**Workspace**: 14n + 2 qubits (including dedicated a_sq register and sub_carry bit).
+1. **Squaring** (Y₁²) → A: Karatsuba squarer
+2. **Multiplication** (X₁ · A) → S: Karatsuba multiplier
+3. **Constant multiply** (4·S) → B: Cuccaro additions
+4. **Squaring** (A²): Karatsuba squarer
+5. **Constant multiply** (8·A²) → C: Cuccaro additions
+6. **Compute D** (3·X₁² + aZ₁⁴): uses cached aZ⁴ directly
+7. **Squaring** (D²): Karatsuba squarer
+8. **Subtraction** (X₃ = D² - 2·B): Cuccaro subtract
+9. **Multiplication** (Y₃ = D·(B - X₃) - C): Karatsuba multiplier
+10. **Multiplication** (Z₃ = 2·Y₁·Z₁): Karatsuba multiplier
+11. **Multiplication** (aZ₃⁴ update = 2·T·aZ₁⁴): Karatsuba multiplier
+
+**Workspace**: 12n + 2 qubits (-14% vs v2's 14n + 2).
+
+**v2 (Standard Jacobian, 6S + 3M = 9 field operations)**: Computed Z₁² and Z₁⁴
+from scratch each doubling. See V3_OPTIMIZATIONS.md for the formula comparison.
 
 ### Binary GCD Inversion (O(n²) Toffoli)
 
@@ -205,18 +215,18 @@ At w=8: 256 Toffoli per decode, <0.1% of total circuit cost.
 - Measure ancilla qubits instead of reversing
 - Requires mid-circuit measurement + classical feedforward
 - Would roughly halve total gate count
-- Hardware-dependent; deferred to v2
+- Hardware-dependent; deferred to future version
 
 ## Windowed Scalar Multiplication
 
 Applied independently to both scalar registers:
 
-| Window Size | Iterations (n=32) | Table Size | Toffoli (Oath-32) | Qubits |
-|-------------|-------------------|------------|-------------------|--------|
-| 1 | 32 | 2 points | 13.4M | 2,340 |
-| 2 | 16 | 4 points | 9.5M | 2,344 |
-| 4 | 8 | 16 points | 7.6M | 2,368 |
-| **8** | **4** | **256 points** | **5.76M** | **2,848** |
+| Window Size | Iterations (n=32) | Table Size | Toffoli (Oath-32, v3) | Qubits |
+|-------------|-------------------|------------|----------------------|--------|
+| 1 | 32 | 2 points | 13.2M | 804 |
+| 2 | 16 | 4 points | 8.9M | 806 |
+| 4 | 8 | 16 points | 6.7M | 818 |
+| **8** | **4** | **256 points** | **5.64M** | **1,058** |
 
 w=8 is monotonically best for Toffoli across all measured tiers.
 
@@ -245,7 +255,7 @@ on controlled rotations). Hadamard and SWAP are self-adjoint.
 | SWAP | 32 | 64 |
 | **Total QFT** | **2,112** | **4,224** |
 
-This is <0.1% of the EC arithmetic cost (~90M Toffoli for Oath-64).
+This is <0.1% of the EC arithmetic cost (~34M Toffoli for Oath-64).
 
 ### Extended Gate Set
 

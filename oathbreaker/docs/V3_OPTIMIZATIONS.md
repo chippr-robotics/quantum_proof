@@ -164,10 +164,11 @@ Curves with a=-3 (like NIST P-256) enable the "dbl-2001-b" formula achieving 1S+
 | + Binary GCD inversion | 5.67M | -14% |
 | + Proper Cuccaro arithmetic | 5.76M | +1.7% (correctness) |
 | **v2 final** | **5.76M** | **-31% cumulative** |
-| + ReversibleSquarer fix (v3) | improved | squarer Toffoli reduction |
-| + Modified Jacobian doubling (v3) | improved | -2S/doubling, -14% workspace |
+| + Modified Jacobian doubling (v3) | 5.64M | -2.1% (doublings: 4.64M→4.41M) |
+| + ReversibleSquarer fix (v3) | — | included in v3 doubling gains |
 | + wNAF encoding (v3) | available | ~1.2x potential with integration |
 | + Montgomery multiplication (v3) | available | alternative multiplier path |
+| **v3 final** | **5.64M** | **-32.7% cumulative** |
 
 ---
 
