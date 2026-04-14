@@ -13,12 +13,13 @@ use crate::resource_counter::ResourceCounter;
 /// Montgomery product: MonMul(ā, b̄) = a·b·R mod p
 ///
 /// The algorithm (CIOS - Coarsely Integrated Operand Scanning):
-/// 1. For each bit i of a:
-///    - t += a[i] * b (conditional addition)
-///    - q = t[0] (LSB of current partial sum)
-///    - t += q * p (make t divisible by 2)
-///    - t >>= 1 (right shift, free in reversible circuits via relabeling)
-/// 2. If t >= p: t -= p
+///
+///  1. For each bit i of a:
+///     - t += a\_i * b (conditional addition)
+///     - q = t\_0 (LSB of current partial sum)
+///     - t += q * p (make t divisible by 2)
+///     - t >>= 1 (right shift, free in reversible circuits via relabeling)
+///  2. If t >= p: t -= p
 ///
 /// The right-shift reduction replaces the O(n²) Goldilocks folding with
 /// O(n) additions per bit, giving the same asymptotic cost but with
@@ -346,16 +347,19 @@ mod tests {
         };
 
         let gates = mul.forward_gates(
-            0,        // a
-            n,        // b
-            2 * n,    // result
-            3 * n,    // workspace
+            0,     // a
+            n,     // b
+            2 * n, // result
+            3 * n, // workspace
             &small_p_bits,
             &mut counter,
         );
 
         // Should produce gates
-        assert!(!gates.is_empty(), "Montgomery multiplier should produce gates");
+        assert!(
+            !gates.is_empty(),
+            "Montgomery multiplier should produce gates"
+        );
 
         // Should have Toffoli gates
         assert!(

@@ -248,10 +248,7 @@ mod ec_tests {
 
             // Left-to-right double-and-add using modified Jacobian
             let bits = 64 - k.leading_zeros();
-            let mut result_mj = ModifiedJacobianPoint::from_affine(
-                &AffinePoint::Infinity,
-                &curve,
-            );
+            let mut result_mj = ModifiedJacobianPoint::from_affine(&AffinePoint::Infinity, &curve);
 
             for i in (0..bits).rev() {
                 // Double in modified Jacobian

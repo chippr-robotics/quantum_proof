@@ -109,7 +109,7 @@ pub fn wnaf_to_scalar(digits: &[WnafDigit]) -> u64 {
 
 /// Compute the precomputation table size needed for width-w wNAF.
 ///
-/// The table stores points [1]P, [3]P, [5]P, ..., [(2^(w-1)-1)]P.
+/// The table stores points 1\*P, 3\*P, 5\*P, ..., (2^(w-1)-1)\*P.
 /// Size = 2^(w-2) entries (for w >= 2).
 pub fn wnaf_table_size(w: u32) -> usize {
     if w < 2 {

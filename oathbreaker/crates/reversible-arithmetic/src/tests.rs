@@ -151,9 +151,15 @@ mod reversible_tests {
 
         // v3: in(3n+n=4n) + out(3n+n=4n) + workspace(11n+2)
         let _ = v3.forward_gates(
-            0, n, 2 * n, 3 * n,           // in: X, Y, Z, aZ⁴
-            4 * n, 5 * n, 6 * n, 7 * n,   // out: X₃, Y₃, Z₃, aZ₃⁴
-            8 * n,                          // workspace
+            0,
+            n,
+            2 * n,
+            3 * n, // in: X, Y, Z, aZ⁴
+            4 * n,
+            5 * n,
+            6 * n,
+            7 * n, // out: X₃, Y₃, Z₃, aZ₃⁴
+            8 * n, // workspace
             &mut v3_counter,
         );
 

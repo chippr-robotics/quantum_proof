@@ -50,9 +50,9 @@ impl WindowedScalarMulJacobianV3 {
     pub fn forward_gates(
         &self,
         scalar_reg_offset: usize,
-        point_x_offset: usize, // Modified Jacobian X
-        point_y_offset: usize, // Modified Jacobian Y
-        point_z_offset: usize, // Modified Jacobian Z
+        point_x_offset: usize,   // Modified Jacobian X
+        point_y_offset: usize,   // Modified Jacobian Y
+        point_z_offset: usize,   // Modified Jacobian Z
         point_az4_offset: usize, // Modified Jacobian aZ⁴
         ancilla_pool: &mut AncillaPool,
         counter: &mut ResourceCounter,

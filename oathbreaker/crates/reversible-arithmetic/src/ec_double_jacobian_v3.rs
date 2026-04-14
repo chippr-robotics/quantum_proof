@@ -16,17 +16,18 @@ use crate::resource_counter::ResourceCounter;
 /// - Workspace: 12n+2 (down from 14n+2)
 ///
 /// Formulas (Cohen-Miyaji-Ono modified Jacobian):
-///   M  = 3·X₁² + aZ₁⁴          [1S + const additions; aZ₁⁴ is cached]
-///   Y₁²                         [1S]
-///   X₁·Y₁² → const_temp        [1M]
-///   S  = 4·const_temp           [const additions]
-///   M²                          [1S]
-///   X₃ = M² - 2·S              [subtractions]
-///   Y₁⁴ = Y₁²·Y₁²             [1S]
-///   T  = 8·Y₁⁴                 [const additions]
-///   Y₃ = M·(S - X₃) - T        [1M + subtraction]
-///   Z₃ = 2·Y₁·Z₁              [1M + doubling]
-///   aZ₃⁴ = 2·T·aZ₁⁴           [1M + doubling]
+///
+/// - M  = 3·X₁² + aZ₁⁴  — 1S + const additions; aZ₁⁴ is cached
+/// - Y₁²  — 1S
+/// - X₁·Y₁² → const_temp  — 1M
+/// - S  = 4·const_temp  — const additions
+/// - M²  — 1S
+/// - X₃ = M² - 2·S  — subtractions
+/// - Y₁⁴ = Y₁²·Y₁²  — 1S
+/// - T  = 8·Y₁⁴  — const additions
+/// - Y₃ = M·(S - X₃) - T  — 1M + subtraction
+/// - Z₃ = 2·Y₁·Z₁  — 1M + doubling
+/// - aZ₃⁴ = 2·T·aZ₁⁴  — 1M + doubling
 ///
 /// Total: 4M + 4S field ops (vs 3M + 6S in v2).
 /// Net Toffoli: lower because 2 squarings eliminated, 1 mul added,
@@ -43,18 +44,19 @@ impl ReversibleJacobianDoubleV3 {
 
     /// Workspace size: 12n + 2 qubits (down from 14n + 2 in v2).
     ///
-    /// Layout:
-    ///   [0..n):       X₁²
-    ///   [n..2n):      M = 3·X₁² + aZ₁⁴
-    ///   [2n..3n):     Y₁²
-    ///   [3n..4n):     const_temp = X₁·Y₁² (kept dirty, like v2's const_temp)
-    ///   [4n..5n):     S = 4·X₁·Y₁²
-    ///   [5n..6n):     M²
-    ///   [6n..7n):     Y₁⁴
-    ///   [7n..8n):     T = 8·Y₁⁴
-    ///   [8n..9n):     temp for (S - X₃)
-    ///   [9n]:         sub_carry
-    ///   [9n+1..):     multiplier workspace (~3n)
+    /// Layout (offset from workspace base):
+    ///
+    /// - `0..n` : X₁²
+    /// - `n..2n` : M = 3·X₁² + aZ₁⁴
+    /// - `2n..3n` : Y₁²
+    /// - `3n..4n` : const_temp = X₁·Y₁² (kept dirty)
+    /// - `4n..5n` : S = 4·X₁·Y₁²
+    /// - `5n..6n` : M²
+    /// - `6n..7n` : Y₁⁴
+    /// - `7n..8n` : T = 8·Y₁⁴
+    /// - `8n..9n` : temp for (S - X₃)
+    /// - `9n` : sub_carry
+    /// - `9n+1..` : multiplier workspace (~3n)
     pub fn workspace_size(n: usize) -> usize {
         12 * n + 2
     }
@@ -78,15 +80,15 @@ impl ReversibleJacobianDoubleV3 {
         let mut gates = Vec::new();
 
         // Workspace sub-register offsets
-        let x1_sq = workspace_offset;              // X₁²
-        let m_off = workspace_offset + n;           // M
-        let y1_sq = workspace_offset + 2 * n;      // Y₁²
-        let const_temp = workspace_offset + 3 * n;  // X₁·Y₁² (kept dirty)
-        let s_off = workspace_offset + 4 * n;       // S = 4·X₁·Y₁²
-        let m_sq = workspace_offset + 5 * n;        // M²
-        let y1_4 = workspace_offset + 6 * n;        // Y₁⁴
-        let t_off = workspace_offset + 7 * n;       // T = 8·Y₁⁴
-        let temp = workspace_offset + 8 * n;         // S - X₃
+        let x1_sq = workspace_offset; // X₁²
+        let m_off = workspace_offset + n; // M
+        let y1_sq = workspace_offset + 2 * n; // Y₁²
+        let const_temp = workspace_offset + 3 * n; // X₁·Y₁² (kept dirty)
+        let s_off = workspace_offset + 4 * n; // S = 4·X₁·Y₁²
+        let m_sq = workspace_offset + 5 * n; // M²
+        let y1_4 = workspace_offset + 6 * n; // Y₁⁴
+        let t_off = workspace_offset + 7 * n; // T = 8·Y₁⁴
+        let temp = workspace_offset + 8 * n; // S - X₃
         let sub_carry = workspace_offset + 9 * n;
         let mul_work = workspace_offset + 9 * n + 1;
 
