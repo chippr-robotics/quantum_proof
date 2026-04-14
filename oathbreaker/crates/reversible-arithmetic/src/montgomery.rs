@@ -289,11 +289,6 @@ mod tests {
     /// Goldilocks prime p = 2^64 - 2^32 + 1
     const GOLDILOCKS_P: u64 = 0xFFFF_FFFF_0000_0001;
 
-    fn p_bits() -> Vec<bool> {
-        let p = GOLDILOCKS_P;
-        (0..64).map(|i| (p >> i) & 1 == 1).collect()
-    }
-
     #[test]
     fn test_montgomery_form_roundtrip() {
         // p = 251 (largest prime < 256), n = 8, R = 2^8 = 256
@@ -317,7 +312,6 @@ mod tests {
     #[test]
     fn test_montgomery_form_roundtrip_goldilocks() {
         let p = GOLDILOCKS_P;
-        let n = 64;
         // R = 2^64. R mod p = 2^64 mod (2^64 - 2^32 + 1) = 2^32 - 1
         let r_mod_p = ((1u128 << 32) - 1) as u64;
         let r_inv = mod_inverse_u128((1u128 << 32) - 1, p as u128) as u64;
