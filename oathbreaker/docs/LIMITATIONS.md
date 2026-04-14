@@ -34,14 +34,29 @@ Actual 256-bit circuits would differ due to:
 - Measurement-based uncomputation (not implemented; requires mid-circuit measurement)
 - Multi-limb arithmetic overhead (256-bit requires 4× 64-bit limbs)
 
-### No measurement-based uncomputation
-The circuit uses Bennett's compute-copy-uncompute pattern exclusively, resulting in ~2x gate overhead compared to measurement-based approaches (e.g., Litinski 2023). Measurement-based uncomputation requires mid-circuit measurement and classical feedforward, which is hardware-dependent and not universally available.
+### Qubit counts are an upper bound (Bennett uncomputation)
+The reported logical qubit counts represent the peak number of simultaneously live qubits using Bennett's compute-copy-uncompute pattern. This is the standard reversible circuit model, but it is not optimal for qubit count. The benchmark reports a separate **measurement-based qubit estimate** showing the reduction achievable with mid-circuit measurement and classical feedforward.
+
+| Tier | Bennett (measured) | Measurement-based (est.) | Reduction |
+|------|-------------------|-------------------------|-----------|
+| Oath-8 | 210 | 186 | 11% |
+| Oath-16 | 402 | 370 | 8% |
+| Oath-32 | 1,026 | 738 | 28% |
+| 256-bit (projected) | ~8,208 | ~5,890 | 28% |
+
+Google's ~1,175 qubits for 256-bit ECDLP is achieved through measurement-based uncomputation combined with semi-classical oracle techniques (avoiding coherent QROM entirely) and aggressive register scheduling that goes beyond the `23n+2` model used here.
+
+### No measurement-based uncomputation (implemented)
+The circuit uses Bennett's compute-copy-uncompute pattern exclusively, resulting in ~2x gate overhead and higher qubit counts compared to measurement-based approaches (e.g., Litinski 2023). Measurement-based uncomputation requires mid-circuit measurement and classical feedforward, which is hardware-dependent and not universally available. The measurement-based qubit estimates reported by the benchmark model the savings from this technique without implementing it.
 
 ### Intermediate uncomputation is incomplete
-The Jacobian mixed addition and doubling circuits leave some intermediate registers dirty (Z1^2, Z1^3, U2, S2, H^2, H^3, X1*H^2 in mixed-add; analogous intermediates in doubling). Full uncomputation would approximately double the gate count. This is a known limitation documented in the source code.
+The Jacobian mixed addition and doubling circuits leave some intermediate registers dirty (Z1^2, Z1^3, U2, S2, H^2, H^3, X1*H^2 in mixed-add; analogous intermediates in doubling). Full uncomputation would approximately double the gate count. This is a known limitation documented in the source code. The circuit reuses workspace across loop iterations via the Bennett pattern (each multiplier/squarer internally uncomputes its workspace), so dirty intermediates are overwritten rather than accumulated.
 
 ### Comparison to Google is approximate
-Google's March 2026 paper discloses resource estimates but not the circuit itself. Our comparison is based on published numbers and scaling projections. Google's implementation uses unknown optimizations that may significantly reduce gate counts.
+Google's March 2026 paper discloses resource estimates but not the circuit itself. Our comparison is based on published numbers and scaling projections. Google's implementation uses unknown optimizations that may significantly reduce gate counts. The remaining gap between Oathbreaker's measurement-based estimate (~5,890 qubits at 256-bit) and Google's ~1,175 is attributable to:
+- Semi-classical oracle (avoids coherent QROM; ~2-4x qubit reduction)
+- Optimized formula scheduling (fewer simultaneous live registers)
+- Hardware-specific compilation (magic state distillation, routing)
 
 ## Verification Scope Summary
 

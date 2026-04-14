@@ -20,6 +20,11 @@ pub struct ResourceCounter {
     pub ancilla_allocated: usize,
     /// Number of ancilla qubits successfully uncomputed.
     pub ancilla_freed: usize,
+    /// Nesting depth of pre-allocated workspace scopes.
+    /// When > 0, inner allocate_ancilla/free_ancilla calls skip
+    /// qubit counting (the workspace is already counted by the outer scope).
+    #[serde(skip)]
+    pub pre_allocated_depth: usize,
 }
 
 impl ResourceCounter {
@@ -46,15 +51,45 @@ impl ResourceCounter {
     }
 
     /// Record allocation of ancilla qubits.
+    ///
+    /// When inside a pre-allocated workspace scope (see [`enter_pre_allocated`]),
+    /// the allocation is recorded for bookkeeping but does NOT affect
+    /// `current_qubits` or `qubit_high_water`, since the outer scope already
+    /// counted those qubits.
     pub fn allocate_ancilla(&mut self, count: usize) {
         self.ancilla_allocated += count;
-        self.allocate_qubits(count);
+        if self.pre_allocated_depth == 0 {
+            self.allocate_qubits(count);
+        }
     }
 
     /// Record freeing of ancilla qubits (after uncomputation).
+    ///
+    /// When inside a pre-allocated workspace scope, the free is recorded
+    /// for bookkeeping but does NOT affect `current_qubits`.
     pub fn free_ancilla(&mut self, count: usize) {
         self.ancilla_freed += count;
-        self.current_qubits = self.current_qubits.saturating_sub(count);
+        if self.pre_allocated_depth == 0 {
+            self.current_qubits = self.current_qubits.saturating_sub(count);
+        }
+    }
+
+    /// Enter a pre-allocated workspace scope.
+    ///
+    /// Call this before invoking operations that use workspace already
+    /// allocated by the caller (e.g., EC point operations using workspace
+    /// pre-allocated by the scalar multiplication loop). Inner operations'
+    /// `allocate_ancilla` / `free_ancilla` calls will be suppressed for
+    /// qubit counting purposes, since the workspace is already accounted for.
+    ///
+    /// Scopes nest: call `exit_pre_allocated` once for each `enter_pre_allocated`.
+    pub fn enter_pre_allocated(&mut self) {
+        self.pre_allocated_depth += 1;
+    }
+
+    /// Exit a pre-allocated workspace scope.
+    pub fn exit_pre_allocated(&mut self) {
+        self.pre_allocated_depth = self.pre_allocated_depth.saturating_sub(1);
     }
 
     /// Total gate count.

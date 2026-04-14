@@ -13,15 +13,18 @@ coordinates with Karatsuba multiplication (O(n^1.585) per multiply),
 symmetry-optimized squaring, Binary GCD inversion (O(n^2)), and windowed
 scalar multiplication with one-hot QROM decode.
 
-| Tier | Field Size | Measured Qubits | Measured Toffoli | Classical Difficulty | Target Hardware Era |
-|------|-----------|-----------------|------------------|---------------------|-------------------|
-| **Oath-8** | ~8 bit | 295 | 162,000 | Trivial (by hand) | 2026-2027 |
-| **Oath-16** | ~16 bit | 855 | 997,000 | Trivial (milliseconds) | 2027-2028 |
-| **Oath-32** | ~32 bit | 2,848 | 5,760,000 | Easy (~seconds) | 2029-2031 |
-| **Oath-64** | 64 bit | ~5,696 (proj.) | ~90M (proj.) | Moderate (~hours Pollard rho) | 2032-2035 |
+| Tier | Field Size | Qubits (Bennett) | Qubits (meas-based est.) | Toffoli | Classical Difficulty | Target Hardware Era |
+|------|-----------|-------------------|--------------------------|---------|---------------------|-------------------|
+| **Oath-8** | ~8 bit | 210 | 186 | 112,000 | Trivial (by hand) | 2026-2027 |
+| **Oath-16** | ~16 bit | 402 | 370 | 929,000 | Trivial (milliseconds) | 2027-2028 |
+| **Oath-32** | ~32 bit | 1,026 | 738 | 5,760,000 | Easy (~seconds) | 2029-2031 |
+| **Oath-64** | 64 bit | ~2,052 (proj.) | ~1,474 (proj.) | ~35M (proj.) | Moderate (~hours Pollard rho) | 2032-2035 |
 
-Oath-8/16/32 are measured from actual circuit construction. Oath-64 is projected
-(circuit materialization exceeds CI memory at ~3 GB / ~90M gate objects).
+Oath-8/16/32 are measured from actual circuit construction with proper ancilla
+reuse between phases. Oath-64 is projected (circuit materialization exceeds CI
+memory at ~3 GB). "Qubits (Bennett)" is the peak with standard reversible
+uncomputation. "Qubits (meas-based est.)" estimates the reduction achievable
+with mid-circuit measurement and classical feedforward.
 
 ### Cost Attribution (Oath-32, w=8)
 
@@ -104,9 +107,9 @@ Produces OpenQASM 3.0 files for each Oath level, loadable in Qiskit, Cirq, and o
 
 ## Future Levels
 
-| Tier | Field Size | Projected Toffoli (Karatsuba) | Notes |
-|------|-----------|------------------------------|-------|
-| Oath-128 | 128 bit | ~208M | Significant quantum resources required |
-| Oath-256 | 256 bit | ~1.2B | Equivalent to secp256k1 / P-256 |
-| Oath-384 | 384 bit | ~3.7B | P-384 difficulty |
-| Oath-521 | 521 bit | ~9.3B | P-521 (highest standard curve) |
+| Tier | Field Size | Projected Qubits (Bennett) | Projected Qubits (meas-based) | Projected Toffoli | Notes |
+|------|-----------|---------------------------|-------------------------------|-------------------|-------|
+| Oath-128 | 128 bit | ~4,104 | ~2,946 | ~207M | Significant quantum resources required |
+| Oath-256 | 256 bit | ~8,208 | ~5,890 | ~1.2B | Equivalent to secp256k1 / P-256 |
+| Oath-384 | 384 bit | ~12,312 | ~8,834 | ~3.5B | P-384 difficulty |
+| Oath-521 | 521 bit | ~16,705 | ~11,985 | ~7.8B | P-521 (highest standard curve) |

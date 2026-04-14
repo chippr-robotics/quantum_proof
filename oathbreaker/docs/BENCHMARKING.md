@@ -10,14 +10,14 @@ In the table below, **Curve** names the toy Goldilocks curve family used for tha
 
 All resource counts below are **measured** from actual circuit construction (Oath-8/16/32) or **projected** via the Karatsuba O(n^2.585) scaling model (Oath-64+). The circuit uses Jacobian projective coordinates, Karatsuba multiplication, symmetry-optimized squaring, Binary GCD inversion, and windowed scalar multiplication with one-hot QROM decode.
 
-| Level | Curve | Field Size | Security | Qubits | Toffoli | Classical Solve Time | Quantum Target |
-|-------|-------|------------|----------|--------|---------|----------------------|----------------|
-| **Oath-8** | 8-bit Goldilocks | 8-bit | ~4-bit | 295 | 162K | Instant | Proof of concept |
-| **Oath-16** | 16-bit Goldilocks | 16-bit | ~8-bit | 855 | 997K | Instant | Near-term devices |
-| **Oath-32** | 32-bit Goldilocks | 32-bit | ~16-bit | 2,848 | 5.76M | Milliseconds | Medium-term milestone |
-| **Oath-64** | 64-bit Goldilocks | 64-bit | ~32-bit | ~5,696 | ~90M | Minutes (Pollard rho) | Full benchmark target |
+| Level | Curve | Field Size | Security | Qubits (Bennett) | Qubits (meas-based) | Toffoli | Classical Solve Time | Quantum Target |
+|-------|-------|------------|----------|-------------------|---------------------|---------|----------------------|----------------|
+| **Oath-8** | 8-bit Goldilocks | 8-bit | ~4-bit | 210 | 186 | 112K | Instant | Proof of concept |
+| **Oath-16** | 16-bit Goldilocks | 16-bit | ~8-bit | 402 | 370 | 929K | Instant | Near-term devices |
+| **Oath-32** | 32-bit Goldilocks | 32-bit | ~16-bit | 1,026 | 738 | 5.76M | Milliseconds | Medium-term milestone |
+| **Oath-64** | 64-bit Goldilocks | 64-bit | ~32-bit | ~2,052 | ~1,474 | ~35M | Minutes (Pollard rho) | Full benchmark target |
 
-Oath-8/16/32 are measured from actual circuit construction. Oath-64 is projected (circuit construction exceeds CI memory at ~3 GB).
+Oath-8/16/32 are measured from actual circuit construction with proper ancilla reuse. Oath-64 is projected (circuit construction exceeds CI memory at ~3 GB). "Bennett" qubits are the peak with standard reversible uncomputation; "meas-based" estimates the qubit count achievable with mid-circuit measurement and classical feedforward.
 
 ### Cost Attribution (Oath-32, w=8)
 
@@ -100,7 +100,7 @@ Produces OpenQASM 3.0 files for each Oath level, loadable in Qiskit, Cirq, and o
 ## Future Levels
 
 As the project extends to larger fields:
-- **Oath-128**: Would require significant quantum resources (~208M Toffoli projected)
-- **Oath-256**: Equivalent to breaking real-world curves (secp256k1) (~1.2B Toffoli projected)
-- **Oath-384**: P-384 difficulty (~3.7B Toffoli projected)
-- **Oath-521**: P-521 difficulty (current highest standard curve) (~9.3B Toffoli projected)
+- **Oath-128**: ~4,104 qubits (Bennett) / ~2,946 (meas-based), ~207M Toffoli projected
+- **Oath-256**: ~8,208 / ~5,890 qubits, ~1.2B Toffoli — equivalent to secp256k1
+- **Oath-384**: ~12,312 / ~8,834 qubits, ~3.5B Toffoli — P-384 difficulty
+- **Oath-521**: ~16,705 / ~11,985 qubits, ~7.8B Toffoli — P-521 (highest standard curve)

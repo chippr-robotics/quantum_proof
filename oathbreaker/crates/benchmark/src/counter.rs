@@ -58,5 +58,9 @@ pub fn print_resource_table(circuit: &GroupActionCircuit) {
         "│ Field multiplications    │ {:<12} │",
         summary.field_multiplications
     );
+    println!(
+        "│ Meas-based qubits (est.)│ {:<12} │",
+        summary.measurement_based_qubits
+    );
     println!("└──────────────────────────┴──────────────┘");
 }

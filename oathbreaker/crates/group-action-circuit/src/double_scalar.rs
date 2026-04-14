@@ -61,6 +61,16 @@ pub struct CircuitSummary {
     /// Per-subsystem Toffoli breakdown (populated for Jacobian circuits).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_attribution: Option<CostAttribution>,
+    /// Estimated logical qubits with measurement-based uncomputation.
+    ///
+    /// With mid-circuit measurement and classical feedforward, workspace
+    /// qubits can be measured and recycled after each EC operation.
+    /// Only the primary registers (5n) plus the workspace for the single
+    /// most expensive operation need to be alive simultaneously.
+    ///
+    /// This models the approach used by Google and Litinski to achieve
+    /// ~1,200 logical qubits for 256-bit ECDLP.
+    pub measurement_based_qubits: usize,
 }
 
 /// Per-subsystem Toffoli cost breakdown.
@@ -203,6 +213,13 @@ pub fn build_group_action_circuit_jacobian(
         curve,
     );
 
+    // Reset pool — scalar_mul_a's ancillae (lookup regs, temp point, EC
+    // workspace, one-hot register) are either uncomputed to |0⟩ (QROM,
+    // lookup) or left dirty in workspace that will be overwritten by
+    // scalar_mul_b (Bennett pattern).  Reusing these qubit indices avoids
+    // inflating qubit_high_water by 2× the ancilla cost.
+    ancilla_pool.reset_for_reuse(&mut counter);
+
     // Windowed Jacobian scalar multiplication for [b]Q (adds to accumulator)
     let scalar_mul_b = WindowedScalarMulJacobian::new(window_size, n);
     let (_gates_b, (dbl_b, qrom_b, add_b)) = scalar_mul_b.forward_gates(
@@ -220,18 +237,27 @@ pub fn build_group_action_circuit_jacobian(
     let scalar_mul_qrom = qrom_a + qrom_b;
     let scalar_mul_addition = add_a + add_b;
 
+    // Reset pool before inversion phase — scalar_mul workspace is no longer
+    // needed and the inversion phase uses a different workspace layout.
+    ancilla_pool.reset_for_reuse(&mut counter);
+
     // --- Single final inversion: convert Jacobian → affine ---
     let t_before_inv = counter.toffoli_count;
     let bgcd_ws_size = reversible_arithmetic::inverter::BinaryGcdInverter::workspace_size(n);
     let inv_workspace = ancilla_pool.allocate("final_inv_workspace", bgcd_ws_size, &mut counter);
     let z_inv_reg = ancilla_pool.allocate("z_inv", n, &mut counter);
     let inverter = reversible_arithmetic::inverter::BinaryGcdInverter::new(n);
+
+    // BGCD inverter and multipliers use pre-allocated workspace — suppress
+    // their internal allocate/free calls to avoid double-counting.
+    counter.enter_pre_allocated();
     let _inv_gates = inverter.forward_gates(
         4 * n,            // point_Z input
         z_inv_reg.offset, // Z⁻¹ output
         inv_workspace.offset,
         &mut counter,
     );
+    counter.exit_pre_allocated();
 
     let t_after_inv = counter.toffoli_count;
 
@@ -241,6 +267,8 @@ pub fn build_group_action_circuit_jacobian(
     let mul = reversible_arithmetic::multiplier::KaratsubaMultiplier::new(n);
     let sq = reversible_arithmetic::multiplier::KaratsubaSquarer::new(n);
 
+    // Squarer and multiplier calls reuse inv_workspace — suppress double-counting.
+    counter.enter_pre_allocated();
     let _sq_gates = sq.forward_gates(
         z_inv_reg.offset,
         z_inv2_reg.offset,
@@ -272,6 +300,7 @@ pub fn build_group_action_circuit_jacobian(
         inv_workspace.offset,
         &mut counter,
     );
+    counter.exit_pre_allocated();
 
     let t_after_affine = counter.toffoli_count;
 
@@ -334,7 +363,32 @@ impl GroupActionCircuit {
                     6
                 },
             cost_attribution: self.cost_attribution.clone(),
+            measurement_based_qubits: Self::estimate_measurement_based_qubits(n, w),
         }
+    }
+
+    /// Estimate logical qubits with measurement-based uncomputation.
+    ///
+    /// With mid-circuit measurement, workspace qubits are measured and
+    /// recycled after each EC operation. The peak is the primary registers
+    /// plus the workspace for the single most expensive concurrent operation.
+    ///
+    /// Peak phases:
+    /// - Jacobian doubling: 5n (primary) + 3n (temp) + 14n+2 (workspace) = 22n+2
+    /// - Mixed addition:    5n (primary) + 2n (lookup) + 3n (temp) + 13n+2 (ws) = 23n+2
+    /// - QROM decode:       5n (primary) + 2n (lookup) + 2^w (one-hot) = 7n + 2^w
+    /// - BGCD inversion:    5n (primary) + 5n+3 (BGCD ws) + n (Z⁻¹) = 11n+3
+    ///
+    /// The mixed addition phase dominates for typical window sizes (w ≤ 13).
+    fn estimate_measurement_based_qubits(n: usize, w: usize) -> usize {
+        let doubling_peak = 22 * n + 2;
+        let addition_peak = 23 * n + 2;
+        let qrom_peak = 7 * n + (1usize << w);
+        let inversion_peak = 11 * n + 3;
+        *[doubling_peak, addition_peak, qrom_peak, inversion_peak]
+            .iter()
+            .max()
+            .unwrap()
     }
 
     /// Execute the circuit classically on specific basis-state inputs.
