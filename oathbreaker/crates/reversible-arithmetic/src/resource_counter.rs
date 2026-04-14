@@ -52,7 +52,7 @@ impl ResourceCounter {
 
     /// Record allocation of ancilla qubits.
     ///
-    /// When inside a pre-allocated workspace scope (see [`enter_pre_allocated`]),
+    /// When inside a pre-allocated workspace scope (see `enter_pre_allocated`),
     /// the allocation is recorded for bookkeeping but does NOT affect
     /// `current_qubits` or `qubit_high_water`, since the outer scope already
     /// counted those qubits.
