@@ -63,6 +63,10 @@ A complete implementation of Shor's ECDLP algorithm on the **Oath curve family**
 
 **Current results (Oath-32, measured)**: 2,848 qubits, 5.76M Toffoli gates.
 **256-bit projection**: ~1.2B Toffoli (Karatsuba model), ~24x gap to Litinski's 50M.
+**NISQ tier (Oath-4)**: 12 logical qubits, ~400 Toffoli (estimate). A runnable
+Qiskit + IBM Runtime implementation lives in [`oathbreaker/qiskit/`](oathbreaker/qiskit/);
+the noiseless simulator recovers all 12 non-zero secrets at ~70% peak vote,
+and the same circuit compiles to IBM Eagle / Heron backends via SamplerV2.
 
 91 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
 

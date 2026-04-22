@@ -38,6 +38,21 @@ pub struct OathTier {
 /// workspace, Karatsuba workspace, QROM decode, intermediate registers).
 pub fn oath_tiers() -> Vec<OathTier> {
     vec![
+        // Oath-4 is the NISQ tier: compiled through the cyclic-group
+        // isomorphism E(F_11) ~= Z/13Z to eight controlled modular-adder
+        // permutations on a 4-qubit index register. Qubit count is measured
+        // from the Qiskit circuit in ../../qiskit/oath4_circuit.py. Toffoli
+        // count is an estimate for a Cuccaro + mod-13 reduction realisation
+        // of the same permutations; the physical run uses direct unitary
+        // synthesis rather than a Toffoli decomposition.
+        OathTier {
+            name: "Oath-4".to_string(),
+            field_bits: 4,
+            logical_qubits: 12,
+            toffoli_gates: 400,
+            classical_difficulty: "Trivial (usec scan)".to_string(),
+            target_era: "2025 NISQ".to_string(),
+        },
         OathTier {
             name: "Oath-8".to_string(),
             field_bits: 8,

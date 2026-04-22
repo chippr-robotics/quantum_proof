@@ -15,10 +15,19 @@ scalar multiplication with one-hot QROM decode.
 
 | Tier | Field Size | Qubits (Bennett) | Qubits (meas-based est.) | Toffoli | Classical Difficulty | Target Hardware Era |
 |------|-----------|-------------------|--------------------------|---------|---------------------|-------------------|
+| **Oath-4** | 4 bit | 12 | 12 | ~400 (est.) | Trivial (linear scan) | 2025-2026 (NISQ demo, IBM) |
 | **Oath-8** | ~8 bit | 210 | 186 | 112,000 | Trivial (by hand) | 2026-2027 |
 | **Oath-16** | ~16 bit | 402 | 370 | 929,000 | Trivial (milliseconds) | 2027-2028 |
 | **Oath-32** | ~32 bit | 1,026 | 738 | 5,760,000 | Easy (~seconds) | 2029-2031 |
 | **Oath-64** | 64 bit | ~2,052 (proj.) | ~1,474 (proj.) | ~35M (proj.) | Moderate (~hours Pollard rho) | 2032-2035 |
+
+**Oath-4 is the NISQ tier** -- it compresses the full Shor ECDLP stack onto
+12 logical qubits by compiling the reversible group-action circuit through
+the cyclic-group isomorphism `E(F_11) ~= Z/13Z`. A ready-to-run Qiskit
+implementation lives at [`../qiskit/`](../qiskit/) with support for
+AerSimulator dry runs and IBM Runtime SamplerV2 submission to Eagle / Heron
+backends. Its purpose is to validate the Oathbreaker architecture -- and
+the NISQ software stack around it -- against physical silicon.
 
 Oath-8/16/32 are measured from actual circuit construction with proper ancilla
 reuse between phases. Oath-64 is projected (circuit materialization exceeds CI

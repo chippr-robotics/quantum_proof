@@ -30,6 +30,7 @@ from sympy import isprime, factorint
 # ── Tier definitions ─────────────────────────────────────────────
 
 TIERS = [
+    {"name": "Oath-4",  "bits": 4,  "p": 11},
     {"name": "Oath-8",  "bits": 8,  "p": 251},
     {"name": "Oath-16", "bits": 16, "p": 65521},
     {"name": "Oath-32", "bits": 32, "p": 4294967291},
