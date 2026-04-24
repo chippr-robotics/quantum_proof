@@ -118,7 +118,7 @@ cargo run --release -p benchmark -- export-qasm
 
 ## Continuous Integration
 
-Five GitHub Actions workflows enforce correctness at every layer:
+Six GitHub Actions workflows enforce correctness at every layer:
 
 | Workflow | What it checks |
 |----------|---------------|
@@ -127,6 +127,7 @@ Five GitHub Actions workflows enforce correctness at every layer:
 | **Code Quality** | `rustfmt` formatting, `clippy` linting (strict on core crates), `cargo doc` build |
 | **Benchmark** | Full resource counting suite, QASM export, scaling projections, PR job summary |
 | **Curve Verification** | SageMath SEA verification of all Oath-N parameters, SHA-256 audit trail |
+| **Qiskit NISQ Tests** | Oath-4 Shor ECDLP noiseless sweep on AerSimulator (all 12 secrets) |
 
 ## Key Concepts
 
