@@ -33,8 +33,22 @@ from typing import Optional, Tuple
 
 Point = Optional[Tuple[int, int]]  # None = point at infinity
 
-# Parameter files live alongside the SageMath curve generator.
-_SAGE_DIR = Path(__file__).resolve().parent.parent / "sage"
+
+# Parameter files live alongside the SageMath curve generator. Walk up the
+# directory tree until we find oathbreaker/sage/, so the loader works
+# regardless of how deep inside oathbreaker/qiskit this file sits.
+def _find_sage_dir() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "sage"
+        if (candidate / "oath4_params.json").is_file():
+            return candidate
+    raise FileNotFoundError(
+        "could not locate oathbreaker/sage/ relative to oath_curve.py"
+    )
+
+
+_SAGE_DIR = _find_sage_dir()
 
 
 @dataclass(frozen=True)

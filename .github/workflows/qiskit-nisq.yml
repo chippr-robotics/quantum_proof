@@ -22,11 +22,11 @@ jobs:
   # for the NISQ tier -- hardware runs cannot succeed if this fails.
   # ---------------------------------------------------------------------------
   oath4-simulator:
-    name: "qiskit / Oath-4 Shor ECDLP (noiseless)"
+    name: "qiskit / Oath-N POC Shor ECDLP (noiseless)"
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: oathbreaker/qiskit
+        working-directory: oathbreaker/qiskit/poc
     steps:
       - uses: actions/checkout@v5
 
@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: oathbreaker/qiskit/requirements.txt
+          cache-dependency-path: oathbreaker/qiskit/poc/requirements.txt
 
       - name: Install Qiskit (runtime deps excluded)
         run: |
@@ -60,7 +60,7 @@ jobs:
       - name: Oath-N generic sweep (Oath-4 full sim + Oath-8/16 build check)
         run: python test_oathN.py
 
-      - name: Measure compiled gate count across Oath-4/8/16, both adders
+      - name: Measure compiled gate count across Oath-4/8, both adders
         run: |
           pip install qiskit-ibm-runtime
           python measure_gate_count.py --tiers 4,8 --backends torino

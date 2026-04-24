@@ -63,10 +63,17 @@ A complete implementation of Shor's ECDLP algorithm on the **Oath curve family**
 
 **Current results (Oath-32, measured)**: 2,848 qubits, 5.76M Toffoli gates.
 **256-bit projection**: ~1.2B Toffoli (Karatsuba model), ~24x gap to Litinski's 50M.
-**NISQ tier (Oath-4)**: 12 logical qubits, ~400 Toffoli (estimate). A runnable
-Qiskit + IBM Runtime implementation lives in [`oathbreaker/qiskit/`](oathbreaker/qiskit/);
-the noiseless simulator recovers all 12 non-zero secrets at ~70% peak vote,
-and the same circuit compiles to IBM Eagle / Heron backends via SamplerV2.
+**NISQ proof of concept (Oath-4/8/16)**: 12-72 logical qubits, proof-of-concept
+Qiskit Shor circuit in [`oathbreaker/qiskit/poc/`](oathbreaker/qiskit/poc/). The
+noiseless simulator recovers all 12 Oath-4 secrets at ~70% peak vote and the
+same circuit compiles cleanly to IBM Eagle / Heron backends via SamplerV2.
+The POC achieves its small compiled size by classically pre-solving the target
+ECDLP at circuit-construction time, so it validates the Qiskit/IBM software
+stack but is not a cryptographic attack. See
+[`oathbreaker/docs/NISQ_ROADMAP.md`](oathbreaker/docs/NISQ_ROADMAP.md) for the
+constraints that distinguish the POC from the real Oath-N execution path
+(which uses the full reversible EC-arithmetic circuit with no classical
+shortcuts).
 
 91 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
 
