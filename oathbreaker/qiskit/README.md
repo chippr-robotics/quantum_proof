@@ -18,36 +18,35 @@ Goldilocks prime `2^64 − 2^32 + 1` is reserved for Oath-64.
 
 ## Compiled gate count (measured)
 
-The logical circuit is 12 qubits, depth 11, 27 instructions (8 H, 8 controlled
-5-qubit unitaries, 2 inverse QFTs on 4 qubits, 8 measurements). Transpiling
-to IBM backend basis sets gives the following measured hardware cost:
+The logical baseline circuit is 12 qubits, depth 11, 27 high-level
+instructions. The hardware-optimized variant
+(`oath4_optimized.build_oath4_shor_circuit_optimized`, implemented with
+Beauregard QFT modular adders) is 14 qubits and uses roughly half the
+compiled depth at the cost of one extra index bit and one flag ancilla.
 
-| Backend | Family | 2q basis | 2q gates (opt=3) | 1q gates | Depth |
-|---|---|---|---|---|---|
-| `FakeBrisbane` | Eagle | ECR | 3584 | ~23 000 | 15 573 |
-| `FakeTorino`   | Heron | CZ  | 3588 | ~17 400 | 12 569 |
+Measured against `qiskit.transpile(..., optimization_level=3,
+seed_transpiler=42)` on the published fake-backend models:
 
-Numbers are from `qiskit.transpile(..., optimization_level=3,
-seed_transpiler=42)` against the published fake-backend models. The heavy
-cost comes from Qiskit's generic 5-qubit-isometry synthesis of the
-controlled modular adders; a permutation-aware synthesis pass (future
-work) should cut the 2q count several-fold.
+| Backend | Builder | 2q gates | Depth |
+|---|---|---|---|
+| `FakeBrisbane` (Eagle, ECR) | baseline  | 3 585 | 15 573 |
+| `FakeBrisbane` (Eagle, ECR) | optimized | **2 704** | **8 113** |
+| `FakeTorino`   (Heron, CZ)  | baseline  | 3 589 | 12 569 |
+| `FakeTorino`   (Heron, CZ)  | optimized | **2 811** | **5 948** |
+
+The depth roughly halves on both families. Even with the optimization
+the 2q count is still above today's NISQ fidelity budget (1 error event
+per ~300 CZ on Heron), so Oath-4 is not yet a "push button and get the
+right k" hardware demo -- but the circuit now fits inside T2 on Heron,
+which is the first prerequisite. Further gains require mid-circuit
+measurement + feed-forward (semiclassical IQPE, halves gates again) and
+a dedicated permutation-aware synthesis pass for the controlled modular
+adders.
 
 Reproduce with:
 
 ```bash
-python - <<'PY'
-from qiskit import transpile
-from qiskit_ibm_runtime.fake_provider import FakeBrisbane, FakeTorino
-from oath4 import Instance
-from oath4_circuit import build_oath4_shor_circuit
-
-bundle = build_oath4_shor_circuit(Instance.from_secret(7).Q)
-for be in (FakeBrisbane(), FakeTorino()):
-    t = transpile(bundle.qc, be, optimization_level=3, seed_transpiler=42)
-    two_q = sum(1 for op in t.data if op.operation.num_qubits >= 2)
-    print(be.name, "depth", t.depth(), "2q", two_q)
-PY
+python measure_gate_count.py --k 7
 ```
 
 ## Why Oath-4

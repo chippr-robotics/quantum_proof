@@ -51,8 +51,13 @@ jobs:
       - name: Single-k smoke run
         run: python run_simulator.py --k 7 --shots 2048
 
-      - name: Full Oath-4 secret sweep (all 12 k values)
+      - name: Full Oath-4 secret sweep (baseline + optimized, all 12 k values)
         run: python test_oath4.py
+
+      - name: Measure compiled gate count (Eagle + Heron)
+        run: |
+          pip install qiskit-ibm-runtime
+          python measure_gate_count.py --k 7
 
   # ---------------------------------------------------------------------------
   # Summary gate -- blocks merges unless the Oath-4 sweep passes.

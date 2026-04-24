@@ -763,8 +763,7 @@ mod group_action_integration_tests {
 
         for (a, b) in test_cases {
             let circuit_result = circuit.execute_classical(a, b, &target_q);
-            let reference =
-                ec_oath::double_scalar_mul(a, &curve.generator, b, &target_q, &curve);
+            let reference = ec_oath::double_scalar_mul(a, &curve.generator, b, &target_q, &curve);
             assert_eq!(circuit_result, reference, "Mismatch for a={}, b={}", a, b);
         }
     }

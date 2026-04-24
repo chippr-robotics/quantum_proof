@@ -210,8 +210,8 @@ def recover_k_from_counts(counts: dict[str, int]) -> tuple[int, dict[int, int]]:
         assert len(clean) == 2 * t, clean
         # bitstring is MSB-first over classical bits. c_reg[0..t-1] <- a_reg
         # and c_reg[t..2t-1] <- b_reg, so:
-        a_val = int(clean[-t:], 2)                  # c1 (exponent of G)
-        b_val = int(clean[:-t], 2)                  # c2 (exponent of Q)
+        a_val = int(clean[-t:], 2)  # c1 (exponent of G)
+        b_val = int(clean[:-t], 2)  # c2 (exponent of Q)
         d1 = round(a_val * GROUP_ORDER / N) % GROUP_ORDER
         d2 = round(b_val * GROUP_ORDER / N) % GROUP_ORDER
         if d1 == 0:
@@ -231,8 +231,9 @@ if __name__ == "__main__":
     inst = Instance.from_secret(7)
     bundle = build_oath4_shor_circuit(inst.Q)
     print(f"Oath-4 Shor ECDLP circuit for Q = {inst.Q} (secret k = {inst.k})")
-    print(f"qubits = {bundle.qc.num_qubits}, "
-          f"classical bits = {bundle.qc.num_clbits}, "
-          f"pre-transpile depth = {bundle.qc.depth()}")
-    print(f"instruction count (unrolled one level): "
-          f"{sum(1 for _ in bundle.qc.data)}")
+    print(
+        f"qubits = {bundle.qc.num_qubits}, "
+        f"classical bits = {bundle.qc.num_clbits}, "
+        f"pre-transpile depth = {bundle.qc.depth()}"
+    )
+    print(f"instruction count (unrolled one level): {sum(1 for _ in bundle.qc.data)}")

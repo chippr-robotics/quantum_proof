@@ -20,8 +20,9 @@ from oath4_circuit import build_oath4_shor_circuit, recover_k_from_counts
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--k", type=int, default=7,
-                        help="secret scalar to plant in Q = [k]G (1..12)")
+    parser.add_argument(
+        "--k", type=int, default=7, help="secret scalar to plant in Q = [k]G (1..12)"
+    )
     parser.add_argument("--shots", type=int, default=4096)
     parser.add_argument("--seed", type=int, default=12345)
     args = parser.parse_args()

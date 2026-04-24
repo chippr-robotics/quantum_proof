@@ -126,10 +126,7 @@ fn small_test_curve() -> CurveParams {
         a: GoldilocksField::new(1),
         b: GoldilocksField::new(3),
         order: 247, // #E(GF(241))
-        generator: ec_oath::AffinePoint::new(
-            GoldilocksField::new(2),
-            GoldilocksField::new(75),
-        ),
+        generator: ec_oath::AffinePoint::new(GoldilocksField::new(2), GoldilocksField::new(75)),
         field_bits: 8,
     }
 }

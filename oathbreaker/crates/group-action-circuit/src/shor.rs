@@ -121,13 +121,8 @@ impl ShorsEcdlp {
             let result = self
                 .group_action_circuit
                 .execute_classical(*a, *b, target_q);
-            let expected = ec_oath::double_scalar_mul(
-                *a,
-                &self.curve.generator,
-                *b,
-                target_q,
-                &self.curve,
-            );
+            let expected =
+                ec_oath::double_scalar_mul(*a, &self.curve.generator, *b, target_q, &self.curve);
             debug_assert_eq!(
                 result, expected,
                 "Group-action mismatch for a={}, b={}",
@@ -169,8 +164,7 @@ impl ShorsEcdlp {
 
         // Step 4: Verify [k]G == Q
         let verified = if let Some(rk) = recovered_k {
-            let computed_q =
-                ec_oath::point_ops::scalar_mul(rk, &self.curve.generator, &self.curve);
+            let computed_q = ec_oath::point_ops::scalar_mul(rk, &self.curve.generator, &self.curve);
             computed_q == *target_q
         } else {
             false

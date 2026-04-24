@@ -58,23 +58,46 @@ def _counts_from_bitstrings(bitstrings: list[str]) -> dict[str, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--k", type=int, default=7,
-                        help="secret scalar (1..12) to plant in Q = [k]G")
-    parser.add_argument("--shots", type=int, default=20000,
-                        help="number of shots; more averages out NISQ noise")
-    parser.add_argument("--backend", type=str, default=None,
-                        help="specific backend name; defaults to least-busy "
-                             "operational 127q+ device")
-    parser.add_argument("--optimization-level", type=int, default=3,
-                        choices=[0, 1, 2, 3])
-    parser.add_argument("--dynamic-decoupling", action="store_true",
-                        help="insert XY-4 DD during idle windows")
-    parser.add_argument("--channel", type=str, default="ibm_quantum_platform",
-                        help="IBM Runtime channel (ibm_quantum_platform or ibm_cloud)")
-    parser.add_argument("--instance", type=str, default=None,
-                        help="instance / CRN (project on quantum.ibm.com)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="print transpile stats and exit without submitting")
+    parser.add_argument(
+        "--k", type=int, default=7, help="secret scalar (1..12) to plant in Q = [k]G"
+    )
+    parser.add_argument(
+        "--shots",
+        type=int,
+        default=20000,
+        help="number of shots; more averages out NISQ noise",
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        default=None,
+        help="specific backend name; defaults to least-busy operational 127q+ device",
+    )
+    parser.add_argument(
+        "--optimization-level", type=int, default=3, choices=[0, 1, 2, 3]
+    )
+    parser.add_argument(
+        "--dynamic-decoupling",
+        action="store_true",
+        help="insert XY-4 DD during idle windows",
+    )
+    parser.add_argument(
+        "--channel",
+        type=str,
+        default="ibm_quantum_platform",
+        help="IBM Runtime channel (ibm_quantum_platform or ibm_cloud)",
+    )
+    parser.add_argument(
+        "--instance",
+        type=str,
+        default=None,
+        help="instance / CRN (project on quantum.ibm.com)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print transpile stats and exit without submitting",
+    )
     args = parser.parse_args()
 
     if not 1 <= args.k < GROUP_ORDER:
@@ -87,6 +110,7 @@ def main() -> int:
 
     if args.dry_run:
         from qiskit_aer import AerSimulator
+
         sim = AerSimulator()
         t = transpile(bundle.qc, sim, optimization_level=args.optimization_level)
         two_q = sum(1 for op in t.data if op.operation.num_qubits >= 2)
@@ -113,7 +137,8 @@ def main() -> int:
         backend = service.backend(args.backend)
     else:
         candidates = [
-            b for b in service.backends(simulator=False, operational=True)
+            b
+            for b in service.backends(simulator=False, operational=True)
             if b.configuration().n_qubits >= 27
         ]
         if not candidates:
@@ -134,10 +159,12 @@ def main() -> int:
         from qiskit.circuit.library import XGate
 
         durations = backend.target.durations()
-        dd_pm = PassManager([
-            ALAPScheduleAnalysis(durations),
-            PadDynamicalDecoupling(durations, dd_sequence=[XGate(), XGate()]),
-        ])
+        dd_pm = PassManager(
+            [
+                ALAPScheduleAnalysis(durations),
+                PadDynamicalDecoupling(durations, dd_sequence=[XGate(), XGate()]),
+            ]
+        )
         transpiled = dd_pm.run(transpiled)
 
     sampler = SamplerV2(mode=backend)
@@ -161,10 +188,14 @@ def main() -> int:
 
     total_votes = sum(tally.values())
     correct_votes = tally.get(inst.k, 0)
-    margin = tally.get(inst.k, 0) - max((v for k, v in tally.items() if k != inst.k), default=0)
+    margin = tally.get(inst.k, 0) - max(
+        (v for k, v in tally.items() if k != inst.k), default=0
+    )
     print(f"recovered k = {recovered} (true k = {inst.k})")
-    print(f"correct-vote share = {correct_votes / total_votes:.1%} "
-          f"({correct_votes}/{total_votes} usable shots)")
+    print(
+        f"correct-vote share = {correct_votes / total_votes:.1%} "
+        f"({correct_votes}/{total_votes} usable shots)"
+    )
     print(f"margin over runner-up = {margin:+d} votes")
     print(f"job id = {job.job_id()}")
     return 0 if recovered == inst.k else 2
