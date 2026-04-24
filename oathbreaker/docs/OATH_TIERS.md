@@ -29,6 +29,20 @@ AerSimulator dry runs and IBM Runtime SamplerV2 submission to Eagle / Heron
 backends. Its purpose is to validate the Oathbreaker architecture -- and
 the NISQ software stack around it -- against physical silicon.
 
+### Public NISQ ECDLP demonstrations (state of the art)
+
+| Date | Researcher | Bits | Search space | Hardware |
+|---|---|---:|---:|---|
+| 2025-09 | Steve Tippeconnic | 6 | 64 | public cloud QC |
+| 2026-04 | Giancarlo Lelli (Project Eleven Q-Day Prize) | **15** | **32 767** | publicly accessible cloud QC |
+
+Lelli's 15-bit result sits between our Oath-8 and Oath-16 tiers and was
+achieved with a "variant of Shor's algorithm" -- consistent with iterative
+phase estimation, mid-circuit measurement / dynamic circuits, and heavy
+custom synthesis or error mitigation. It is a forcing function for moving
+our optimized Oath-4 builder up to Oath-8 and Oath-16; the architectural
+roadmap is in [`../qiskit/README.md`](../qiskit/README.md).
+
 Oath-8/16/32 are measured from actual circuit construction with proper ancilla
 reuse between phases. Oath-64 is projected (circuit materialization exceeds CI
 memory at ~3 GB). "Qubits (Bennett)" is the peak with standard reversible

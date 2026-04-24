@@ -48,16 +48,22 @@ jobs:
       - name: Classical curve sanity (Oath-4)
         run: python oath4.py
 
+      - name: Generic Oath-N curve loader sanity
+        run: python oath_curve.py
+
       - name: Single-k smoke run
         run: python run_simulator.py --k 7 --shots 2048
 
       - name: Full Oath-4 secret sweep (baseline + optimized, all 12 k values)
         run: python test_oath4.py
 
-      - name: Measure compiled gate count (Eagle + Heron)
+      - name: Oath-N generic sweep (Oath-4 full sim + Oath-8/16 build check)
+        run: python test_oathN.py
+
+      - name: Measure compiled gate count across Oath-4/8/16, both adders
         run: |
           pip install qiskit-ibm-runtime
-          python measure_gate_count.py --k 7
+          python measure_gate_count.py --tiers 4,8 --backends torino
 
   # ---------------------------------------------------------------------------
   # Summary gate -- blocks merges unless the Oath-4 sweep passes.

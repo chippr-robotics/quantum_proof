@@ -1,25 +1,25 @@
 """
-Measure compiled 2q gate count and depth for the Oath-4 circuit on IBM-class
-backends, comparing the baseline UnitaryGate implementation with the
-Beauregard QFT adder optimization.
+Measure compiled 2q gate count and depth for the Oath-N Shor ECDLP circuit
+across tiers and modular-adder methods, on IBM-class fake backends.
 
 Usage:
-    python measure_gate_count.py [--k 7] [--opt-level 3] [--seed 42]
+    python measure_gate_count.py [--tiers 4,8,16] [--k 7] [--opt-level 3]
 
-Prints a table of {baseline, optimized} x {FakeBrisbane (Eagle), FakeTorino
-(Heron)} with 2q gate counts and circuit depths. No hardware credentials or
-network access are required.
+Prints a table of {Oath-N} x {qft_beauregard, cdkm_ripple} x
+{FakeBrisbane (Eagle), FakeTorino (Heron)}. No credentials or network
+needed; uses Qiskit's published fake-backend models.
 """
 
 from __future__ import annotations
 
 import argparse
+import time
 
 from qiskit import transpile
 
-from oath4 import Instance
-from oath4_circuit import build_oath4_shor_circuit
-from oath4_optimized import build_oath4_shor_circuit_optimized
+from modular_adders import available_methods
+from oath_curve import OathCurve, OathInstance
+from oathN_circuit import build_oathN_shor_circuit
 
 
 def count_two_q(circ) -> int:
@@ -29,42 +29,65 @@ def count_two_q(circ) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--tiers",
+        type=str,
+        default="4",
+        help="comma-separated Oath tiers to measure (e.g. 4,8,16)",
+    )
+    parser.add_argument(
         "--k",
         type=int,
         default=7,
-        help="secret scalar (1..12) used to instantiate Q = [k]G",
+        help="secret scalar used to instantiate Q = [k]G",
     )
     parser.add_argument("--opt-level", type=int, default=3, choices=[0, 1, 2, 3])
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--backends",
+        type=str,
+        default="brisbane,torino",
+        help="comma-separated backend shortnames: brisbane (Eagle), torino (Heron)",
+    )
     args = parser.parse_args()
 
     from qiskit_ibm_runtime.fake_provider import FakeBrisbane, FakeTorino
 
-    inst = Instance.from_secret(args.k)
-    builders = [
-        ("baseline (UnitaryGate.control)", build_oath4_shor_circuit),
-        ("optimized (Beauregard QFT)", build_oath4_shor_circuit_optimized),
-    ]
+    backend_map = {"brisbane": FakeBrisbane, "torino": FakeTorino}
     backends = [
-        ("FakeBrisbane (Eagle, ECR)", FakeBrisbane),
-        ("FakeTorino (Heron, CZ)", FakeTorino),
+        (name, backend_map[name]()) for name in args.backends.split(",") if name.strip()
     ]
+    tiers = [int(t) for t in args.tiers.split(",") if t.strip()]
+    methods = available_methods()
 
-    print(f"Oath-4 Shor ECDLP circuit for Q = [{inst.k}]G\n")
-    print(f"{'backend':<30s} {'builder':<35s} {'2q':>6s} {'depth':>7s}")
-    print("-" * 80)
-    for be_name, be_cls in backends:
-        be = be_cls()
-        for builder_name, builder in builders:
-            bundle = builder(inst.Q)
-            tqc = transpile(
-                bundle.qc,
-                be,
-                optimization_level=args.opt_level,
-                seed_transpiler=args.seed,
-            )
-            two_q = count_two_q(tqc)
-            print(f"{be_name:<30s} {builder_name:<35s} {two_q:>6d} {tqc.depth():>7d}")
+    print(
+        f"{'backend':<28s} {'tier':<7s} {'method':<16s} "
+        f"{'qubits':>6s} {'2q':>8s} {'depth':>8s} {'t':>6s}"
+    )
+    print("-" * 84)
+    for be_name, be in backends:
+        be_label = f"{be.name}"
+        for tier in tiers:
+            curve = OathCurve.load_tier(tier)
+            k = args.k % curve.order
+            if k == 0:
+                k = 1
+            inst = OathInstance.from_secret(curve, k)
+            for method in methods:
+                t0 = time.time()
+                bundle = build_oathN_shor_circuit(curve, inst.Q, adder_method=method)
+                tqc = transpile(
+                    bundle.qc,
+                    be,
+                    optimization_level=args.opt_level,
+                    seed_transpiler=args.seed,
+                )
+                elapsed = time.time() - t0
+                two_q = count_two_q(tqc)
+                print(
+                    f"{be_label:<28s} Oath-{tier:<3d} {method:<16s} "
+                    f"{bundle.qc.num_qubits:>6d} {two_q:>8d} {tqc.depth():>8d} "
+                    f"{elapsed:>5.1f}s"
+                )
         print()
     return 0
 

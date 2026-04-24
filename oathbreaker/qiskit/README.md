@@ -7,6 +7,16 @@ lattice recovery -- on an actual NISQ device. The Oath-4 field prime `p = 11`
 is chosen for classical enumerability, not Goldilocks structure; the canonical
 Goldilocks prime `2^64 − 2^32 + 1` is reserved for Oath-64.
 
+## State of the art (as of April 2026)
+
+Project Eleven's Q-Day Prize was awarded to Giancarlo Lelli for breaking a
+**15-bit ECC key** on publicly accessible NISQ hardware -- a 512x jump over
+Tippeconnic's 6-bit demonstration in September 2025. Lelli's 15-bit result
+sits between our Oath-8 and Oath-16 tiers, and was achieved with a "variant
+of Shor's algorithm" (almost certainly iterative phase estimation + dynamic
+circuits + heavy custom synthesis / mitigation). The roadmap below matches
+the techniques that would have to be in any such demonstration.
+
 | Curve | y^2 = x^3 + x + 6 over GF(11) |
 | --- | --- |
 | Group order n | 13 (prime) |
@@ -16,37 +26,71 @@ Goldilocks prime `2^64 − 2^32 + 1` is reserved for Oath-64.
 | Classical bits | 8 |
 | Shots (typical) | 4096 -- 20 000 |
 
-## Compiled gate count (measured)
+## Configurable Oath-N builder
 
-The logical baseline circuit is 12 qubits, depth 11, 27 high-level
-instructions. The hardware-optimized variant
-(`oath4_optimized.build_oath4_shor_circuit_optimized`, implemented with
-Beauregard QFT modular adders) is 14 qubits and uses roughly half the
-compiled depth at the cost of one extra index bit and one flag ancilla.
+The modules split cleanly across:
 
-Measured against `qiskit.transpile(..., optimization_level=3,
-seed_transpiler=42)` on the published fake-backend models:
+| Module | Role |
+| --- | --- |
+| `oath_curve.py` | Generic ``OathCurve.load_tier(N)`` + EC arithmetic for any Oath tier |
+| `modular_adders.py` | Pluggable controlled-add-const-mod-N registry (currently `qft_beauregard` and `cdkm_ripple`) |
+| `oathN_circuit.py` | Generic Shor ECDLP builder: ``build_oathN_shor_circuit(curve, Q, adder_method=...)`` |
+| `oath4_optimized.py` | Oath-4 convenience wrapper that delegates to the generic builder |
+| `oath4_circuit.py` | Baseline 12-qubit Oath-4 circuit (kept for comparison) |
 
-| Backend | Builder | 2q gates | Depth |
-|---|---|---|---|
-| `FakeBrisbane` (Eagle, ECR) | baseline  | 3 585 | 15 573 |
-| `FakeBrisbane` (Eagle, ECR) | optimized | **2 704** | **8 113** |
-| `FakeTorino`   (Heron, CZ)  | baseline  | 3 589 | 12 569 |
-| `FakeTorino`   (Heron, CZ)  | optimized | **2 811** | **5 948** |
+Usage:
 
-The depth roughly halves on both families. Even with the optimization
-the 2q count is still above today's NISQ fidelity budget (1 error event
-per ~300 CZ on Heron), so Oath-4 is not yet a "push button and get the
-right k" hardware demo -- but the circuit now fits inside T2 on Heron,
-which is the first prerequisite. Further gains require mid-circuit
-measurement + feed-forward (semiclassical IQPE, halves gates again) and
-a dedicated permutation-aware synthesis pass for the controlled modular
-adders.
+```python
+from oath_curve import OathCurve, OathInstance
+from oathN_circuit import build_oathN_shor_circuit
+
+curve = OathCurve.load_tier(8)                 # 8, 16, 32, ...
+inst = OathInstance.from_secret(curve, 42)
+bundle = build_oathN_shor_circuit(
+    curve, inst.Q, adder_method="cdkm_ripple",
+)
+```
+
+The NISQ compilation path (cyclic-group isomorphism `E ~= Z/nZ`) requires a
+classical scan to resolve each controlled-add-point into an integer
+constant, so it is tractable up through Oath-16. For Oath-32 and above
+the real route is the full reversible EC-arithmetic circuit built by the
+Rust `crates/group-action-circuit` crate.
+
+## Compiled gate count (measured, FakeTorino / Heron CZ basis)
+
+`qiskit.transpile(..., optimization_level=3, seed_transpiler=42)` on the
+published fake-backend models:
+
+| Tier | Method | Qubits | 2q | Depth |
+|---|---|---:|---:|---:|
+| Oath-4  | baseline (UnitaryGate.ctrl) | 12 | 3 589 | 12 569 |
+| Oath-4  | qft_beauregard | 14 | **2 811** | **5 948** |
+| Oath-4  | cdkm_ripple | 20 | 8 127 | 20 037 |
+| Oath-8  | qft_beauregard | 29 | **28 348** | 44 729 |
+| Oath-8  | cdkm_ripple | 40 | 38 349 | 91 808 |
+| Oath-16 | qft_beauregard | 53 | 186 426 | **202 433** |
+| Oath-16 | cdkm_ripple | 72 | **134 865** | 320 442 |
+
+**Scaling crossover.** At Oath-4 the QFT-Beauregard adder is 3x smaller
+than CDKM: the O(n^2) QFT wrappers are cheap when n is tiny. At Oath-16
+the crossover has arrived -- CDKM is 28% fewer 2q gates than Beauregard,
+matching its theoretical O(n) per-add scaling. Depth is still higher for
+CDKM because the Beauregard wrapper (5 sub-adds per controlled add) is
+depth-dominant; fusing wrappers and moving to semiclassical IQPE are the
+next-up items in the roadmap below.
+
+**NISQ feasibility.** Heron's budget is ~4 400 CZ-steps of depth and
+well under 1 error event per shot. Oath-4 / qft_beauregard fits T2 for
+the first time; Oath-8 and Oath-16 are still well over budget. Lelli's
+15-bit result shows the envelope is reachable, but only with the stack
+(IQPE + approximate QFT + permutation-aware synthesis + error
+mitigation) layered on top of what this PR lands.
 
 Reproduce with:
 
 ```bash
-python measure_gate_count.py --k 7
+python measure_gate_count.py --tiers 4,8,16 --backends torino
 ```
 
 ## Why Oath-4
@@ -144,6 +188,48 @@ A passing score on a given machine is defined as: given a published `Q`,
 the machine returns the unique `k in 1..12` with `[k]G = Q`, and the
 correct-vote majority can be verified against the classical oracle in
 microseconds.
+
+## Roadmap to Oath-8 / Oath-16 NISQ
+
+Lelli's 15-bit demonstration is a forcing function for scaling our
+architecture beyond Oath-4. Naively projecting our current optimized
+(Beauregard QFT) circuit:
+
+| Tier | Logical qubits | Projected 2q on Heron | Projected depth |
+|---:|---:|---:|---:|
+| Oath-4 (measured) | 14 | 2 811 | 5 948 |
+| Oath-8 (projected) | 26 | ~15 000 | ~1 900 |
+| Oath-16 (projected) | 50 | ~99 000 | ~6 200 |
+
+The Oath-16 cost grows as `O(n^3)` because each Beauregard call carries
+`O(n^2)` QFT overhead and we do `O(n)` of them. Oath-16 is roughly 35x
+over the Heron 2q-error budget and ~1.5x over T2. Closing this gap, in
+priority order:
+
+1. **Pluggable modular adder** -- factor `controlled_add_const_mod_n`
+   into a `method=` interface so we can drop in alternatives without
+   rewriting the Shor builder. (Refactor in `oath4_optimized.py`.)
+2. **CDKM ripple-carry add** for the controlled-add-constant. Trades
+   the QFT wrappers for a classical reversible adder; for n=16 this is
+   about a 10x reduction in 2q gates per add.
+3. **Semiclassical IQPE** -- single counting qubit + mid-circuit
+   measurement + classical feedforward via `qiskit.circuit.IfElseOp`.
+   Removes one of the two exponent registers and halves the controlled-
+   add count. Targets dynamic-circuit-capable backends (most of IBM's
+   current fleet).
+4. **Approximate QFT** for the readout step -- prune controlled-phases
+   below `~ epsilon / 2*pi` for a tolerance `epsilon`; cuts depth on
+   the IQFT by a factor of `n / log(n)`.
+5. **Permutation-aware synthesis pass** -- recognise our controlled
+   modular adders as basis-state permutations rather than generic
+   isometries; saves another 2-3x.
+6. **Error mitigation** layer (ZNE / PEC / DD / twirling). Buys back
+   roughly an order of magnitude of effective fidelity at the cost of
+   ~10x more shots.
+
+Stacked, the optimistic envelope for Oath-16 is ~3 000 CZ on Heron --
+comparable to today's Oath-4 baseline. That's roughly the budget any
+"15-bit ECC on NISQ" demonstration has to fit inside.
 
 ## Troubleshooting
 
