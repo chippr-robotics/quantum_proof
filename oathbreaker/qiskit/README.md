@@ -1,9 +1,11 @@
 # Oath-4: Shor ECDLP on Real IBM Quantum Hardware
 
 Oath-4 is the smallest rung of the Oathbreaker Scale, introduced specifically
-to put the full Oathbreaker architecture -- Goldilocks-style prime-order
-curve, scalar multiplication, Shor period finding, classical lattice
-recovery -- on an actual NISQ device.
+to put the full Oathbreaker architecture -- Oath-family prime-order short-
+Weierstrass curve, scalar multiplication, Shor period finding, classical
+lattice recovery -- on an actual NISQ device. The Oath-4 field prime `p = 11`
+is chosen for classical enumerability, not Goldilocks structure; the canonical
+Goldilocks prime `2^64 − 2^32 + 1` is reserved for Oath-64.
 
 | Curve | y^2 = x^3 + x + 6 over GF(11) |
 | --- | --- |
@@ -13,6 +15,40 @@ recovery -- on an actual NISQ device.
 | Logical qubits | 12 (4 for `a`, 4 for `b`, 4 for index) |
 | Classical bits | 8 |
 | Shots (typical) | 4096 -- 20 000 |
+
+## Compiled gate count (measured)
+
+The logical circuit is 12 qubits, depth 11, 27 instructions (8 H, 8 controlled
+5-qubit unitaries, 2 inverse QFTs on 4 qubits, 8 measurements). Transpiling
+to IBM backend basis sets gives the following measured hardware cost:
+
+| Backend | Family | 2q basis | 2q gates (opt=3) | 1q gates | Depth |
+|---|---|---|---|---|---|
+| `FakeBrisbane` | Eagle | ECR | 3584 | ~23 000 | 15 573 |
+| `FakeTorino`   | Heron | CZ  | 3588 | ~17 400 | 12 569 |
+
+Numbers are from `qiskit.transpile(..., optimization_level=3,
+seed_transpiler=42)` against the published fake-backend models. The heavy
+cost comes from Qiskit's generic 5-qubit-isometry synthesis of the
+controlled modular adders; a permutation-aware synthesis pass (future
+work) should cut the 2q count several-fold.
+
+Reproduce with:
+
+```bash
+python - <<'PY'
+from qiskit import transpile
+from qiskit_ibm_runtime.fake_provider import FakeBrisbane, FakeTorino
+from oath4 import Instance
+from oath4_circuit import build_oath4_shor_circuit
+
+bundle = build_oath4_shor_circuit(Instance.from_secret(7).Q)
+for be in (FakeBrisbane(), FakeTorino()):
+    t = transpile(bundle.qc, be, optimization_level=3, seed_transpiler=42)
+    two_q = sum(1 for op in t.data if op.operation.num_qubits >= 2)
+    print(be.name, "depth", t.depth(), "2q", two_q)
+PY
+```
 
 ## Why Oath-4
 

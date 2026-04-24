@@ -85,8 +85,15 @@ Each Oath-N curve is generated via SageMath with the following properties:
 - Embedding degree > 4
 - Generator of full order verified
 
-For Oath-64, the field is the Goldilocks prime p = 2^64 - 2^32 + 1.
-Smaller tiers use appropriate primes near the target bit size.
+**On the word "Goldilocks".** Oath-64 uses the canonical Goldilocks prime
+`p = 2^64 − 2^32 + 1`, which has cheap modular reduction (`2^64 ≡ 2^32 − 1`)
+and high 2-adicity -- the same prime made famous by Plonky2. The smaller
+tiers (Oath-4/8/16/32) use the **largest prime below `2^n`** rather than
+the Goldilocks form `2^n − 2^(n/2) + 1`; this keeps every field element
+inside a single machine word while making curve search with the required
+properties (prime order, embedding degree > 4, non-anomalous) trivial. Only
+Oath-64 is literally a Goldilocks field; the rest of the Oath family is
+simply prime-order short-Weierstrass curves with word-sized primes.
 
 All parameters are independently verified in CI via SageMath's SEA
 (Schoof-Elkies-Atkin) algorithm, completely independent of the generation

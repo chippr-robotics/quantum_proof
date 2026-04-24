@@ -6,8 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-goldilocks-field = { workspace = true }
-ec-goldilocks = { workspace = true }
+oath-field = { workspace = true }
+ec-oath = { workspace = true }
 reversible-arithmetic = { workspace = true }
 group-action-circuit = { workspace = true }
 serde = { workspace = true }

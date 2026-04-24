@@ -68,11 +68,11 @@ jobs:
           restore-keys: |
             clippy-core-${{ runner.os }}-cargo-
 
-      - name: Clippy — goldilocks-field
-        run: cargo clippy -p goldilocks-field --all-targets -- -D warnings
+      - name: Clippy — oath-field
+        run: cargo clippy -p oath-field --all-targets -- -D warnings
 
-      - name: Clippy — ec-goldilocks
-        run: cargo clippy -p ec-goldilocks --all-targets -- -D warnings
+      - name: Clippy — ec-oath
+        run: cargo clippy -p ec-oath --all-targets -- -D warnings
 
       - name: Clippy — reversible-arithmetic
         run: cargo clippy -p reversible-arithmetic --all-targets -- -D warnings

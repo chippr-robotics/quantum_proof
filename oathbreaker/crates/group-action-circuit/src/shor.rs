@@ -1,5 +1,5 @@
-use ec_goldilocks::curve::CurveParams;
-use ec_goldilocks::AffinePoint;
+use ec_oath::curve::CurveParams;
+use ec_oath::AffinePoint;
 use serde::{Deserialize, Serialize};
 
 use crate::continued_fraction::{gcd, recover_secret_direct, recover_secret_multi};
@@ -121,7 +121,7 @@ impl ShorsEcdlp {
             let result = self
                 .group_action_circuit
                 .execute_classical(*a, *b, target_q);
-            let expected = ec_goldilocks::double_scalar_mul(
+            let expected = ec_oath::double_scalar_mul(
                 *a,
                 &self.curve.generator,
                 *b,
@@ -170,7 +170,7 @@ impl ShorsEcdlp {
         // Step 4: Verify [k]G == Q
         let verified = if let Some(rk) = recovered_k {
             let computed_q =
-                ec_goldilocks::point_ops::scalar_mul(rk, &self.curve.generator, &self.curve);
+                ec_oath::point_ops::scalar_mul(rk, &self.curve.generator, &self.curve);
             computed_q == *target_q
         } else {
             false

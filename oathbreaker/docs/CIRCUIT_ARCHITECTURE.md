@@ -12,8 +12,11 @@ This is the computationally dominant component (>99% of qubits and gates) of Sho
 ECDLP algorithm. Every classical computation is decomposed into NOT, CNOT, and
 Toffoli gates operating on a qubit register model.
 
-The circuit targets the **Oath curve family** over Goldilocks-form prime fields, with
-measured results at 8, 16, and 32 bits and projections to 256+ bits.
+The circuit targets the **Oath curve family** -- prime-order short-Weierstrass
+curves over word-sized prime fields (Oath-64 uses the canonical Goldilocks
+prime `2^64 − 2^32 + 1`; smaller tiers use the largest prime below `2^n`) --
+with measured results at 8, 16, and 32 bits, an IBM-runnable NISQ demo at 4
+bits, and projections to 256+ bits.
 
 ## Register Layout (Jacobian Projective)
 

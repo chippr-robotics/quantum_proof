@@ -4,7 +4,7 @@
 
 | Aspect | Google | Oathbreaker |
 |--------|--------|-------------|
-| Curve | secp256k1 (256-bit) | Oath family (8/16/32/64-bit Goldilocks) |
+| Curve | secp256k1 (256-bit) | Oath family (4/8/16/32-bit word-sized primes + 64-bit Goldilocks) |
 | What's proven | Point addition only | Coherent group-action map [a]G + [b]Q |
 | Coordinate system | Unknown (withheld) | Jacobian projective (single final inversion) |
 | Classically verifiable | No (256-bit ECDLP infeasible) | Yes (Pollard's rho in hours) |

@@ -9,8 +9,8 @@
 
 #![cfg_attr(feature = "sp1", no_main)]
 
-use ec_goldilocks::curve::CurveParams;
-use ec_goldilocks::test_case::{ProofInput, ProofOutput};
+use ec_oath::curve::CurveParams;
+use ec_oath::test_case::{ProofInput, ProofOutput};
 use group_action_circuit::build_group_action_circuit_jacobian;
 use sha2::{Digest, Sha256};
 
@@ -120,13 +120,13 @@ pub fn main() {
 /// Uses the Oath-8 parameters: y^2 = x^3 + x + 3 over GF(241).
 #[cfg(not(feature = "sp1"))]
 fn small_test_curve() -> CurveParams {
-    use goldilocks_field::GoldilocksField;
+    use oath_field::GoldilocksField;
 
     CurveParams {
         a: GoldilocksField::new(1),
         b: GoldilocksField::new(3),
         order: 247, // #E(GF(241))
-        generator: ec_goldilocks::AffinePoint::new(
+        generator: ec_oath::AffinePoint::new(
             GoldilocksField::new(2),
             GoldilocksField::new(75),
         ),
@@ -136,9 +136,9 @@ fn small_test_curve() -> CurveParams {
 
 /// Generate random test cases for the self-test.
 #[cfg(not(feature = "sp1"))]
-fn generate_small_test_cases(curve: &CurveParams, count: usize) -> Vec<ec_goldilocks::TestCase> {
-    use ec_goldilocks::double_scalar_mul;
-    use ec_goldilocks::point_ops::scalar_mul;
+fn generate_small_test_cases(curve: &CurveParams, count: usize) -> Vec<ec_oath::TestCase> {
+    use ec_oath::double_scalar_mul;
+    use ec_oath::point_ops::scalar_mul;
 
     // Use deterministic "random" values for reproducibility.
     let scalars: Vec<(u64, u64, u64)> = (0..count)
@@ -155,7 +155,7 @@ fn generate_small_test_cases(curve: &CurveParams, count: usize) -> Vec<ec_goldil
         .map(|(a, b, k)| {
             let target_q = scalar_mul(k, &curve.generator, curve);
             let expected = double_scalar_mul(a, &curve.generator, b, &target_q, curve);
-            ec_goldilocks::TestCase {
+            ec_oath::TestCase {
                 a,
                 b,
                 target_q,

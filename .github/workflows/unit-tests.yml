@@ -21,7 +21,7 @@ jobs:
   # correctness of its individual algebraic and circuit components.
   #
   # Crate dependency chain (bottom-up):
-  #   goldilocks-field → ec-goldilocks → reversible-arithmetic → group-action-circuit
+  #   oath-field → ec-oath → reversible-arithmetic → group-action-circuit
   #
   # Each layer must be independently provable before composition.
   # ---------------------------------------------------------------------------
@@ -35,8 +35,8 @@ jobs:
       fail-fast: false
       matrix:
         crate:
-          - goldilocks-field
-          - ec-goldilocks
+          - oath-field
+          - ec-oath
           - reversible-arithmetic
           - group-action-circuit
     steps:
@@ -82,8 +82,8 @@ jobs:
       fail-fast: false
       matrix:
         crate:
-          - goldilocks-field
-          - ec-goldilocks
+          - oath-field
+          - ec-oath
           - reversible-arithmetic
           - group-action-circuit
     steps:

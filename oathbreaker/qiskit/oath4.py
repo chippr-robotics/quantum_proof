@@ -3,9 +3,11 @@ Oath-4 curve definition and classical elliptic-curve arithmetic.
 
 The Oath-4 tier is the smallest rung of the Oathbreaker Scale and is intended
 to be executable end-to-end on real NISQ hardware. It exists specifically so
-that the Oathbreaker architecture -- Goldilocks-style prime-order curve,
-scalar multiplication, Shor period finding, classical lattice recovery --
-can be demonstrated and verified on today's IBM Quantum devices.
+that the Oathbreaker architecture -- Oath-family prime-order short-Weierstrass
+curve, scalar multiplication, Shor period finding, classical lattice recovery
+-- can be demonstrated and verified on today's IBM Quantum devices. The Oath-4
+field prime p = 11 is chosen for searchability, not Goldilocks structure; the
+canonical Goldilocks prime 2^64 - 2^32 + 1 is reserved for Oath-64.
 
 Curve: y^2 = x^3 + a*x + b  over GF(p)
   p  = 11     (4-bit field prime, Hasse interval [4, 18])

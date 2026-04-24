@@ -2,7 +2,7 @@
 mod ec_tests {
     use crate::curve::{AffinePoint, CurveParams};
     use crate::point_ops::{point_add, scalar_mul};
-    use goldilocks_field::GoldilocksField;
+    use oath_field::GoldilocksField;
 
     /// Create a test curve over the Goldilocks field for unit testing.
     ///

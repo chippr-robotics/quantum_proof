@@ -1,5 +1,5 @@
-use ec_goldilocks::curve::{AffinePoint, CurveParams};
-use ec_goldilocks::point_ops::scalar_mul;
+use ec_oath::curve::{AffinePoint, CurveParams};
+use ec_oath::point_ops::scalar_mul;
 
 /// Precomputed table of curve points for windowed scalar multiplication.
 ///

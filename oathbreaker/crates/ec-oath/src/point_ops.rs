@@ -1,5 +1,5 @@
 use crate::curve::{AffinePoint, CurveParams, JacobianPoint, ModifiedJacobianPoint};
-use goldilocks_field::GoldilocksField;
+use oath_field::GoldilocksField;
 
 /// Add two affine points on the curve. Handles all cases:
 /// - P + O = P

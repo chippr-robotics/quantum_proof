@@ -41,10 +41,18 @@ pub fn oath_tiers() -> Vec<OathTier> {
         // Oath-4 is the NISQ tier: compiled through the cyclic-group
         // isomorphism E(F_11) ~= Z/13Z to eight controlled modular-adder
         // permutations on a 4-qubit index register. Qubit count is measured
-        // from the Qiskit circuit in ../../qiskit/oath4_circuit.py. Toffoli
-        // count is an estimate for a Cuccaro + mod-13 reduction realisation
-        // of the same permutations; the physical run uses direct unitary
-        // synthesis rather than a Toffoli decomposition.
+        // from the Qiskit circuit in ../../qiskit/oath4_circuit.py.
+        //
+        // Toffoli count is a Cuccaro + mod-13 reduction estimate for the
+        // reversible (pre-Clifford+T) decomposition. The physical IBM run
+        // uses Qiskit's default 5-qubit isometry synthesis instead, which
+        // materialises the same unitaries as native 1q + 2q gates:
+        //
+        //   backend                basis   2q gates (opt=3)   depth
+        //   FakeBrisbane (Eagle)   ECR     3584               15573
+        //   FakeTorino   (Heron)   CZ      3588               12569
+        //
+        // See ../../qiskit/README.md for the full measurement recipe.
         OathTier {
             name: "Oath-4".to_string(),
             field_bits: 4,

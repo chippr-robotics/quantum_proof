@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/goldilocks-field",
-    "crates/ec-goldilocks",
+    "crates/oath-field",
+    "crates/ec-oath",
     "crates/reversible-arithmetic",
     "crates/group-action-circuit",
     "crates/sp1-program",
@@ -17,8 +17,8 @@ license = "MIT"
 repository = "https://github.com/chippr-robotics/quantum_proof"
 
 [workspace.dependencies]
-goldilocks-field = { path = "crates/goldilocks-field" }
-ec-goldilocks = { path = "crates/ec-goldilocks" }
+oath-field = { path = "crates/oath-field" }
+ec-oath = { path = "crates/ec-oath" }
 reversible-arithmetic = { path = "crates/reversible-arithmetic" }
 group-action-circuit = { path = "crates/group-action-circuit" }
 sha2 = "0.10"
