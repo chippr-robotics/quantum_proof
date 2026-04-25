@@ -66,10 +66,12 @@ A complete implementation of Shor's ECDLP algorithm on the **Oath curve family**
 **NISQ proof of concept (Oath-4/8/16)**: 12-72 logical qubits, proof-of-concept
 Qiskit Shor circuit in [`oathbreaker/qiskit/poc/`](oathbreaker/qiskit/poc/). The
 noiseless simulator recovers all 12 Oath-4 secrets at ~70% peak vote and the
-same circuit compiles cleanly to IBM Eagle / Heron backends via SamplerV2.
-The POC achieves its small compiled size by classically pre-solving the target
-ECDLP at circuit-construction time, so it validates the Qiskit/IBM software
-stack but is not a cryptographic attack. See
+same circuit compiles cleanly to IBM Eagle / Heron backends via SamplerV2,
+with a pluggable Compiler strategy (Qiskit + TKET / pytket) that wins ~14% on
+2q gate count for Oath-4 in exchange for ~37% more depth. The POC achieves its
+small compiled size by classically pre-solving the target ECDLP at
+circuit-construction time, so it validates the Qiskit/IBM software stack but
+is not a cryptographic attack. See
 [`oathbreaker/docs/NISQ_ROADMAP.md`](oathbreaker/docs/NISQ_ROADMAP.md) for the
 constraints that distinguish the POC from the real Oath-N execution path
 (which uses the full reversible EC-arithmetic circuit with no classical

@@ -75,17 +75,45 @@ Rust `crates/group-action-circuit` crate.
 ## Compiled gate count (measured, FakeTorino / Heron CZ basis)
 
 `qiskit.transpile(..., optimization_level=3, seed_transpiler=42)` on the
-published fake-backend models:
+published fake-backend models, plus the TKET (`pytket`) compilation
+pipeline (`AutoRebase` → `FullPeepholeOptimise` → `DefaultMappingPass`
+→ `AutoRebase` → `RemoveRedundancies`):
 
-| Tier | Method | Qubits | 2q | Depth |
-|---|---|---:|---:|---:|
-| Oath-4  | baseline (UnitaryGate.ctrl) | 12 | 3 589 | 12 569 |
-| Oath-4  | qft_beauregard | 14 | **2 811** | **5 948** |
-| Oath-4  | cdkm_ripple | 20 | 8 127 | 20 037 |
-| Oath-8  | qft_beauregard | 29 | **28 348** | 44 729 |
-| Oath-8  | cdkm_ripple | 40 | 38 349 | 91 808 |
-| Oath-16 | qft_beauregard | 53 | 186 426 | **202 433** |
-| Oath-16 | cdkm_ripple | 72 | **134 865** | 320 442 |
+| Tier | Method | Compiler | Qubits | 2q | Depth |
+|---|---|---|---:|---:|---:|
+| Oath-4  | baseline (UnitaryGate.ctrl) | qiskit | 12 | 3 589 | 12 569 |
+| Oath-4  | qft_beauregard | qiskit | 14 | 2 811 | **5 948** |
+| Oath-4  | qft_beauregard | tket   | 14 | **2 430** | 8 171 |
+| Oath-4  | cdkm_ripple    | qiskit | 20 | 8 127 | **20 037** |
+| Oath-4  | cdkm_ripple    | tket   | 20 | **7 442** | 29 958 |
+| Oath-8  | qft_beauregard | qiskit | 29 | **28 348** | **44 729** |
+| Oath-8  | qft_beauregard | tket   | 29 | 28 800 | 56 333 |
+| Oath-8  | cdkm_ripple    | qiskit | 40 | 38 349 | **91 808** |
+| Oath-8  | cdkm_ripple    | tket   | 40 | **37 414** | 142 216 |
+| Oath-16 | qft_beauregard | qiskit | 53 | 186 426 | **202 433** |
+| Oath-16 | cdkm_ripple    | qiskit | 72 | **134 865** | 320 442 |
+
+**Compiler crossover.** At Oath-4 the TKET pipeline wins ~14% on 2q
+count for both adders, at the cost of ~37-50% more depth (TKET prefers
+serialisation over swap-routed parallelism). For NISQ fidelity the
+2q reduction is the better trade since the dominant error source is
+per-gate decoherence rather than total wall time, *as long as* the
+post-TKET depth still fits inside T2 -- which it does at Oath-4 on
+Heron. At Oath-8 with the QFT-Beauregard adder the win disappears
+because the pre-built circuit is already extremely tight (explicit
+phase rotations, no redundancy for a peephole pass to find). CDKM at
+Oath-8 was too expensive to compile through TKET in CI time.
+
+**Adder crossover.** Independent of compiler, CDKM (linear-in-n
+ripple-carry) overtakes QFT-Beauregard (quadratic-in-n QFT wrappers) at
+Oath-16: 134 865 vs 186 426 on Heron (-28% 2q). That's the
+architectural lever for scaling the POC up.
+
+Reproduce with:
+
+```bash
+python measure_gate_count.py --tiers 4,8 --compilers qiskit,tket --backends torino
+```
 
 **Scaling crossover.** At Oath-4 the QFT-Beauregard adder is 3x smaller
 than CDKM: the O(n^2) QFT wrappers are cheap when n is tiny. At Oath-16

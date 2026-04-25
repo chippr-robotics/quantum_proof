@@ -102,6 +102,20 @@ devices become available, the same runner stays.
 The POC subdirectory is allowed to do all of those things. This directory
 is not.
 
+## Shared abstractions
+
+Both paths import from two small modules at the top level:
+
+| Module | Role |
+| --- | --- |
+| [`compilers.py`](compilers.py) | Pluggable compiler strategies. Currently ``QiskitCompiler`` (default) and ``TketCompiler`` (pytket pipeline: rebase, peephole optimise, route, rebase, remove redundancies). The Compiler ABC returns a ``CompiledCircuit`` carrying the transpiled circuit and per-backend statistics. |
+| [`backends.py`](backends.py) | ``BackendSpec`` catalogue. Each entry carries the native gate set (used by TKET to choose its rebase target), published 2q error and T2, and an all-to-all flag. The ``oathN_hardware_runner.py`` coherence gate reads the spec instead of hard-coding sentinel error rates. |
+
+The POC scripts and the real-path runner both consume these modules,
+so adding a new compiler (e.g. for a follow-up Quantinuum or Q#
+integration) is just registering a new ``Compiler`` impl and
+``BackendSpec`` entry.
+
 ## Where to start
 
 - Hack on the NISQ software stack, demonstrations, or scaling

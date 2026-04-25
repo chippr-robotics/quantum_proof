@@ -1,29 +1,36 @@
 """
 Measure compiled 2q gate count and depth for the Oath-N Shor ECDLP circuit
-across tiers and modular-adder methods, on IBM-class fake backends.
+across tiers, modular-adder methods, and compiler strategies.
 
 Usage:
     python measure_gate_count.py [--tiers 4,8,16] [--k 7] [--opt-level 3]
+                                 [--compilers qiskit,tket]
+                                 [--backends torino,brisbane]
 
 Prints a table of {Oath-N} x {qft_beauregard, cdkm_ripple} x
-{FakeBrisbane (Eagle), FakeTorino (Heron)}. No credentials or network
-needed; uses Qiskit's published fake-backend models.
+{compilers} x {backends}. No credentials or network needed; uses
+Qiskit's published fake-backend models.
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 import time
+from pathlib import Path
 
-from qiskit import transpile
+# Allow running from poc/ without installing the parent package.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from modular_adders import available_methods
-from oath_curve import OathCurve, OathInstance
-from oathN_circuit import build_oathN_shor_circuit
-
-
-def count_two_q(circ) -> int:
-    return sum(1 for op in circ.data if op.operation.num_qubits >= 2)
+from backends import (  # noqa: E402
+    available_backends,
+    get_backend_spec,
+    shortname_to_spec,
+)
+from compilers import available_compilers, get_compiler  # noqa: E402
+from modular_adders import available_methods  # noqa: E402
+from oath_curve import OathCurve, OathInstance  # noqa: E402
+from oathN_circuit import build_oathN_shor_circuit  # noqa: E402
 
 
 def main() -> int:
@@ -45,49 +52,61 @@ def main() -> int:
     parser.add_argument(
         "--backends",
         type=str,
-        default="brisbane,torino",
-        help="comma-separated backend shortnames: brisbane (Eagle), torino (Heron)",
+        default="torino",
+        help=(
+            "comma-separated backend shortnames (torino, brisbane) or "
+            f"full names from {available_backends()}"
+        ),
+    )
+    parser.add_argument(
+        "--compilers",
+        type=str,
+        default=",".join(available_compilers()),
+        help=f"comma-separated compiler names from {available_compilers()}",
     )
     args = parser.parse_args()
 
-    from qiskit_ibm_runtime.fake_provider import FakeBrisbane, FakeTorino
-
-    backend_map = {"brisbane": FakeBrisbane, "torino": FakeTorino}
-    backends = [
-        (name, backend_map[name]()) for name in args.backends.split(",") if name.strip()
-    ]
     tiers = [int(t) for t in args.tiers.split(",") if t.strip()]
+    compilers = [get_compiler(c) for c in args.compilers.split(",") if c.strip()]
+    specs = []
+    for shortname in args.backends.split(","):
+        shortname = shortname.strip()
+        if not shortname:
+            continue
+        spec = shortname_to_spec(shortname) or get_backend_spec(shortname)
+        specs.append(spec)
+
     methods = available_methods()
 
-    print(
-        f"{'backend':<28s} {'tier':<7s} {'method':<16s} "
-        f"{'qubits':>6s} {'2q':>8s} {'depth':>8s} {'t':>6s}"
+    header = (
+        f"{'backend':<16s} {'compiler':<10s} {'tier':<7s} {'method':<16s} "
+        f"{'qubits':>6s} {'2q':>8s} {'depth':>8s} {'t':>7s}"
     )
-    print("-" * 84)
-    for be_name, be in backends:
-        be_label = f"{be.name}"
+    print(header)
+    print("-" * len(header))
+
+    for spec in specs:
         for tier in tiers:
             curve = OathCurve.load_tier(tier)
-            k = args.k % curve.order
-            if k == 0:
-                k = 1
+            k = args.k % curve.order or 1
             inst = OathInstance.from_secret(curve, k)
             for method in methods:
-                t0 = time.time()
                 bundle = build_oathN_shor_circuit(curve, inst.Q, adder_method=method)
-                tqc = transpile(
-                    bundle.qc,
-                    be,
-                    optimization_level=args.opt_level,
-                    seed_transpiler=args.seed,
-                )
-                elapsed = time.time() - t0
-                two_q = count_two_q(tqc)
-                print(
-                    f"{be_label:<28s} Oath-{tier:<3d} {method:<16s} "
-                    f"{bundle.qc.num_qubits:>6d} {two_q:>8d} {tqc.depth():>8d} "
-                    f"{elapsed:>5.1f}s"
-                )
+                for compiler in compilers:
+                    t0 = time.time()
+                    cc = compiler.compile(
+                        bundle.qc,
+                        spec,
+                        optimization_level=args.opt_level,
+                        seed=args.seed,
+                    )
+                    elapsed = time.time() - t0
+                    print(
+                        f"{spec.name:<16s} {compiler.name:<10s} "
+                        f"Oath-{tier:<3d} {method:<16s} "
+                        f"{bundle.qc.num_qubits:>6d} {cc.two_qubit_count:>8d} "
+                        f"{cc.depth:>8d} {elapsed:>6.1f}s"
+                    )
         print()
     return 0
 

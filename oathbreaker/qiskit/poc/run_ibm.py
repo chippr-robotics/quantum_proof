@@ -28,11 +28,16 @@ import argparse
 import os
 import sys
 import time
+from pathlib import Path
 
-from qiskit import transpile
+# Allow direct execution from poc/ to find the parent compilers/backends modules.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from oath4 import GROUP_ORDER, Instance
-from oath4_circuit import build_oath4_shor_circuit, recover_k_from_counts
+from backends import shortname_to_spec, get_backend_spec  # noqa: E402
+from compilers import available_compilers, get_compiler  # noqa: E402
+
+from oath4 import GROUP_ORDER, Instance  # noqa: E402
+from oath4_circuit import build_oath4_shor_circuit, recover_k_from_counts  # noqa: E402
 
 
 def _bitstring_from_bitarray(bitarray) -> list[str]:
@@ -98,6 +103,13 @@ def main() -> int:
         action="store_true",
         help="print transpile stats and exit without submitting",
     )
+    parser.add_argument(
+        "--compiler",
+        type=str,
+        default="qiskit",
+        choices=available_compilers(),
+        help="compiler strategy to use for the circuit (qiskit | tket)",
+    )
     args = parser.parse_args()
 
     if not 1 <= args.k < GROUP_ORDER:
@@ -109,12 +121,17 @@ def main() -> int:
     print(f"logical circuit: {bundle.qc.num_qubits} qubits, depth {bundle.qc.depth()}")
 
     if args.dry_run:
-        from qiskit_aer import AerSimulator
-
-        sim = AerSimulator()
-        t = transpile(bundle.qc, sim, optimization_level=args.optimization_level)
-        two_q = sum(1 for op in t.data if op.operation.num_qubits >= 2)
-        print(f"dry run: depth = {t.depth()}, 2q count = {two_q}")
+        # Honour --compiler in dry-run mode so the reported numbers match
+        # what the chosen compiler would actually emit for a real run.
+        spec = shortname_to_spec("torino") or get_backend_spec("fake_torino")
+        compiler = get_compiler(args.compiler)
+        cc = compiler.compile(
+            bundle.qc, spec, optimization_level=args.optimization_level
+        )
+        print(
+            f"dry run [{args.compiler} -> {spec.name}]: "
+            f"depth = {cc.depth}, 2q count = {cc.two_qubit_count}"
+        )
         return 0
 
     try:
@@ -146,10 +163,33 @@ def main() -> int:
         backend = min(candidates, key=lambda b: b.status().pending_jobs)
     print(f"backend: {backend.name}  pending jobs: {backend.status().pending_jobs}")
 
-    pm_kwargs = {"optimization_level": args.optimization_level}
-    transpiled = transpile(bundle.qc, backend, **pm_kwargs)
-    two_q = sum(1 for op in transpiled.data if op.operation.num_qubits >= 2)
-    print(f"transpiled: depth = {transpiled.depth()}, 2q gate count = {two_q}")
+    # Build a temporary BackendSpec for the live backend so the existing
+    # compiler abstraction can drive it. Native gate sets are inferred
+    # from the live backend's target.
+    from backends import BackendSpec
+
+    live_spec = BackendSpec(
+        name=backend.name,
+        family=f"ibm-live ({backend.name})",
+        factory=lambda b=backend: b,
+        two_qubit_gates=tuple(
+            g for g in ("cz", "ecr", "cx") if g in backend.target.operation_names
+        ),
+        one_qubit_gates=("rz", "sx", "x"),
+        two_qubit_error=3.0e-3,  # sentinel; refreshed from target if needed
+        t2_microseconds=300.0,
+        all_to_all=False,
+        is_simulator=False,
+    )
+    compiler = get_compiler(args.compiler)
+    cc = compiler.compile(
+        bundle.qc, live_spec, optimization_level=args.optimization_level
+    )
+    transpiled = cc.circuit
+    print(
+        f"transpiled [{args.compiler}]: depth = {cc.depth}, "
+        f"2q gate count = {cc.two_qubit_count}"
+    )
 
     if args.dynamic_decoupling:
         from qiskit.transpiler.passes import (

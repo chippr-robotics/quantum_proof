@@ -56,6 +56,30 @@ def _load_qasm(path: Path):
     return load(str(path))
 
 
+def _median_two_qubit_error(backend, gate_names, default: float) -> float:
+    """Pull the median two-qubit error from a live backend's target.
+    Falls back to ``default`` if no calibration data is exposed."""
+    try:
+        target = backend.target
+    except AttributeError:
+        return default
+    errs: list[float] = []
+    for name in gate_names:
+        if name not in target:
+            continue
+        for props in target[name].values():
+            if props is None:
+                continue
+            err = getattr(props, "error", None)
+            if err is None:
+                continue
+            errs.append(err)
+    if not errs:
+        return default
+    errs.sort()
+    return errs[len(errs) // 2]
+
+
 def _classical_groundtruth(tier: int, k: int) -> int:
     """Look up the expected discrete log via the classical oracle living
     in the POC curve loader. We use this only to *verify* the quantum
@@ -109,6 +133,12 @@ def main() -> int:
         help="submit even if the backend's advertised coherence budget is smaller than "
         "the transpiled circuit (not recommended -- default gates the submission)",
     )
+    parser.add_argument(
+        "--compiler",
+        type=str,
+        default="qiskit",
+        help="compiler strategy: qiskit | tket (see oathbreaker/qiskit/compilers.py)",
+    )
     args = parser.parse_args()
 
     # Resource budget: published tier estimates from the Rust framework.
@@ -133,7 +163,6 @@ def main() -> int:
         return 0
 
     try:
-        from qiskit import transpile
         from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2
     except ImportError as exc:
         raise SystemExit(
@@ -165,27 +194,58 @@ def main() -> int:
 
     print(f"Backend: {backend.name}  pending_jobs={backend.status().pending_jobs}")
 
-    transpiled = transpile(
-        circuit,
-        backend,
-        optimization_level=args.optimization_level,
-        seed_transpiler=42,
-    )
-    two_q = sum(1 for op in transpiled.data if op.operation.num_qubits >= 2)
-    print(f"Transpiled: depth={transpiled.depth()}  2q={two_q}")
+    # Build a BackendSpec for the live backend so we can drive it through
+    # the same compiler abstraction the POC uses. Native gate names come
+    # from backend.target.operation_names; the published 2q error and T2
+    # come from the live calibration data.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from backends import BackendSpec  # noqa: E402
+    from compilers import get_compiler  # noqa: E402
 
-    # Coherence gate: under current device-quality conventions we refuse to
-    # submit if the expected error-event count per shot is much greater
-    # than 1. Override with --force if you know what you're doing.
-    # Published median 2q error rate (approx; updated by the runtime).
-    err = 3e-3  # Heron, for ECR use ~7e-3 on Eagle
-    expected_errors = two_q * err
+    op_names = set(backend.target.operation_names)
+    two_q_gates = tuple(g for g in ("cz", "ecr", "cx") if g in op_names)
+    one_q_gates = tuple(g for g in ("rz", "sx", "x") if g in op_names) or (
+        "rz",
+        "sx",
+        "x",
+    )
+
+    # Pull median 2q error from backend calibration if available; otherwise
+    # fall back to the per-family default (Eagle ~7e-3, Heron ~3e-3).
+    family_default = 3.0e-3 if "cz" in two_q_gates else 7.0e-3
+    median_err = _median_two_qubit_error(backend, two_q_gates, default=family_default)
+
+    spec = BackendSpec(
+        name=backend.name,
+        family=f"ibm-live ({backend.name})",
+        factory=lambda b=backend: b,
+        two_qubit_gates=two_q_gates,
+        one_qubit_gates=one_q_gates,
+        two_qubit_error=median_err,
+        t2_microseconds=300.0,  # sentinel; used only for diagnostic output
+        all_to_all=False,
+        is_simulator=False,
+    )
+    compiler = get_compiler(args.compiler)
+    cc = compiler.compile(
+        circuit, spec, optimization_level=args.optimization_level, seed=42
+    )
+    transpiled = cc.circuit
+    print(
+        f"Transpiled [{args.compiler}]: depth={cc.depth}  2q={cc.two_qubit_count}  "
+        f"(median 2q err {median_err:.1e})"
+    )
+
+    # Coherence gate: refuse to submit if the expected error-event count
+    # per shot is much greater than 1. Threshold derived from the live
+    # 2q error rate, not a hard-coded sentinel.
+    expected_errors = cc.two_qubit_count * median_err
     if expected_errors > 1.0 and not args.force:
         raise SystemExit(
-            f"Transpiled circuit has {two_q} two-qubit gates, expected "
-            f"{expected_errors:.1f} error events per shot at 2q error ~{err}. "
-            "This is above the NISQ budget where the result would still "
-            "be recoverable. Use --force to submit anyway."
+            f"Transpiled circuit has {cc.two_qubit_count} two-qubit gates, expected "
+            f"{expected_errors:.1f} error events per shot at median 2q err "
+            f"{median_err:.1e}. Above the NISQ recovery budget. "
+            "Use --force to submit anyway."
         )
 
     sampler = SamplerV2(mode=backend)

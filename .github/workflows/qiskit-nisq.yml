@@ -37,13 +37,15 @@ jobs:
           cache: "pip"
           cache-dependency-path: oathbreaker/qiskit/poc/requirements.txt
 
-      - name: Install Qiskit (runtime deps excluded)
+      - name: Install Qiskit + TKET (runtime hardware deps excluded)
         run: |
           python -m pip install --upgrade pip
-          # Install only the sim path; qiskit-ibm-runtime is not required in CI.
+          # qiskit-ibm-runtime is only needed by the gate-count step (for the
+          # fake-backend models). pytket and pytket-qiskit are CI-required:
+          # the Compiler abstraction is exercised on every PR.
           grep -v '^qiskit-ibm-runtime' requirements.txt > ci-requirements.txt
           pip install -r ci-requirements.txt
-          python -c "import qiskit, qiskit_aer; print('qiskit', qiskit.__version__, 'aer', qiskit_aer.__version__)"
+          python -c "import qiskit, qiskit_aer, pytket; print('qiskit', qiskit.__version__, 'aer', qiskit_aer.__version__, 'pytket', pytket.__version__)"
 
       - name: Classical curve sanity (Oath-4)
         run: python oath4.py
@@ -60,10 +62,13 @@ jobs:
       - name: Oath-N generic sweep (Oath-4 full sim + Oath-8/16 build check)
         run: python test_oathN.py
 
-      - name: Measure compiled gate count across Oath-4/8, both adders
+      - name: Compiler correctness sweep (qiskit + tket x both adders, Oath-4)
         run: |
           pip install qiskit-ibm-runtime
-          python measure_gate_count.py --tiers 4,8 --backends torino
+          python test_compilers.py
+
+      - name: Measure compiled gate count (qiskit + tket, Oath-4/8)
+        run: python measure_gate_count.py --tiers 4,8 --compilers qiskit,tket --backends torino
 
   # ---------------------------------------------------------------------------
   # Summary gate -- blocks merges unless the Oath-4 sweep passes.
