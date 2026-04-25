@@ -1,4 +1,4 @@
-use ec_goldilocks::CurveParams;
+use ec_oath::CurveParams;
 use reversible_arithmetic::ancilla::AncillaPool;
 use reversible_arithmetic::gates::Gate;
 use reversible_arithmetic::resource_counter::ResourceCounter;
@@ -193,7 +193,7 @@ impl WindowedScalarMulJacobianV3 {
             // Table load using one-hot selection
             for entry_idx in 0..table_size {
                 let point = precomp.lookup(entry_idx);
-                if let ec_goldilocks::AffinePoint::Finite { x, y } = point {
+                if let ec_oath::AffinePoint::Finite { x, y } = point {
                     let x_val = x.to_canonical();
                     let y_val = y.to_canonical();
 

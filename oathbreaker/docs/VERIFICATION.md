@@ -22,7 +22,7 @@
 
 Every reversible gate, arithmetic operation, and Shor sub-system is independently tested:
 
-**goldilocks-field** (20 tests):
+**oath-field** (20 tests):
 - Field axioms: addition/multiplication identity, commutativity, distributivity
 - Additive and multiplicative inverses
 - Subtraction (including underflow wrapping)
@@ -30,7 +30,7 @@ Every reversible gate, arithmetic operation, and Shor sub-system is independentl
 - Exponentiation and Legendre symbol
 - 7 property-based tests (proptest) verifying field axioms over random inputs
 
-**ec-goldilocks** (10 tests):
+**ec-oath** (10 tests):
 - Infinity as identity element for point addition
 - Scalar multiplication by zero returns infinity
 - Point negation (finite and infinity)
@@ -62,8 +62,8 @@ Every reversible gate, arithmetic operation, and Shor sub-system is independentl
 
 ### Layer 2: Integration Tests
 
-- Reversible point addition matches `ec-goldilocks::point_add` on random inputs
-- Reversible double-scalar map matches `ec-goldilocks::double_scalar_mul`
+- Reversible point addition matches `ec-oath::point_add` on random inputs
+- Reversible double-scalar map matches `ec-oath::double_scalar_mul`
 - [a]G + [b]Q computed reversibly matches classical computation
 - Jacobian and affine circuit builders produce equivalent results
 
@@ -116,7 +116,7 @@ Five GitHub Actions workflows enforce correctness on every push and PR:
 | `benchmark.yml` | Full benchmark suite with resource tables, QASM export, scaling projections; results in PR job summary |
 | `curve-verification.yml` | SageMath SEA verification of all Oath-N parameters; SHA-256 fingerprints in job summary |
 
-The dependency-chain job runs crates in order — goldilocks-field, then ec-goldilocks,
+The dependency-chain job runs crates in order — oath-field, then ec-oath,
 then reversible-arithmetic, then group-action-circuit — validating that algebraic
 guarantees compose correctly across layers.
 
@@ -127,13 +127,13 @@ guarantees compose correctly across layers.
 cargo test --workspace
 
 # Per-crate testing
-cargo test -p goldilocks-field        # 20 tests
-cargo test -p ec-goldilocks           # 10 tests
+cargo test -p oath-field        # 20 tests
+cargo test -p ec-oath           # 10 tests
 cargo test -p reversible-arithmetic   # 7 tests
 cargo test -p group-action-circuit    # 54 tests
 
 # Classical ground truth (requires Sage-generated Oath params)
-cargo test -p ec-goldilocks -- --test-threads=1
+cargo test -p ec-oath -- --test-threads=1
 
 # Benchmark suite (resource counting + scaling projections + cost attribution)
 cargo run --release -p benchmark

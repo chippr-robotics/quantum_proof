@@ -15,10 +15,37 @@ scalar multiplication with one-hot QROM decode.
 
 | Tier | Field Size | Qubits (Bennett) | Qubits (meas-based est.) | Toffoli | Classical Difficulty | Target Hardware Era |
 |------|-----------|-------------------|--------------------------|---------|---------------------|-------------------|
+| **Oath-4** | 4 bit | 12 | 12 | ~400 (est.) | Trivial (linear scan) | 2025-2026 (NISQ demo, IBM) |
 | **Oath-8** | ~8 bit | 210 | 186 | 112,000 | Trivial (by hand) | 2026-2027 |
 | **Oath-16** | ~16 bit | 402 | 370 | 929,000 | Trivial (milliseconds) | 2027-2028 |
 | **Oath-32** | ~32 bit | 1,026 | 738 | 5,760,000 | Easy (~seconds) | 2029-2031 |
 | **Oath-64** | 64 bit | ~2,052 (proj.) | ~1,474 (proj.) | ~35M (proj.) | Moderate (~hours Pollard rho) | 2032-2035 |
+
+**Oath-4 is the NISQ-demonstration tier** -- a proof-of-concept Qiskit
+implementation in [`../qiskit/poc/`](../qiskit/poc/) compresses the full
+Shor ECDLP stack onto 12 logical qubits by compiling the reversible
+group-action circuit through the cyclic-group isomorphism
+`E(F_11) ~= Z/13Z`. That compilation step relies on classically
+pre-solving the target ECDLP at circuit-construction time, so the POC
+exercises the Qiskit / IBM software stack (AerSimulator, SamplerV2,
+dynamic circuits, error mitigation) rather than attacking the curve.
+The constraint that separates this POC from the real Oath-N execution
+path is recorded in [`NISQ_ROADMAP.md`](NISQ_ROADMAP.md).
+
+### Public NISQ ECDLP demonstrations (state of the art)
+
+| Date | Researcher | Bits | Search space | Hardware |
+|---|---|---:|---:|---|
+| 2025-09 | Steve Tippeconnic | 6 | 64 | public cloud QC |
+| 2026-04 | Giancarlo Lelli (Project Eleven Q-Day Prize) | **15** | **32 767** | publicly accessible cloud QC |
+
+Lelli's 15-bit result sits between our Oath-8 and Oath-16 tiers and was
+achieved with a "variant of Shor's algorithm" -- consistent with iterative
+phase estimation, mid-circuit measurement / dynamic circuits, and heavy
+custom synthesis or error mitigation. It is a forcing function for moving
+our optimized Oath-4 builder up to Oath-8 and Oath-16; the architectural
+roadmap is in [`../qiskit/poc/README.md`](../qiskit/poc/README.md) and the
+constraint split in [`NISQ_ROADMAP.md`](NISQ_ROADMAP.md).
 
 Oath-8/16/32 are measured from actual circuit construction with proper ancilla
 reuse between phases. Oath-64 is projected (circuit materialization exceeds CI
@@ -76,8 +103,15 @@ Each Oath-N curve is generated via SageMath with the following properties:
 - Embedding degree > 4
 - Generator of full order verified
 
-For Oath-64, the field is the Goldilocks prime p = 2^64 - 2^32 + 1.
-Smaller tiers use appropriate primes near the target bit size.
+**On the word "Goldilocks".** Oath-64 uses the canonical Goldilocks prime
+`p = 2^64 − 2^32 + 1`, which has cheap modular reduction (`2^64 ≡ 2^32 − 1`)
+and high 2-adicity -- the same prime made famous by Plonky2. The smaller
+tiers (Oath-4/8/16/32) use the **largest prime below `2^n`** rather than
+the Goldilocks form `2^n − 2^(n/2) + 1`; this keeps every field element
+inside a single machine word while making curve search with the required
+properties (prime order, embedding degree > 4, non-anomalous) trivial. Only
+Oath-64 is literally a Goldilocks field; the rest of the Oath family is
+simply prime-order short-Weierstrass curves with word-sized primes.
 
 All parameters are independently verified in CI via SageMath's SEA
 (Schoof-Elkies-Atkin) algorithm, completely independent of the generation

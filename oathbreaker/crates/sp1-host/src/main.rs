@@ -7,11 +7,11 @@
 //   3. Prove (--features sp1, --mode prove): Generate a ZK proof (core/compressed/groth16)
 
 use clap::Parser;
-use ec_goldilocks::curve::CurveParams;
-use ec_goldilocks::double_scalar_mul;
-use ec_goldilocks::params::load_all_curve_params;
-use ec_goldilocks::point_ops::scalar_mul;
-use ec_goldilocks::test_case::{ProofInput, ProofOutput, TestCase};
+use ec_oath::curve::CurveParams;
+use ec_oath::double_scalar_mul;
+use ec_oath::params::load_all_curve_params;
+use ec_oath::point_ops::scalar_mul;
+use ec_oath::test_case::{ProofInput, ProofOutput, TestCase};
 use group_action_circuit::build_group_action_circuit_jacobian;
 use rand::Rng;
 use sha2::{Digest, Sha256};
@@ -177,7 +177,7 @@ fn cross_verify_with_pollard(curve: &CurveParams, test_cases: &[TestCase]) {
     println!("  Cross-verifying with Pollard's rho...");
     let mut verified = 0;
     for (i, case) in test_cases.iter().take(5).enumerate() {
-        match ec_goldilocks::ecdlp::pollard_rho(&curve.generator, &case.target_q, curve) {
+        match ec_oath::ecdlp::pollard_rho(&curve.generator, &case.target_q, curve) {
             Some(k_recovered) => {
                 let q_check = scalar_mul(k_recovered, &curve.generator, curve);
                 if q_check == case.target_q {

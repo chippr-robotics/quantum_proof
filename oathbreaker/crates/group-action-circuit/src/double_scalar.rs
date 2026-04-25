@@ -1,4 +1,4 @@
-use ec_goldilocks::curve::CurveParams;
+use ec_oath::curve::CurveParams;
 use reversible_arithmetic::ancilla::{AncillaPool, UncomputeStrategy};
 use reversible_arithmetic::gates::Gate;
 use reversible_arithmetic::register::QuantumRegister;
@@ -401,11 +401,11 @@ impl GroupActionCircuit {
         &self,
         a: u64,
         b: u64,
-        target_q: &ec_goldilocks::AffinePoint,
-    ) -> ec_goldilocks::AffinePoint {
-        let ag = ec_goldilocks::point_ops::scalar_mul(a, &self.curve.generator, &self.curve);
-        let bq = ec_goldilocks::point_ops::scalar_mul(b, target_q, &self.curve);
-        ec_goldilocks::point_ops::point_add(&ag, &bq, &self.curve)
+        target_q: &ec_oath::AffinePoint,
+    ) -> ec_oath::AffinePoint {
+        let ag = ec_oath::point_ops::scalar_mul(a, &self.curve.generator, &self.curve);
+        let bq = ec_oath::point_ops::scalar_mul(b, target_q, &self.curve);
+        ec_oath::point_ops::point_add(&ag, &bq, &self.curve)
     }
 
     /// Total qubit count including ancillae.

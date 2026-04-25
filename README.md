@@ -5,7 +5,7 @@
 This repository contains two complementary projects:
 
 1. **Educational explainer** of Google Quantum AI's March 2026 zero-knowledge proof for ECDLP circuit resource estimates
-2. **Oathbreaker** — a fully open-source reversible circuit framework implementing Shor's ECDLP algorithm over Goldilocks-form fields, with Jacobian projective coordinates, Karatsuba multiplication, Binary GCD inversion, QFT, measurement, classical post-processing, and a standardized quantum hardware benchmark (the Oathbreaker Scale)
+2. **Oathbreaker** — a fully open-source reversible circuit framework implementing Shor's ECDLP algorithm over the **Oath curve family** (prime-order short-Weierstrass curves at 4-, 8-, 16-, 32-, and 64-bit field sizes; Oath-64 uses the canonical Goldilocks prime p = 2^64 − 2^32 + 1), with Jacobian projective coordinates, Karatsuba multiplication, Binary GCD inversion, QFT, measurement, classical post-processing, and a standardized quantum hardware benchmark (the Oathbreaker Scale)
 
 ## Background
 
@@ -29,8 +29,8 @@ quantum_proof/
 │   └── quantum_verification_walkthrough.ipynb   # Interactive Jupyter walkthrough
 ├── oathbreaker/                                # Reversible circuit framework
 │   ├── crates/
-│   │   ├── goldilocks-field/                   # GF(p) arithmetic, p = 2^64 - 2^32 + 1
-│   │   ├── ec-goldilocks/                      # EC ops, Jacobian + affine, ECDLP solvers
+│   │   ├── oath-field/                   # GF(p) arithmetic, p = 2^64 - 2^32 + 1
+│   │   ├── ec-oath/                      # EC ops, Jacobian + affine, ECDLP solvers
 │   │   ├── reversible-arithmetic/              # Reversible gates, Karatsuba multiplier, Binary GCD
 │   │   ├── group-action-circuit/               # Coherent [a]G + [b]Q circuit assembly
 │   │   ├── benchmark/                          # Resource counting, cost attribution, scaling
@@ -47,9 +47,9 @@ quantum_proof/
 
 ### Oathbreaker Framework (`oathbreaker/`)
 
-A complete implementation of Shor's ECDLP algorithm on the **Oath curve family** (Goldilocks-form prime fields). The framework implements every layer of the circuit stack:
+A complete implementation of Shor's ECDLP algorithm on the **Oath curve family**. The Oath tiers are prime-order short-Weierstrass curves at 4/8/16/32/64 field bits; Oath-64 uses the canonical Goldilocks prime `p = 2^64 − 2^32 + 1`, while the smaller tiers use the largest prime below `2^n` for easy curve-search and word-sized arithmetic. The framework implements every layer of the circuit stack:
 
-- **Goldilocks field arithmetic** — addition, multiplication, inversion, square root (Tonelli-Shanks), with property-based testing of all field axioms
+- **Field arithmetic (`oath-field`)** — addition, multiplication, inversion, square root (Tonelli-Shanks) over the Goldilocks 64-bit prime, with property-based testing of all field axioms
 - **Elliptic curve operations** — point addition, doubling, and scalar multiplication in both affine and Jacobian projective coordinates
 - **Reversible circuit primitives** — NOT/CNOT/Toffoli gates, Cuccaro ripple-carry adder, Karatsuba multiplier (O(n^1.585)), symmetry-optimized squarer, Binary GCD and Fermat inverters
 - **Reversible EC operations** — point addition and doubling in both affine and Jacobian coordinates, with proper Cuccaro subtraction for all field operations
@@ -63,6 +63,19 @@ A complete implementation of Shor's ECDLP algorithm on the **Oath curve family**
 
 **Current results (Oath-32, measured)**: 2,848 qubits, 5.76M Toffoli gates.
 **256-bit projection**: ~1.2B Toffoli (Karatsuba model), ~24x gap to Litinski's 50M.
+**NISQ proof of concept (Oath-4/8/16)**: 12-72 logical qubits, proof-of-concept
+Qiskit Shor circuit in [`oathbreaker/qiskit/poc/`](oathbreaker/qiskit/poc/). The
+noiseless simulator recovers all 12 Oath-4 secrets at ~70% peak vote and the
+same circuit compiles cleanly to IBM Eagle / Heron backends via SamplerV2,
+with a pluggable Compiler strategy (Qiskit + TKET / pytket) that wins ~14% on
+2q gate count for Oath-4 in exchange for ~37% more depth. The POC achieves its
+small compiled size by classically pre-solving the target ECDLP at
+circuit-construction time, so it validates the Qiskit/IBM software stack but
+is not a cryptographic attack. See
+[`oathbreaker/docs/NISQ_ROADMAP.md`](oathbreaker/docs/NISQ_ROADMAP.md) for the
+constraints that distinguish the POC from the real Oath-N execution path
+(which uses the full reversible EC-arithmetic circuit with no classical
+shortcuts).
 
 91 tests pass across 4 core crates, including 7 property-based tests (proptest) that stress-test algebraic invariants with 1024 random cases each in CI.
 
@@ -114,7 +127,7 @@ cargo run --release -p benchmark -- export-qasm
 
 ## Continuous Integration
 
-Five GitHub Actions workflows enforce correctness at every layer:
+Six GitHub Actions workflows enforce correctness at every layer:
 
 | Workflow | What it checks |
 |----------|---------------|
@@ -123,6 +136,7 @@ Five GitHub Actions workflows enforce correctness at every layer:
 | **Code Quality** | `rustfmt` formatting, `clippy` linting (strict on core crates), `cargo doc` build |
 | **Benchmark** | Full resource counting suite, QASM export, scaling projections, PR job summary |
 | **Curve Verification** | SageMath SEA verification of all Oath-N parameters, SHA-256 audit trail |
+| **Qiskit NISQ Tests** | Oath-4 Shor ECDLP noiseless sweep on AerSimulator (all 12 secrets) |
 
 ## Key Concepts
 

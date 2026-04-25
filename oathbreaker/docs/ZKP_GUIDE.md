@@ -11,8 +11,9 @@ on-chain verification.
 This follows the same approach as Google Quantum AI's
 [zkp_ecc](https://github.com/tanujkhattar/zkp_ecc) project, which uses SP1
 to prove correct execution of quantum circuit simulations for secp256k1. The
-Oathbreaker project applies the same pattern to the Oath curve family over
-Goldilocks-form prime fields.
+Oathbreaker project applies the same pattern to the Oath curve family
+(prime-order short-Weierstrass curves over word-sized primes; Oath-64 uses
+the canonical Goldilocks prime).
 
 ### What the proof attests
 
@@ -116,7 +117,7 @@ and proves the execution inside the SP1 zkVM.
 ```
 1. CURVE PARAMETERS
    └─> Load Oath-N params from sage/oath_all_params.json
-       ├─ Field prime p (Goldilocks form: 2^n - 2^(n/2) + 1)
+       ├─ Field prime p (word-sized; Goldilocks 2^64 - 2^32 + 1 at Oath-64)
        ├─ Curve coefficients a, b
        ├─ Generator point G
        └─ Group order

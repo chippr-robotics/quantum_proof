@@ -1,0 +1,88 @@
+name: Qiskit NISQ Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "oathbreaker/qiskit/**"
+      - ".github/workflows/qiskit-nisq.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "oathbreaker/qiskit/**"
+      - ".github/workflows/qiskit-nisq.yml"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Oath-4 Shor ECDLP noiseless simulator sweep.
+  #
+  # Builds the 12-qubit Qiskit circuit for every non-zero secret k in 1..12,
+  # runs it on AerSimulator, and confirms the classical post-processor
+  # recovers k for every instance. This is the architectural sanity gate
+  # for the NISQ tier -- hardware runs cannot succeed if this fails.
+  # ---------------------------------------------------------------------------
+  oath4-simulator:
+    name: "qiskit / Oath-N POC Shor ECDLP (noiseless)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker/qiskit/poc
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: oathbreaker/qiskit/poc/requirements.txt
+
+      - name: Install Qiskit + TKET (runtime hardware deps excluded)
+        run: |
+          python -m pip install --upgrade pip
+          # qiskit-ibm-runtime is only needed by the gate-count step (for the
+          # fake-backend models). pytket and pytket-qiskit are CI-required:
+          # the Compiler abstraction is exercised on every PR.
+          grep -v '^qiskit-ibm-runtime' requirements.txt > ci-requirements.txt
+          pip install -r ci-requirements.txt
+          python -c "import qiskit, qiskit_aer, pytket; print('qiskit', qiskit.__version__, 'aer', qiskit_aer.__version__, 'pytket', pytket.__version__)"
+
+      - name: Classical curve sanity (Oath-4)
+        run: python oath4.py
+
+      - name: Generic Oath-N curve loader sanity
+        run: python oath_curve.py
+
+      - name: Single-k smoke run
+        run: python run_simulator.py --k 7 --shots 2048
+
+      - name: Full Oath-4 secret sweep (baseline + optimized, all 12 k values)
+        run: python test_oath4.py
+
+      - name: Oath-N generic sweep (Oath-4 full sim + Oath-8/16 build check)
+        run: python test_oathN.py
+
+      - name: Compiler correctness sweep (qiskit + tket x both adders, Oath-4)
+        run: |
+          pip install qiskit-ibm-runtime
+          python test_compilers.py
+
+      - name: Measure compiled gate count (qiskit + tket, Oath-4/8)
+        run: python measure_gate_count.py --tiers 4,8 --compilers qiskit,tket --backends torino
+
+  # ---------------------------------------------------------------------------
+  # Summary gate -- blocks merges unless the Oath-4 sweep passes.
+  # ---------------------------------------------------------------------------
+  qiskit-nisq-pass:
+    name: "All Qiskit NISQ tests pass"
+    if: always()
+    needs: [oath4-simulator]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all Qiskit NISQ test results
+        run: |
+          if [[ "${{ needs.oath4-simulator.result }}" != "success" ]]; then
+            echo "::error::Oath-4 Qiskit simulator tests failed or were cancelled"
+            exit 1
+          fi
+          echo "All Qiskit NISQ tests passed."

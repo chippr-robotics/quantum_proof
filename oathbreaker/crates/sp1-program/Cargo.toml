@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 sp1-zkvm = { workspace = true, optional = true }
-goldilocks-field = { workspace = true }
-ec-goldilocks = { workspace = true }
+oath-field = { workspace = true }
+ec-oath = { workspace = true }
 reversible-arithmetic = { workspace = true }
 group-action-circuit = { workspace = true }
 serde = { workspace = true }

@@ -1,0 +1,185 @@
+"""
+Generic Oath-family curve loader and elliptic-curve primitives.
+
+The Oath-N tier system spans 4/8/16/32/64-bit prime fields with a
+short-Weierstrass curve ``y^2 = x^3 + a*x + b`` over GF(p). Parameters for
+every tier live as JSON next to the curve-generation scripts in
+``../sage/oath{N}_params.json``. This module loads any such tier into an
+``OathCurve`` object that carries the EC arithmetic (add, double, scalar
+multiply) and a Z/nZ index-table used by the cyclic-group compilation of
+the Oath NISQ demo. The companion ``oathN_circuit.py`` builds the
+hardware-optimized Shor ECDLP circuit generically from an ``OathCurve``.
+
+Usage:
+
+    >>> from oath_curve import OathCurve
+    >>> curve = OathCurve.load_tier(4)       # or 8, 16, 32, 64
+    >>> Q = curve.ec_mul(7, curve.generator)  # [7]G
+    >>> curve.classical_dlog(Q)               # recovers 7
+    7
+
+All arithmetic is pure Python and works for any Oath tier. The classical
+discrete-log oracle is linear scan (fine up through Oath-32 in a few
+seconds; Oath-64 needs Pollard rho, which lives in the oathbreaker Rust
+framework for large tiers).
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, Tuple
+
+Point = Optional[Tuple[int, int]]  # None = point at infinity
+
+
+# Parameter files live alongside the SageMath curve generator. Walk up the
+# directory tree until we find oathbreaker/sage/, so the loader works
+# regardless of how deep inside oathbreaker/qiskit this file sits.
+def _find_sage_dir() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "sage"
+        if (candidate / "oath4_params.json").is_file():
+            return candidate
+    raise FileNotFoundError(
+        "could not locate oathbreaker/sage/ relative to oath_curve.py"
+    )
+
+
+_SAGE_DIR = _find_sage_dir()
+
+
+@dataclass(frozen=True)
+class OathCurve:
+    """An Oath-family prime-order short-Weierstrass curve.
+
+    Attributes
+    ----------
+    tier : int                 # 4, 8, 16, 32, 64
+    p : int                    # field prime
+    a, b : int                 # curve coefficients y^2 = x^3 + a*x + b
+    order : int                # prime order of E(F_p)
+    generator : Point          # base point of prime order
+    field_bits : int           # ceil(log2(p))
+    index_bits : int           # ceil(log2(order)) = exponent-register width
+    """
+
+    tier: int
+    p: int
+    a: int
+    b: int
+    order: int
+    generator: Point
+    field_bits: int
+    index_bits: int
+
+    @classmethod
+    def load_tier(cls, tier: int, sage_dir: Optional[Path] = None) -> "OathCurve":
+        sage_dir = sage_dir or _SAGE_DIR
+        path = sage_dir / f"oath{tier}_params.json"
+        data = json.loads(path.read_text())
+        order = int(data["order"])
+        return cls(
+            tier=tier,
+            p=int(data["p"]),
+            a=int(data["a"]),
+            b=int(data["b"]),
+            order=order,
+            generator=(int(data["generator_x"]), int(data["generator_y"])),
+            field_bits=int(data["field_bits"]),
+            index_bits=(order - 1).bit_length(),
+        )
+
+    # -- EC arithmetic ------------------------------------------------------
+
+    def ec_add(self, P: Point, Q: Point) -> Point:
+        p, a = self.p, self.a
+        if P is None:
+            return Q
+        if Q is None:
+            return P
+        x1, y1 = P
+        x2, y2 = Q
+        if x1 == x2:
+            if (y1 + y2) % p == 0:
+                return None
+            lam = (3 * x1 * x1 + a) * pow(2 * y1, -1, p) % p
+        else:
+            lam = (y2 - y1) * pow(x2 - x1, -1, p) % p
+        x3 = (lam * lam - x1 - x2) % p
+        y3 = (lam * (x1 - x3) - y1) % p
+        return (x3, y3)
+
+    def ec_neg(self, P: Point) -> Point:
+        if P is None:
+            return None
+        return (P[0], (-P[1]) % self.p)
+
+    def ec_mul(self, k: int, P: Point) -> Point:
+        k = k % self.order
+        R: Point = None
+        Q: Point = P
+        while k:
+            if k & 1:
+                R = self.ec_add(R, Q)
+            Q = self.ec_add(Q, Q)
+            k >>= 1
+        return R
+
+    # -- cyclic-group isomorphism ------------------------------------------
+
+    def all_points(self) -> list[Point]:
+        """Return the list [0G, 1G, 2G, ..., (n-1)G]. Prefix-cached below
+        for tiers where full enumeration is tractable (Oath-4..Oath-32)."""
+        pts: list[Point] = []
+        acc: Point = None
+        for _ in range(self.order):
+            pts.append(acc)
+            acc = self.ec_add(acc, self.generator)
+        return pts
+
+    def point_to_index(self, P: Point) -> int:
+        """Return i in 0..order-1 such that [i]G == P.
+
+        Linear scan; fine up through Oath-32. For Oath-64+ use the rust
+        framework's BSGS/Pollard-rho implementations in ``crates/ec-oath``.
+        """
+        acc: Point = None
+        for i in range(self.order):
+            if acc == P:
+                return i
+            acc = self.ec_add(acc, self.generator)
+        raise ValueError(f"{P} is not in the subgroup generated by {self.generator}")
+
+    def classical_dlog(self, Q: Point) -> int:
+        """Ground-truth discrete-log oracle for the recovered k."""
+        return self.point_to_index(Q)
+
+
+@dataclass(frozen=True)
+class OathInstance:
+    """A concrete Oath-N ECDLP instance: given ``Q = [k]G``, recover k."""
+
+    curve: OathCurve
+    k: int
+    Q: Point
+
+    @classmethod
+    def from_secret(cls, curve: OathCurve, k: int) -> "OathInstance":
+        k = k % curve.order
+        if k == 0:
+            raise ValueError("k=0 is a trivial instance")
+        return cls(curve=curve, k=k, Q=curve.ec_mul(k, curve.generator))
+
+
+if __name__ == "__main__":
+    for tier in (4, 8, 16, 32):
+        c = OathCurve.load_tier(tier)
+        print(
+            f"Oath-{tier}: p={c.p} order={c.order} G={c.generator} "
+            f"field_bits={c.field_bits} index_bits={c.index_bits}"
+        )
+        inst = OathInstance.from_secret(c, 7 % c.order)
+        print(f"  sample: k=7 -> Q={inst.Q}  classical_dlog={c.classical_dlog(inst.Q)}")

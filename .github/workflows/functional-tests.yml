@@ -20,7 +20,7 @@ jobs:
   # Full workspace integration test — verifies that all crates compose
   # correctly across the dependency chain:
   #
-  #   goldilocks-field → ec-goldilocks → reversible-arithmetic
+  #   oath-field → ec-oath → reversible-arithmetic
   #                                    → group-action-circuit
   #                                    → sp1-program / sp1-host / benchmark
   #
@@ -66,8 +66,8 @@ jobs:
   # by running each crate's tests with all transitive dependencies built,
   # in dependency order. This validates that the algebraic guarantees compose:
   #
-  #   1. Field axioms hold                     (goldilocks-field)
-  #   2. EC group law built on valid field      (ec-goldilocks)
+  #   1. Field axioms hold                     (oath-field)
+  #   2. EC group law built on valid field      (ec-oath)
   #   3. Reversible gates preserve field ops    (reversible-arithmetic)
   #   4. Group-action circuit is coherent       (group-action-circuit)
   # ---------------------------------------------------------------------------
@@ -94,11 +94,11 @@ jobs:
           restore-keys: |
             depchain-${{ runner.os }}-cargo-
 
-      - name: "Layer 1: Field axioms (goldilocks-field)"
-        run: cargo test -p goldilocks-field --release --verbose
+      - name: "Layer 1: Field axioms (oath-field)"
+        run: cargo test -p oath-field --release --verbose
 
-      - name: "Layer 2: EC group law (ec-goldilocks)"
-        run: cargo test -p ec-goldilocks --release --verbose
+      - name: "Layer 2: EC group law (ec-oath)"
+        run: cargo test -p ec-oath --release --verbose
 
       - name: "Layer 3: Reversible gates (reversible-arithmetic)"
         run: cargo test -p reversible-arithmetic --release --verbose

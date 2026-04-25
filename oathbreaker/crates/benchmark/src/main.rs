@@ -443,17 +443,17 @@ fn run_export_all_qasm() {
 ///
 /// Note: The true curve order (18446744077729562113) exceeds u64::MAX.
 /// Circuit construction only uses field_bits, not the order, so this is fine.
-fn hardcoded_oath64() -> ec_goldilocks::CurveParams {
-    use goldilocks_field::GoldilocksField;
+fn hardcoded_oath64() -> ec_oath::CurveParams {
+    use oath_field::GoldilocksField;
 
     const ORDER_FULL: u128 = 18_446_744_077_729_562_113;
     let order = (ORDER_FULL % (u64::MAX as u128 + 1)) as u64;
 
-    ec_goldilocks::CurveParams {
+    ec_oath::CurveParams {
         a: GoldilocksField::new(1),
         b: GoldilocksField::new(38),
         order,
-        generator: ec_goldilocks::AffinePoint::new(
+        generator: ec_oath::AffinePoint::new(
             GoldilocksField::new(1),
             GoldilocksField::new(4_519_977_769_586_765_578),
         ),

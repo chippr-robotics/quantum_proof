@@ -1,4 +1,4 @@
-use goldilocks_field::GoldilocksField;
+use oath_field::GoldilocksField;
 use serde::{Deserialize, Serialize};
 
 /// Parameters for an elliptic curve E: y^2 = x^3 + ax + b over GF(p).

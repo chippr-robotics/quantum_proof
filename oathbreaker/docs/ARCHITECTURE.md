@@ -13,8 +13,8 @@ dependency chain. No circular dependencies exist.
 
 ```mermaid
 graph BT
-    GF["goldilocks-field<br/><i>GF(p) arithmetic</i>"]
-    EC["ec-goldilocks<br/><i>EC point operations</i>"]
+    GF["oath-field<br/><i>GF(p) arithmetic</i>"]
+    EC["ec-oath<br/><i>EC point operations</i>"]
     RA["reversible-arithmetic<br/><i>Reversible gates + circuits</i>"]
     GAC["group-action-circuit<br/><i>Circuit assembly</i>"]
     BM["benchmark<br/><i>Resource counting + projections</i>"]
@@ -46,8 +46,8 @@ graph BT
 
 | Crate | Role | Key types |
 |-------|------|-----------|
-| `goldilocks-field` | Modular arithmetic over p = 2^64 - 2^32 + 1 | `GoldilocksField` |
-| `ec-goldilocks` | Classical elliptic curve operations + ECDLP solvers | `AffinePoint`, `JacobianPoint`, `CurveParams` |
+| `oath-field` | Modular arithmetic over p = 2^64 - 2^32 + 1 | `GoldilocksField` |
+| `ec-oath` | Classical elliptic curve operations + ECDLP solvers | `AffinePoint`, `JacobianPoint`, `CurveParams` |
 | `reversible-arithmetic` | Reversible gate primitives and arithmetic circuits | `Gate`, `CuccaroAdder`, `KaratsubaMultiplier`, `BinaryGcdInverter` |
 | `group-action-circuit` | Complete Shor's circuit: group-action + QFT + measurement + recovery | `ShorsEcdlp`, `GroupActionCircuit`, `Qft`, `QuantumGate` |
 | `benchmark` | Measures resources, projects to 256-bit, compares to literature | `ScalingProjection`, `CostAttribution` |
@@ -409,11 +409,11 @@ Quick reference for navigating the codebase by concern.
 ```
 oathbreaker/
 ├── crates/
-│   ├── goldilocks-field/src/
+│   ├── oath-field/src/
 │   │   ├── field.rs            # GoldilocksField: add, sub, mul, inverse, pow
 │   │   └── constants.rs        # GOLDILOCKS_PRIME, P_MINUS_TWO
 │   │
-│   ├── ec-goldilocks/src/
+│   ├── ec-oath/src/
 │   │   ├── curve.rs            # CurveParams, AffinePoint, JacobianPoint
 │   │   ├── point_ops.rs        # add, double, scalar_mul (both coord systems)
 │   │   └── ecdlp.rs            # Pollard's rho, BSGS solvers

@@ -531,9 +531,9 @@ mod quantum_gate_tests {
 #[cfg(test)]
 mod shor_end_to_end_tests {
     use crate::shor::ShorsEcdlp;
-    use ec_goldilocks::curve::{AffinePoint, CurveParams};
-    use ec_goldilocks::point_ops::scalar_mul;
-    use goldilocks_field::GoldilocksField;
+    use ec_oath::curve::{AffinePoint, CurveParams};
+    use ec_oath::point_ops::scalar_mul;
+    use oath_field::GoldilocksField;
 
     /// Create a small test curve for end-to-end Shor's testing.
     ///
@@ -666,8 +666,8 @@ mod shor_end_to_end_tests {
 mod export_tests {
     use crate::export::{export_qasm, export_shor_qasm, export_stats_json};
     use crate::shor::ShorsEcdlp;
-    use ec_goldilocks::curve::{AffinePoint, CurveParams};
-    use goldilocks_field::GoldilocksField;
+    use ec_oath::curve::{AffinePoint, CurveParams};
+    use oath_field::GoldilocksField;
 
     fn test_curve_small() -> CurveParams {
         let a = GoldilocksField::new(1);
@@ -728,9 +728,9 @@ mod export_tests {
 #[cfg(test)]
 mod group_action_integration_tests {
     use crate::double_scalar::build_group_action_circuit_jacobian;
-    use ec_goldilocks::curve::{AffinePoint, CurveParams};
-    use ec_goldilocks::point_ops::scalar_mul;
-    use goldilocks_field::GoldilocksField;
+    use ec_oath::curve::{AffinePoint, CurveParams};
+    use ec_oath::point_ops::scalar_mul;
+    use oath_field::GoldilocksField;
 
     fn test_curve() -> CurveParams {
         let a = GoldilocksField::new(1);
@@ -763,8 +763,7 @@ mod group_action_integration_tests {
 
         for (a, b) in test_cases {
             let circuit_result = circuit.execute_classical(a, b, &target_q);
-            let reference =
-                ec_goldilocks::double_scalar_mul(a, &curve.generator, b, &target_q, &curve);
+            let reference = ec_oath::double_scalar_mul(a, &curve.generator, b, &target_q, &curve);
             assert_eq!(circuit_result, reference, "Mismatch for a={}, b={}", a, b);
         }
     }

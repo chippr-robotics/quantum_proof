@@ -1,6 +1,6 @@
 [package]
-name = "goldilocks-field"
-description = "GF(p) arithmetic for the Goldilocks prime p = 2^64 - 2^32 + 1"
+name = "oath-field"
+description = "Field arithmetic crate for the Oathbreaker Oath family (implements the 64-bit Goldilocks prime p = 2^64 - 2^32 + 1)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

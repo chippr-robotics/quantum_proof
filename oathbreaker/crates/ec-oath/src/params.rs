@@ -1,5 +1,5 @@
 use crate::curve::{AffinePoint, CurveParams};
-use goldilocks_field::GoldilocksField;
+use oath_field::GoldilocksField;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;

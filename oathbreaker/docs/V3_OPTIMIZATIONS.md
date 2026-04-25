@@ -85,7 +85,7 @@ Oathbreaker v3 introduces optimizations across all three layers of the quantum c
 
 The net effect is -2 squarings +1 multiplication per doubling. Since Karatsuba squarings are ~50% cheaper than multiplications (symmetry optimization), this yields a modest Toffoli reduction per doubling plus significant workspace savings.
 
-**Classical reference**: `modified_jacobian_double()` in `ec-goldilocks/src/point_ops.rs`, verified against affine doubling through chained doublings (2G, 4G, 8G, 16G, 32G) and full scalar multiplication.
+**Classical reference**: `modified_jacobian_double()` in `ec-oath/src/point_ops.rs`, verified against affine doubling through chained doublings (2G, 4G, 8G, 16G, 32G) and full scalar multiplication.
 
 **Reversible circuit**: `ReversibleJacobianDoubleV3` in `crates/reversible-arithmetic/src/ec_double_jacobian_v3.rs`.
 
@@ -150,7 +150,7 @@ Replaces windowed double-and-add with a constant-time ladder (one doubling + one
 Automated tools can find more compact Toffoli decompositions for specific functions. Requires external tool integration. Document potential but defer implementation.
 
 ### Curve Choice (a=-3 or a=0)
-Curves with a=-3 (like NIST P-256) enable the "dbl-2001-b" formula achieving 1S+5M per doubling. Curves with a=0 (like secp256k1) eliminate one multiplication entirely. Oathbreaker's Goldilocks curves use a=1, which doesn't benefit from either shortcut. Changing curve parameters would invalidate the Oath-N family and SageMath-verified parameters.
+Curves with a=-3 (like NIST P-256) enable the "dbl-2001-b" formula achieving 1S+5M per doubling. Curves with a=0 (like secp256k1) eliminate one multiplication entirely. Oathbreaker's Oath-family curves use a=1, which doesn't benefit from either shortcut. Changing curve parameters would invalidate the Oath-N family and SageMath-verified parameters.
 
 ---
 
@@ -179,8 +179,8 @@ Curves with a=-3 (like NIST P-256) enable the "dbl-2001-b" formula achieving 1S+
 |------|-------|-----------|
 | `test_squarer_fewer_toffoli_than_multiplier` | reversible-arithmetic | Squarer uses fewer Toffoli than multiplier |
 | `test_v3_doubler_fewer_squarings_than_v2` | reversible-arithmetic | V3 doubler Toffoli < v2 doubler |
-| `test_modified_jacobian_double_matches_affine` | ec-goldilocks | Modified Jacobian matches affine through chain |
-| `test_modified_jacobian_scalar_mul` | ec-goldilocks | Modified Jacobian scalar mul matches reference |
+| `test_modified_jacobian_double_matches_affine` | ec-oath | Modified Jacobian matches affine through chain |
+| `test_modified_jacobian_scalar_mul` | ec-oath | Modified Jacobian scalar mul matches reference |
 | `test_naf_basic_values` | group-action-circuit | NAF encoding of small values |
 | `test_naf_no_adjacent_nonzero` | group-action-circuit | Non-adjacency property (0..1000) |
 | `test_naf_roundtrip` | group-action-circuit | NAF encode/decode roundtrip (0..1000) |

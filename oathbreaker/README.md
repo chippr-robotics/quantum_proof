@@ -1,6 +1,6 @@
 # Oathbreaker
 
-## Open Reversible Circuit Framework for ECDLP over the Goldilocks Field
+## Open Reversible Circuit Framework for ECDLP over the Oath Curve Family
 ### With zk-Proven Execution Trace, Karatsuba Arithmetic, and Resource Benchmarking
 
 **Project: Quantum Open Source Research**
@@ -11,7 +11,10 @@
 ## Overview
 
 A complete implementation of Shor's ECDLP algorithm on the **Oath curve family** — toy
-elliptic curves over Goldilocks-form prime fields (p = 2^n - 2^(n/2) + 1).
+prime-order short-Weierstrass curves at 4, 8, 16, 32, and 64 field-bit sizes. Oath-64
+is the canonical tier and uses the 64-bit **Goldilocks prime** `p = 2^64 − 2^32 + 1`;
+the smaller tiers (Oath-4/8/16/32) use the largest prime below `2^n`, which keeps
+arithmetic inside a single machine word while staying easy to enumerate classically.
 
 The framework implements all stages of Shor's algorithm: the coherent double-scalar
 group-action map **[a]G + [b]Q** (>99% of circuit cost), **inverse QFT** on both
@@ -95,11 +98,11 @@ target is doubling formula improvement, not mixed addition or QROM.
 ```
 oathbreaker/
 ├── crates/
-│   ├── goldilocks-field/           # GF(p) arithmetic, p = 2^64 - 2^32 + 1
+│   ├── oath-field/           # GF(p) arithmetic, p = 2^64 - 2^32 + 1
 │   │                               #   field.rs — add, sub, mul, inverse, pow, sqrt (Tonelli-Shanks)
 │   │                               #   constants.rs — field prime, generator
 │   │                               #   field_tests.rs — 12 unit + 7 proptest + Legendre
-│   ├── ec-goldilocks/              # EC ops + double-scalar mul + ECDLP solvers
+│   ├── ec-oath/              # EC ops + double-scalar mul + ECDLP solvers
 │   │                               #   curve.rs — AffinePoint, JacobianPoint, CurveParams
 │   │                               #   point_ops.rs — add, double, scalar_mul (affine + Jacobian)
 │   │                               #   double_scalar_mul.rs — [a]G + [b]Q classical reference
@@ -197,8 +200,8 @@ See [docs/ZKP_GUIDE.md](docs/ZKP_GUIDE.md) for the full proof pipeline documenta
 cargo test --workspace
 
 # Per-crate testing
-cargo test -p goldilocks-field        # 20 tests (12 unit + 7 proptest + Legendre)
-cargo test -p ec-goldilocks           # 10 tests (affine, Jacobian, on-curve, scalar mul)
+cargo test -p oath-field        # 20 tests (12 unit + 7 proptest + Legendre)
+cargo test -p ec-oath           # 10 tests (affine, Jacobian, on-curve, scalar mul)
 cargo test -p reversible-arithmetic   # 7 tests (gates, registers, resource counting)
 cargo test -p group-action-circuit    # 54 tests (QFT, Shor, measurement, CF, QASM export)
 ```
