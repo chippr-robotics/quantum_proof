@@ -1,0 +1,239 @@
+---
+import Base from '../layouts/Base.astro';
+import StatCard from '../components/StatCard.astro';
+
+const crates = [
+  {
+    name: 'oath-field',
+    summary: 'GF(p) arithmetic, p = 2^64 − 2^32 + 1',
+    detail: 'add, sub, mul, inverse, pow, sqrt (Tonelli-Shanks). Property-tested for all field axioms.',
+  },
+  {
+    name: 'ec-oath',
+    summary: 'EC operations + ECDLP solvers',
+    detail: 'Affine and Jacobian point addition/doubling, scalar multiplication, Pollard\'s rho ground-truth solver.',
+  },
+  {
+    name: 'reversible-arithmetic',
+    summary: 'Reversible gates and compound operations',
+    detail: 'NOT/CNOT/Toffoli, Cuccaro ripple-carry adder, Karatsuba multiplier (O(n^1.585)), symmetry-optimized squarer, Binary GCD inverter.',
+  },
+  {
+    name: 'group-action-circuit',
+    summary: 'Coherent [a]G + [b]Q + QFT + measurement',
+    detail: 'Windowed scalar multiplication with one-hot QROM decode, full inverse QFT, Shor measurement simulation, continued-fraction recovery, OpenQASM 3.0 export.',
+  },
+  {
+    name: 'benchmark',
+    summary: 'Resource counting and projections',
+    detail: 'Toffoli/CNOT/NOT counters, per-subsystem cost attribution, window-size sweep, three-model scaling projections (Karatsuba, schoolbook, empirical).',
+  },
+  {
+    name: 'sp1-program',
+    summary: 'SP1 zkVM guest program',
+    detail: 'Runs the circuit-construction + classical verification path inside SP1. Provable execution trace.',
+  },
+  {
+    name: 'sp1-host',
+    summary: 'Classical verification + Groth16 proof generation',
+    detail: 'Loads test cases, drives the guest, and (under feature flag) generates the Groth16 SNARK.',
+  },
+];
+
+const optimizations = [
+  { step: 'Baseline (schoolbook + Fermat)', toffoli: '8.38 M', delta: '—' },
+  { step: '+ Karatsuba multiplication', toffoli: '7.37 M', delta: '−12.0%' },
+  { step: '+ Symmetry-optimized squaring', toffoli: '6.62 M', delta: '−10.1%' },
+  { step: '+ Binary GCD inversion', toffoli: '5.67 M', delta: '−14.5%' },
+  { step: '+ Proper Cuccaro arithmetic', toffoli: '5.76 M', delta: '+1.7% (correctness)' },
+  { step: 'Cumulative', toffoli: '5.76 M', delta: '−31.3%', highlight: true },
+];
+
+const oathbreakerScale = [
+  { tier: 'Oath-8', field: '8-bit', qubits: '295', toffoli: '162 K', difficulty: 'Trivial', era: '2026–2027' },
+  { tier: 'Oath-16', field: '16-bit', qubits: '855', toffoli: '997 K', difficulty: 'Trivial', era: '2027–2028' },
+  { tier: 'Oath-32', field: '32-bit', qubits: '2,848', toffoli: '5.76 M', difficulty: 'Easy (~seconds)', era: '2029–2031' },
+  { tier: 'Oath-64', field: '64-bit', qubits: '~5,696', toffoli: '~90 M', difficulty: 'Hours (Pollard ρ)', era: '2032–2035', highlight: true },
+];
+---
+
+<Base title="Oathbreaker — Quantum Proof" description="Open reversible Shor's-ECDLP framework over the Oath curve family. Architecture, crates, and the Oathbreaker Scale.">
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">The framework</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      Oathbreaker — a complete reversible Shor's stack
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      A working implementation of every layer of the algorithm: reversible field arithmetic →
+      reversible EC point operations → coherent [a]G + [b]Q → inverse QFT → measurement →
+      classical recovery. Independently verified against Pollard's rho and proven correct via
+      SP1 Groth16.
+    </p>
+
+    <div class="mt-6 flex flex-wrap gap-2">
+      <span class="chip-brand">Rust workspace · 7 crates</span>
+      <span class="chip-brand">QASM 3.0 export</span>
+      <span class="chip-brand">SP1 zkVM</span>
+      <span class="chip-brand">SageMath SEA verification</span>
+      <span class="chip-brand">MIT licensed</span>
+    </div>
+
+    <div class="mt-6 flex flex-wrap gap-3">
+      <a class="btn btn-primary" href="https://github.com/chippr-robotics/quantum_proof/tree/main/oathbreaker" target="_blank" rel="noopener">View on GitHub →</a>
+      <a class="btn btn-outline" href="/docs/architecture">Architecture deep dive</a>
+    </div>
+  </div>
+
+  <!-- Current results -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Current results · v2.0 · April 2026</span>
+      <h2 class="section-title mt-3">Measured, not estimated</h2>
+      <p class="section-desc">
+        Every Toffoli, CNOT, and NOT in Oath-8/16/32 is counted by the framework's resource counter.
+        Oath-64 is projected via Karatsuba scaling.
+      </p>
+
+      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard value="Oath-8" label="295 qubits · 162 K Toffoli" hint="Window w=4" />
+        <StatCard value="Oath-16" label="855 qubits · 997 K Toffoli" hint="Window w=4" />
+        <StatCard value="Oath-32" label="2,848 qubits · 5.76 M Toffoli" hint="Window w=8" accent />
+      </div>
+    </div>
+  </section>
+
+  <!-- Crates table -->
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">Architecture</span>
+      <h2 class="section-title mt-3">Seven crates in one workspace</h2>
+      <p class="section-desc">
+        The dependency chain runs from raw field arithmetic to a full Shor pipeline. Each crate
+        has its own README and tests.
+      </p>
+
+      <ul class="mt-10 space-y-3">
+        {crates.map((c, i) => (
+          <li class="card card-hover reveal flex flex-wrap items-start gap-4">
+            <div class="flex-shrink-0 font-mono text-2xl font-extrabold text-brand-700 dark:text-brand-400">
+              {String(i + 1).padStart(2, '0')}
+            </div>
+            <div class="flex-1 min-w-0">
+              <code class="text-base font-bold text-brand-800 dark:text-brand-200">{c.name}</code>
+              <p class="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">{c.summary}</p>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{c.detail}</p>
+            </div>
+            <a
+              class="text-sm font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300"
+              href={`https://github.com/chippr-robotics/quantum_proof/tree/main/oathbreaker/crates/${c.name}`}
+              target="_blank"
+              rel="noopener"
+            >
+              Source →
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <!-- Optimization history -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Optimization history (Oath-32)</span>
+      <h2 class="section-title mt-3">From 8.38M to 5.76M Toffoli</h2>
+      <p class="section-desc">
+        Each optimization is independently measurable. The framework captures intermediate
+        snapshots so contributors can see exactly where each gain came from.
+      </p>
+
+      <div class="mt-8 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-sm">
+          <thead class="bg-brand-100 text-left text-brand-800 dark:bg-brand-950/40 dark:text-brand-200">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Optimization</th>
+              <th class="px-4 py-3 font-semibold">Toffoli</th>
+              <th class="px-4 py-3 font-semibold">Change</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-slate-900">
+            {optimizations.map((o) => (
+              <tr class:list={['border-t border-slate-100 dark:border-slate-800', o.highlight && 'bg-brand-50 font-semibold dark:bg-brand-950/30']}>
+                <td class="px-4 py-3">{o.step}</td>
+                <td class="px-4 py-3 font-mono">{o.toffoli}</td>
+                <td class="px-4 py-3 font-mono">{o.delta}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-4 text-sm text-slate-600 dark:text-slate-400">
+        See <a class="text-brand-700 underline dark:text-brand-300" href="/docs/v3-optimizations">V3 Optimizations</a>
+        for the full attribution by subsystem (doublings: 80.2%, mixed adds: 17.1%, BGCD: 1.9%, …).
+      </p>
+    </div>
+  </section>
+
+  <!-- Oathbreaker Scale -->
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">Hardware benchmark</span>
+      <h2 class="section-title mt-3">The Oathbreaker Scale</h2>
+      <p class="section-desc">
+        Score a quantum computer by which Oath curve it can crack. A standardized,
+        classically-anchored benchmark for fault-tolerant ECDLP.
+      </p>
+
+      <div class="mt-8 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-sm">
+          <thead class="bg-brand-100 text-left text-brand-800 dark:bg-brand-950/40 dark:text-brand-200">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Tier</th>
+              <th class="px-4 py-3 font-semibold">Field</th>
+              <th class="px-4 py-3 font-semibold">Qubits</th>
+              <th class="px-4 py-3 font-semibold">Toffoli</th>
+              <th class="px-4 py-3 font-semibold">Classical difficulty</th>
+              <th class="px-4 py-3 font-semibold">Target era</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-slate-900">
+            {oathbreakerScale.map((t) => (
+              <tr class:list={['border-t border-slate-100 dark:border-slate-800', t.highlight && 'bg-brand-50 font-semibold dark:bg-brand-950/30']}>
+                <td class="px-4 py-3 font-mono">{t.tier}</td>
+                <td class="px-4 py-3">{t.field}</td>
+                <td class="px-4 py-3 font-mono">{t.qubits}</td>
+                <td class="px-4 py-3 font-mono">{t.toffoli}</td>
+                <td class="px-4 py-3">{t.difficulty}</td>
+                <td class="px-4 py-3">{t.era}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick start -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Quick start</span>
+      <h2 class="section-title mt-3">Build it locally</h2>
+      <p class="section-desc">All it takes is Rust + Cargo. SP1 toolchain only required for proof generation.</p>
+
+      <pre class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-slate-900 p-5 text-sm text-slate-100 dark:border-slate-700"><code><span class="text-slate-400"># build the workspace</span>
+cd oathbreaker && cargo build --workspace
+
+<span class="text-slate-400"># run all 91 tests</span>
+cargo test --workspace
+
+<span class="text-slate-400"># benchmark + scaling projections</span>
+cargo run --release -p benchmark
+
+<span class="text-slate-400"># export OpenQASM 3.0 for Oath-32</span>
+cargo run --release -p benchmark -- export-qasm
+
+<span class="text-slate-400"># classical SP1 verification (no toolchain needed)</span>
+cargo run --release -p sp1-host -- --tier oath-8 --num-cases 10</code></pre>
+    </div>
+  </section>
+</Base>

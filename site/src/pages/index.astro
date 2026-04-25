@@ -1,0 +1,170 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import StatCard from '../components/StatCard.astro';
+
+const artifacts = [
+  {
+    title: 'The framework',
+    eyebrow: 'Code',
+    description:
+      'Seven Rust crates implementing reversible field arithmetic, Jacobian point operations, windowed scalar multiplication, QFT, measurement, and classical recovery — plus an SP1 zkVM proof pipeline.',
+    href: '/oathbreaker',
+    cta: 'Tour Oathbreaker →',
+    accent: true,
+  },
+  {
+    title: 'The numbers',
+    eyebrow: 'Results',
+    description:
+      'Measured Toffoli + qubit counts for Oath-8/16/32, three scaling models projecting to 256/384/521-bit, and a head-to-head against Litinski (2023) and Roetteler (2017).',
+    href: '/results',
+    cta: 'See the results →',
+  },
+  {
+    title: 'The walkthrough',
+    eyebrow: 'Notebook',
+    description:
+      'A Jupyter notebook stepping through secp256k1 arithmetic, Fiat–Shamir soundness (9,024 tests → 128-bit security), resource derivation, and on-spend attack timing.',
+    href: '/notebook',
+    cta: 'Open the notebook →',
+  },
+];
+
+const sections = [
+  {
+    eyebrow: 'Why',
+    title: 'The threat is real, near, and quantifiable',
+    body: 'Google Quantum AI showed in March 2026 that breaking secp256k1 takes ≤1,200 logical qubits and ≤90M Toffoli gates — about a 20× spacetime reduction over prior estimates. That puts ECDSA in the crosshairs.',
+    href: '/threat',
+    cta: 'Read the explainer',
+  },
+  {
+    eyebrow: 'How',
+    title: 'A complete reversible Shor stack — open source',
+    body: 'Oathbreaker materializes every layer of the algorithm — from Cuccaro adders and Karatsuba multipliers through the coherent [a]G + [b]Q group-action map and inverse QFT — with QASM 3.0 export and CI-enforced correctness.',
+    href: '/oathbreaker',
+    cta: 'Explore the framework',
+  },
+  {
+    eyebrow: 'Proof',
+    title: 'Execution is provably correct',
+    body: 'The SP1 zkVM runs the framework as a RISC-V guest; a Groth16 SNARK certifies the trace. CI also runs SageMath SEA verification of every Oath-N curve and a Qiskit POC that recovers all 12 Oath-4 secrets.',
+    href: '/zkp',
+    cta: 'Inside the proof pipeline',
+  },
+];
+---
+
+<Base>
+  <Hero />
+
+  <!-- Three artifacts -->
+  <section class="bg-white py-20 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">What's here</span>
+      <h2 class="section-title mt-3">Three complementary artifacts</h2>
+      <p class="section-desc">
+        We built this as an educational <em>and</em> research project. Pick the layer that matches
+        how you read.
+      </p>
+
+      <div class="mt-10 grid gap-5 md:grid-cols-3">
+        {artifacts.map((a) => (
+          <a
+            href={a.href}
+            class:list={[
+              'card card-hover reveal flex flex-col',
+              a.accent && 'border-brand-300 bg-brand-50/40 dark:border-brand-700/60 dark:bg-brand-950/20',
+            ]}
+          >
+            <span class="section-eyebrow">{a.eyebrow}</span>
+            <h3 class="mt-3 text-xl font-bold text-slate-900 dark:text-white">{a.title}</h3>
+            <p class="mt-3 flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              {a.description}
+            </p>
+            <span class="mt-4 text-sm font-semibold text-brand-700 dark:text-brand-300">{a.cta}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Why / How / Proof -->
+  <section class="bg-brand-50/60 py-20 dark:bg-slate-900/50">
+    <div class="container-prose">
+      <span class="section-eyebrow">The story in three beats</span>
+      <h2 class="section-title mt-3">Why · How · Proof</h2>
+
+      <div class="mt-10 space-y-6">
+        {sections.map((s, i) => (
+          <div class="card reveal grid gap-6 md:grid-cols-[140px_1fr_auto] md:items-center">
+            <div>
+              <span class="section-eyebrow">{s.eyebrow}</span>
+              <p class="mt-2 font-mono text-3xl font-extrabold text-brand-700 dark:text-brand-300">
+                {String(i + 1).padStart(2, '0')}
+              </p>
+            </div>
+            <div>
+              <h3 class="text-xl font-bold text-slate-900 dark:text-white">{s.title}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{s.body}</p>
+            </div>
+            <a href={s.href} class="btn btn-outline whitespace-nowrap">
+              {s.cta} →
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Headline numbers -->
+  <section class="bg-white py-20 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">By the numbers</span>
+      <h2 class="section-title mt-3">Measured today, projected tomorrow</h2>
+      <p class="section-desc">
+        These are not estimates — Oath-8/16/32 are counted gate-by-gate by the framework's
+        resource counter, with full per-subsystem attribution.
+      </p>
+
+      <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard value="295" label="Qubits, Oath-8" hint="~162 K Toffoli, w=4" />
+        <StatCard value="855" label="Qubits, Oath-16" hint="~997 K Toffoli, w=4" />
+        <StatCard value="2,848" label="Qubits, Oath-32" hint="5.76 M Toffoli, w=8" accent />
+        <StatCard value="≤1,200" label="Qubits, secp256k1 (Google '26)" hint="≤90 M Toffoli, low-qubit variant" />
+      </div>
+
+      <div class="mt-6 grid gap-4 sm:grid-cols-3">
+        <StatCard value="91" label="Tests passing across 4 core crates" />
+        <StatCard value="9,024" label="Fiat–Shamir tests for 128-bit soundness" />
+        <StatCard value="−31.3%" label="Cumulative Oath-32 Toffoli reduction" hint="Karatsuba + symmetry sq + BGCD" />
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick links -->
+  <section class="bg-gradient-to-br from-brand-100 to-brand-50 py-16 dark:from-brand-950/40 dark:to-slate-950">
+    <div class="container-prose grid gap-6 lg:grid-cols-2">
+      <div>
+        <h2 class="section-title">Dive deeper</h2>
+        <p class="section-desc">
+          Every claim on this site traces back to source: the Rust crates, the SageMath
+          verification scripts, the Qiskit POC, the LaTeX paper draft, and the CI summaries.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-start gap-3 lg:justify-end">
+        <a class="btn btn-primary" href="/docs">Read the docs</a>
+        <a class="btn btn-outline" href="/ci">CI artifacts</a>
+        <a
+          class="btn btn-outline"
+          href="https://github.com/chippr-robotics/quantum_proof"
+          target="_blank"
+          rel="noopener"
+        >
+          GitHub repo
+        </a>
+      </div>
+    </div>
+  </section>
+</Base>

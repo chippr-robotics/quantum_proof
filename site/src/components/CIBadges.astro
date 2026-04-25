@@ -1,0 +1,63 @@
+---
+const repo = 'chippr-robotics/quantum_proof';
+const branch = 'main';
+
+const workflows = [
+  {
+    file: 'unit-tests.yml',
+    name: 'Unit Tests',
+    description: 'Per-crate isolation testing + 7 property-based tests at 1024 cases each.',
+  },
+  {
+    file: 'functional-tests.yml',
+    name: 'Functional Tests',
+    description: 'Workspace integration, dependency-chain validation, benchmark execution, SP1 compilation.',
+  },
+  {
+    file: 'code-quality.yml',
+    name: 'Code Quality',
+    description: '`rustfmt`, `clippy` strict on core crates, `cargo doc` build.',
+  },
+  {
+    file: 'benchmark.yml',
+    name: 'Benchmark',
+    description: 'Resource counting, QASM export, scaling projections (256/384/521-bit), prior-work comparison.',
+  },
+  {
+    file: 'curve-verification.yml',
+    name: 'Curve Verification',
+    description: 'SageMath SEA verification of Oath-N parameters with SHA-256 audit trail.',
+  },
+  {
+    file: 'qiskit-nisq.yml',
+    name: 'Qiskit NISQ',
+    description: 'Oath-4 Shor ECDLP noiseless sweep on AerSimulator — recovers all 12 secrets.',
+  },
+];
+---
+
+<div class="grid gap-4 sm:grid-cols-2">
+  {workflows.map((w) => (
+    <div class="card card-hover reveal">
+      <div class="flex flex-wrap items-center gap-3">
+        <a
+          href={`https://github.com/${repo}/actions/workflows/${w.file}`}
+          target="_blank"
+          rel="noopener"
+          aria-label={`${w.name} workflow status`}
+        >
+          <img
+            src={`https://github.com/${repo}/actions/workflows/${w.file}/badge.svg?branch=${branch}`}
+            alt={`${w.name} status`}
+            height="20"
+            loading="lazy"
+            decoding="async"
+          />
+        </a>
+        <h3 class="text-base font-bold text-slate-900 dark:text-white">{w.name}</h3>
+      </div>
+      <p class="mt-3 text-sm text-slate-600 dark:text-slate-400" set:html={w.description.replace(/`([^`]+)`/g, '<code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.8em] text-slate-800 dark:bg-slate-800 dark:text-slate-200">$1</code>')} />
+      <p class="mt-3 text-xs font-mono text-slate-500 dark:text-slate-500">.github/workflows/{w.file}</p>
+    </div>
+  ))}
+</div>

@@ -1,0 +1,86 @@
+---
+// Background SVG — subtle EC-style scatter on a soft brand gradient.
+---
+
+<section class="relative isolate overflow-hidden">
+  <div
+    class="absolute inset-0 -z-10 bg-gradient-to-br from-brand-50 via-white to-brand-100 dark:from-slate-950 dark:via-slate-950 dark:to-brand-950/50"
+  ></div>
+
+  <!-- Decorative grid -->
+  <svg
+    class="absolute inset-x-0 top-0 -z-10 h-full w-full opacity-[0.07] dark:opacity-[0.12]"
+    aria-hidden="true"
+    viewBox="0 0 1200 600"
+    preserveAspectRatio="xMidYMid slice"
+  >
+    <defs>
+      <pattern id="hero-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" stroke-width="0.6" class="text-brand-700 dark:text-brand-400"/>
+      </pattern>
+      <radialGradient id="hero-fade" cx="60%" cy="0%" r="80%">
+        <stop offset="0%" stop-color="white" stop-opacity="0"/>
+        <stop offset="100%" stop-color="white"/>
+      </radialGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#hero-grid)"/>
+  </svg>
+
+  <!-- Floating EC orbits -->
+  <svg
+    class="absolute right-[-10%] top-[10%] -z-10 h-[420px] w-[420px] opacity-30 dark:opacity-25"
+    aria-hidden="true"
+    viewBox="0 0 200 200"
+  >
+    <g class="origin-center animate-[float_8s_ease-in-out_infinite]">
+      <circle cx="100" cy="100" r="80" fill="none" stroke="currentColor" stroke-width="0.8" class="text-brand-500"/>
+      <ellipse cx="100" cy="100" rx="80" ry="32" fill="none" stroke="currentColor" stroke-width="0.8" class="text-brand-500"/>
+      <ellipse cx="100" cy="100" rx="32" ry="80" fill="none" stroke="currentColor" stroke-width="0.8" class="text-brand-500"/>
+      <ellipse cx="100" cy="100" rx="80" ry="55" fill="none" stroke="currentColor" stroke-width="0.6" stroke-dasharray="2 4" class="text-brand-600"/>
+      <circle cx="100" cy="20" r="3" class="fill-brand-700"/>
+      <circle cx="180" cy="100" r="3" class="fill-brand-700"/>
+      <circle cx="100" cy="180" r="3" class="fill-brand-700"/>
+      <circle cx="20" cy="100" r="3" class="fill-brand-700"/>
+    </g>
+  </svg>
+
+  <div class="container-prose relative py-20 sm:py-28">
+    <span class="section-eyebrow">Quantum cryptography · April 2026</span>
+    <h1 class="mt-4 max-w-3xl text-4xl font-extrabold leading-[1.1] tracking-tight text-brand-950 sm:text-5xl lg:text-6xl dark:text-white">
+      Open reversible Shor's circuits over the
+      <span class="bg-gradient-to-r from-brand-600 to-brand-800 bg-clip-text text-transparent dark:from-brand-300 dark:to-brand-500">
+        Oath curve family
+      </span>
+    </h1>
+    <p class="mt-6 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      A complete implementation of Shor's algorithm for elliptic-curve discrete log —
+      reversible field arithmetic, Karatsuba multiplication, Binary GCD inversion,
+      coherent <code class="rounded bg-brand-100 px-1.5 py-0.5 font-mono text-[0.95em] text-brand-800 dark:bg-brand-900/50 dark:text-brand-200">[a]G + [b]Q</code>,
+      QFT, and classical recovery — measured, classically verified, and proven correct
+      via SP1 Groth16.
+    </p>
+
+    <div class="mt-8 flex flex-wrap gap-3">
+      <a href="/oathbreaker" class="btn btn-primary">
+        Explore Oathbreaker
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M7 5l6 5-6 5V5z"/></svg>
+      </a>
+      <a href="/threat" class="btn btn-outline">Why this matters</a>
+      <a href="/results" class="btn btn-outline">See the numbers</a>
+    </div>
+
+    <dl class="mt-12 grid max-w-4xl grid-cols-2 gap-4 sm:grid-cols-4">
+      {[
+        { v: '2,848', l: 'Qubits (Oath-32)' },
+        { v: '5.76M', l: 'Toffoli (Oath-32)' },
+        { v: '91', l: 'Tests passing' },
+        { v: '6', l: 'CI workflows' },
+      ].map(({ v, l }) => (
+        <div class="rounded-xl border border-brand-200/70 bg-white/60 p-4 backdrop-blur dark:border-brand-800/40 dark:bg-slate-900/60">
+          <dt class="font-mono text-2xl font-extrabold text-brand-800 dark:text-brand-300">{v}</dt>
+          <dd class="mt-1 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">{l}</dd>
+        </div>
+      ))}
+    </dl>
+  </div>
+</section>

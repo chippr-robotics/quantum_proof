@@ -1,0 +1,62 @@
+---
+import Base from '../layouts/Base.astro';
+
+const notebookUrl = 'https://github.com/chippr-robotics/quantum_proof/blob/main/notebook/quantum_verification_walkthrough.ipynb';
+const colabUrl = 'https://colab.research.google.com/github/chippr-robotics/quantum_proof/blob/main/notebook/quantum_verification_walkthrough.ipynb';
+
+const sections = [
+  { n: 1, title: 'secp256k1 elliptic curve arithmetic', body: 'Point addition, doubling, and scalar multiplication in concrete code.' },
+  { n: 2, title: 'The ECDLP', body: 'Why it matters for cryptocurrency security and what Shor\'s algorithm does to it.' },
+  { n: 3, title: 'Fiat-Shamir fuzz testing', body: 'Why 9,024 deterministic random tests give 128-bit cryptographic soundness.' },
+  { n: 4, title: 'Resource cost derivation', body: 'From point-addition Toffoli to full ECDLP circuit cost via windowed scalar multiplication.' },
+  { n: 5, title: 'Physical resource estimation', body: 'Mapping logical qubits to surface-coded superconducting hardware at 10⁻³ error.' },
+  { n: 6, title: 'On-spend attack probability', body: 'Modeling the race between the quantum attacker and the next confirmed block.' },
+  { n: 7, title: 'ZK proof pipeline', body: 'End-to-end summary tying the SHA-256 commitment to the Groth16 SNARK.' },
+];
+---
+
+<Base
+  title="Notebook walkthrough — Quantum Proof"
+  description="Step-by-step Jupyter walkthrough of the verification: ECDLP, Fiat-Shamir soundness, resource derivation, and attack timing."
+>
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">Notebook</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      Walk through the math, one cell at a time
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      <code>notebook/quantum_verification_walkthrough.ipynb</code> is a runnable Jupyter notebook
+      covering everything the blog post explains, in concrete Python.
+    </p>
+
+    <div class="mt-8 flex flex-wrap gap-3">
+      <a class="btn btn-primary" href={notebookUrl} target="_blank" rel="noopener">View on GitHub →</a>
+      <a class="btn btn-outline" href={colabUrl} target="_blank" rel="noopener">Open in Colab</a>
+    </div>
+
+    <pre class="mt-6 overflow-x-auto rounded-xl bg-slate-900 p-5 text-sm text-slate-100"><code><span class="text-slate-400"># Run locally</span>
+pip install jupyter numpy matplotlib
+jupyter notebook notebook/quantum_verification_walkthrough.ipynb</code></pre>
+  </div>
+
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Contents</span>
+      <h2 class="section-title mt-3">Seven sections</h2>
+
+      <ol class="mt-8 space-y-3">
+        {sections.map((s) => (
+          <li class="card card-hover reveal flex items-start gap-4">
+            <div class="flex-shrink-0 font-mono text-2xl font-extrabold text-brand-700 dark:text-brand-400">
+              {String(s.n).padStart(2, '0')}
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-slate-900 dark:text-white">{s.title}</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{s.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+</Base>

@@ -1,0 +1,180 @@
+---
+import Base from '../layouts/Base.astro';
+import StatCard from '../components/StatCard.astro';
+import ScalingCalculator from '../components/ScalingCalculator.tsx';
+
+const measured = [
+  { tier: 'Oath-8', n: 8, qubits: 295, toffoli: '162 K', window: 4 },
+  { tier: 'Oath-16', n: 16, qubits: 855, toffoli: '997 K', window: 4 },
+  { tier: 'Oath-32', n: 32, qubits: 2_848, toffoli: '5.76 M', window: 8 },
+];
+
+const attribution = [
+  { subsystem: 'Doublings', toffoli: '4,541,952', share: '80.2%' },
+  { subsystem: 'Mixed additions', toffoli: '971,616', share: '17.1%' },
+  { subsystem: 'Inversion (BGCD)', toffoli: '107,008', share: '1.9%' },
+  { subsystem: 'Affine recovery', toffoli: '36,868', share: '0.7%' },
+  { subsystem: 'QROM decode/load', toffoli: '8,160', share: '0.1%' },
+];
+
+const priorWork = [
+  { who: 'Roetteler et al. (2017)', size: '256-bit', qubits: '~2,500', toffoli: 'billions' },
+  { who: 'Häner et al. (2020)', size: '256-bit', qubits: '~2,300', toffoli: 'billions (smaller)' },
+  { who: 'Litinski (2023)', size: '256-bit', qubits: '~2,500', toffoli: '~50–200 M' },
+  { who: 'Chevignard et al. (2026)', size: '256-bit', qubits: '~1,100', toffoli: '>100 B' },
+  { who: 'Google QAI (2026, low-qubit)', size: '256-bit', qubits: '≤1,200', toffoli: '≤90 M', highlight: true },
+  { who: 'Google QAI (2026, low-gate)', size: '256-bit', qubits: '≤1,450', toffoli: '≤70 M' },
+  { who: 'Oathbreaker (Karatsuba projection)', size: '256-bit', qubits: 'TBD', toffoli: '~1.2 B (24× gap)' },
+];
+---
+
+<Base
+  title="Results — Quantum Proof"
+  description="Measured Toffoli + qubit counts for Oath-8/16/32, scaling projections to 256/384/521-bit, and a head-to-head against prior work."
+>
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">Results</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      What does it cost — measured today, projected tomorrow
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      The Oathbreaker resource counter walks the full Shor pipeline gate-by-gate at Oath-8/16/32
+      tiers. We then project to 256-bit and beyond using three scaling models: Karatsuba O(n^2.585),
+      Schoolbook O(n^3), and an empirical fit to the Oath measurements.
+    </p>
+  </div>
+
+  <!-- Measured table -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Measured</span>
+      <h2 class="section-title mt-3">Tier-by-tier resource counts</h2>
+
+      <div class="mt-8 grid gap-4 sm:grid-cols-3">
+        {measured.map((m) => (
+          <StatCard value={m.qubits.toLocaleString()} label={`Qubits, ${m.tier}`} hint={`${m.toffoli} Toffoli · w=${m.window}`} accent={m.n === 32} />
+        ))}
+      </div>
+
+      <div class="mt-8 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-sm">
+          <thead class="bg-brand-100 text-left text-brand-800 dark:bg-brand-950/40 dark:text-brand-200">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Tier</th>
+              <th class="px-4 py-3 font-semibold">Field bits</th>
+              <th class="px-4 py-3 font-semibold">Qubits</th>
+              <th class="px-4 py-3 font-semibold">Toffoli</th>
+              <th class="px-4 py-3 font-semibold">Window w</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-slate-900">
+            {measured.map((m) => (
+              <tr class="border-t border-slate-100 dark:border-slate-800">
+                <td class="px-4 py-3 font-mono">{m.tier}</td>
+                <td class="px-4 py-3">{m.n}</td>
+                <td class="px-4 py-3 font-mono">{m.qubits.toLocaleString()}</td>
+                <td class="px-4 py-3 font-mono">{m.toffoli}</td>
+                <td class="px-4 py-3 font-mono">{m.window}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scaling calculator -->
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">Project</span>
+      <h2 class="section-title mt-3">Scale it yourself</h2>
+      <p class="section-desc">
+        Slide the field width and pick a scaling model. The projection is anchored at the measured
+        Oath-32 result and extrapolates with the model's exponent.
+      </p>
+      <div class="mt-8">
+        <ScalingCalculator client:visible />
+      </div>
+    </div>
+  </section>
+
+  <!-- Cost attribution -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Cost attribution (Oath-32, w=8)</span>
+      <h2 class="section-title mt-3">Where every Toffoli goes</h2>
+      <p class="section-desc">
+        Doublings dominate at 80% of the gate cost. The next optimization target is doubling
+        formula improvement, not mixed addition or QROM.
+      </p>
+
+      <div class="mt-8 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-sm">
+          <thead class="bg-brand-100 text-left text-brand-800 dark:bg-brand-950/40 dark:text-brand-200">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Subsystem</th>
+              <th class="px-4 py-3 font-semibold">Toffoli</th>
+              <th class="px-4 py-3 font-semibold">Share</th>
+              <th class="px-4 py-3 font-semibold">Visualization</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-slate-900">
+            {attribution.map((a) => {
+              const pct = parseFloat(a.share);
+              return (
+                <tr class="border-t border-slate-100 dark:border-slate-800">
+                  <td class="px-4 py-3">{a.subsystem}</td>
+                  <td class="px-4 py-3 font-mono">{a.toffoli}</td>
+                  <td class="px-4 py-3 font-mono">{a.share}</td>
+                  <td class="px-4 py-3">
+                    <div class="h-2 w-full overflow-hidden rounded-full bg-brand-100 dark:bg-brand-950/50">
+                      <div class="h-full bg-brand-600" style={`width: ${pct}%`}></div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Prior work comparison -->
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">Comparison</span>
+      <h2 class="section-title mt-3">Where Oathbreaker sits relative to prior work</h2>
+      <p class="section-desc">
+        At 256-bit, Oathbreaker's Karatsuba projection lands at ~1.2B Toffoli — about a 24× gap to
+        Litinski's 50M target. The gap is research roadmap; see <a class="underline" href="/docs/limitations">Limitations</a>.
+      </p>
+
+      <div class="mt-8 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-sm">
+          <thead class="bg-brand-100 text-left text-brand-800 dark:bg-brand-950/40 dark:text-brand-200">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Reference</th>
+              <th class="px-4 py-3 font-semibold">Target size</th>
+              <th class="px-4 py-3 font-semibold">Logical qubits</th>
+              <th class="px-4 py-3 font-semibold">Toffoli (or non-Clifford)</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-slate-900">
+            {priorWork.map((w) => (
+              <tr class:list={['border-t border-slate-100 dark:border-slate-800', w.highlight && 'bg-brand-50 font-semibold dark:bg-brand-950/30']}>
+                <td class="px-4 py-3">{w.who}</td>
+                <td class="px-4 py-3">{w.size}</td>
+                <td class="px-4 py-3 font-mono">{w.qubits}</td>
+                <td class="px-4 py-3 font-mono">{w.toffoli}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-4 text-sm text-slate-600 dark:text-slate-400">
+        Full per-paper methodology in <a class="text-brand-700 underline dark:text-brand-300" href="/docs/comparison">docs/comparison</a>.
+      </p>
+    </div>
+  </section>
+</Base>

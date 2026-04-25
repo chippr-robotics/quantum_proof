@@ -1,0 +1,210 @@
+---
+import Base from '../layouts/Base.astro';
+import StatCard from '../components/StatCard.astro';
+import PipelineDiagram from '../components/PipelineDiagram.tsx';
+
+const pipelineChart = `flowchart TD
+    A[Secret circuit C] -->|SHA-256| B(Commitment hash h)
+    B -->|SHAKE256 seeded| C(9,024 deterministic test inputs)
+    C --> D[Kickmix simulation]
+    A --> D
+    D --> E{All tests pass<br/>resource bounds met?}
+    E -->|Yes| F[SP1 zkVM execution trace]
+    F --> G[Compressed STARK]
+    G -->|Groth16 wrapper| H[Public Groth16 proof]
+    H --> I((Verifier))
+    style A fill:#dcfce7,stroke:#15803d
+    style H fill:#bbf7d0,stroke:#15803d,stroke-width:2px
+    style I fill:#86efac,stroke:#14532d`;
+---
+
+<Base
+  title="ZK Proof Pipeline — Quantum Proof"
+  description="How the SP1 zkVM and a Groth16 SNARK prove a quantum circuit exists and works — without revealing the circuit."
+>
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">Zero-knowledge proof</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      Proving the circuit exists — without revealing it
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      Publishing attack circuits would be irresponsible. Claiming results without evidence is
+      unscientific. The middle path is a cryptographic zero-knowledge proof: SHA-256 commitment
+      → Fiat-Shamir test generation → kickmix simulation → SP1 zkVM → Groth16 SNARK.
+    </p>
+  </div>
+
+  <!-- Diagram -->
+  <section class="bg-white pb-10 dark:bg-slate-950">
+    <div class="container-prose">
+      <PipelineDiagram client:visible chart={pipelineChart} caption="The end-to-end verification pipeline." />
+    </div>
+  </section>
+
+  <!-- Proven vs not proven -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">What does the proof guarantee?</span>
+      <h2 class="section-title mt-3">Proven · Not proven</h2>
+
+      <div class="mt-8 grid gap-5 md:grid-cols-2">
+        <div class="card border-l-4 border-l-brand-500 reveal">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-brand-700 dark:text-brand-300">Proven</h3>
+          <ul class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+            <li>A specific circuit exists, committed via SHA-256.</li>
+            <li>It correctly computes secp256k1 point addition.</li>
+            <li>It passes 9,024 random tests (≥99% correct).</li>
+            <li>It fits within the claimed qubit and gate bounds.</li>
+          </ul>
+        </div>
+        <div class="card border-l-4 border-l-slate-400 reveal">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Not proven</h3>
+          <ul class="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+            <li>That the circuit is optimal.</li>
+            <li>That hardware exists to run it today.</li>
+            <li>Any internal details of the circuit.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Soundness -->
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">Soundness</span>
+      <h2 class="section-title mt-3">Why 9,024 tests give 128-bit security</h2>
+
+      <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_auto]">
+        <div class="prose-doc">
+          <p>
+            Shor's algorithm tolerates a small fraction of incorrect outputs. If a circuit is
+            wrong on at most 1% of inputs, the algorithm still succeeds with probability ≥99%.
+          </p>
+          <p>
+            If the circuit were wrong on more than 1% of inputs, the probability it passes all
+            9,024 independent random tests is:
+          </p>
+          <p class="text-center font-mono">(1 − 0.01)<sup>9,024</sup> ≈ 2<sup>−130</sup></p>
+          <p>
+            That is astronomically unlikely — equivalent to <strong>130 bits</strong> of
+            cryptographic security, exceeding the 128-bit threshold.
+          </p>
+          <p>
+            The test inputs are derived from the circuit itself via the <strong>Fiat-Shamir
+            heuristic</strong>: SHAKE256 is seeded with the SHA-256 commitment of the circuit,
+            so the prover cannot cherry-pick inputs.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3">
+          <StatCard value="9,024" label="Independent random tests" />
+          <StatCard value="2⁻¹³⁰" label="Failure probability" />
+          <StatCard value="130-bit" label="Soundness" accent />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Two statements (the Google paper's published commitments) -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Google Quantum AI · published proof statements</span>
+      <h2 class="section-title mt-3">The two committed circuits</h2>
+
+      <div class="mt-8 grid gap-5 md:grid-cols-2">
+        <div class="card reveal">
+          <span class="chip-brand">Statement 1 · low-qubit</span>
+          <table class="mt-4 w-full text-sm">
+            <tbody>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Non-Clifford gates</td><td class="text-right font-mono font-semibold">≤ 2,700,000</td></tr>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Logical qubits</td><td class="text-right font-mono font-semibold">≤ 1,175</td></tr>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Total operations</td><td class="text-right font-mono font-semibold">≤ 17,000,000</td></tr>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Tests passed</td><td class="text-right font-mono font-semibold">9,024 / 9,024</td></tr>
+            </tbody>
+          </table>
+          <pre class="mt-4 overflow-x-auto rounded-md bg-slate-50 p-3 text-[0.7rem] leading-relaxed text-slate-600 dark:bg-slate-800 dark:text-slate-400">SHA-256:
+0xcc8f532ffea1583ceed3c9af75de3263
+ebaddd5fdf3cddfb3dea848b94d0396a</pre>
+        </div>
+
+        <div class="card reveal">
+          <span class="chip-brand">Statement 2 · low-gate</span>
+          <table class="mt-4 w-full text-sm">
+            <tbody>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Non-Clifford gates</td><td class="text-right font-mono font-semibold">≤ 2,100,000</td></tr>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Logical qubits</td><td class="text-right font-mono font-semibold">≤ 1,425</td></tr>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Total operations</td><td class="text-right font-mono font-semibold">≤ 17,000,000</td></tr>
+              <tr><td class="py-1.5 text-slate-500 dark:text-slate-400">Tests passed</td><td class="text-right font-mono font-semibold">9,024 / 9,024</td></tr>
+            </tbody>
+          </table>
+          <pre class="mt-4 overflow-x-auto rounded-md bg-slate-50 p-3 text-[0.7rem] leading-relaxed text-slate-600 dark:bg-slate-800 dark:text-slate-400">SHA-256:
+0x24f5758f2216aa87aa2806af32a0db78
+8767b873cf6869510cca3d893b3f8a69</pre>
+        </div>
+      </div>
+
+      <pre class="mt-4 overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-3 text-[0.7rem] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">Shared verification key:
+0x00ca4af6cb15dbd83ec3eaab3a0664023828d90a98e650d2d340712f5f3eb0d4</pre>
+
+      <div class="mt-6 card reveal">
+        <p class="text-sm text-slate-600 dark:text-slate-400">
+          <strong class="text-brand-700 dark:text-brand-300">A practical irony:</strong> The Groth16
+          SNARK relies on pairing-friendly elliptic curves, making its soundness inherently vulnerable
+          to the very quantum attacks analyzed in the paper. A sufficiently powerful quantum computer
+          could forge this proof. Since cryptographically-relevant quantum computers do not yet exist,
+          the proof's soundness remains intact today.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modes -->
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">Run it yourself</span>
+      <h2 class="section-title mt-3">Three execution modes</h2>
+      <p class="section-desc">
+        Oathbreaker mirrors Google's <code>zkp_ecc</code> architecture. Classical mode requires
+        no SP1 toolchain — perfect for CI and local hacking.
+      </p>
+
+      <div class="mt-8 grid gap-4 lg:grid-cols-3">
+        <div class="card reveal">
+          <h3 class="font-bold text-slate-900 dark:text-white">Classical</h3>
+          <p class="mt-2 text-xs font-mono text-slate-500">no feature flag</p>
+          <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">
+            Build the circuit, verify Fiat-Shamir test cases locally. CI uses this mode.
+          </p>
+          <pre class="mt-3 overflow-x-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">cargo run -p sp1-host -- \
+  --tier oath-8 --num-cases 10</pre>
+        </div>
+        <div class="card reveal">
+          <h3 class="font-bold text-slate-900 dark:text-white">Execute</h3>
+          <p class="mt-2 text-xs font-mono text-slate-500">--features sp1</p>
+          <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">
+            Run the guest inside the SP1 zkVM without proof generation. Validates the
+            arithmetization but skips the Groth16 wrap.
+          </p>
+          <pre class="mt-3 overflow-x-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">cargo run -p sp1-host \
+  --features sp1 -- \
+  --tier oath-8 --mode execute</pre>
+        </div>
+        <div class="card reveal border-brand-300 bg-brand-50/40 dark:border-brand-700/60 dark:bg-brand-950/30">
+          <h3 class="font-bold text-slate-900 dark:text-white">Prove</h3>
+          <p class="mt-2 text-xs font-mono text-slate-500">--features sp1</p>
+          <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">
+            Generate a publishable Groth16 SNARK. Requires SP1 toolchain + GPU recommended.
+          </p>
+          <pre class="mt-3 overflow-x-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">cargo run -p sp1-host \
+  --features sp1 -- \
+  --tier oath-8 --mode prove</pre>
+        </div>
+      </div>
+
+      <p class="mt-6 text-sm text-slate-600 dark:text-slate-400">
+        Full pipeline reference in <a class="text-brand-700 underline dark:text-brand-300" href="/docs/zkp-guide">docs/zkp-guide</a>.
+      </p>
+    </div>
+  </section>
+</Base>

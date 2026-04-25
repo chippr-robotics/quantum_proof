@@ -1,0 +1,110 @@
+---
+import { ViewTransitions } from 'astro:transitions';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+}
+
+const {
+  title = 'Quantum Proof — Open reversible Shor circuits over the Oath curve family',
+  description = 'Educational and research home for the Oathbreaker framework: open-source reversible quantum circuits for ECDLP, with measured resource counts, ZK-proven execution traces, and a NISQ-validated proof of concept.',
+  ogImage,
+} = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site).toString();
+const resolvedOg = ogImage
+  ? new URL(ogImage, Astro.site).toString()
+  : new URL('/favicon.svg', Astro.site).toString();
+---
+
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="generator" content={Astro.generator} />
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonicalURL} />
+
+<link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}favicon.svg`.replace(/\/+/g, '/')} />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content={canonicalURL} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={resolvedOg} />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={resolvedOg} />
+
+<meta name="theme-color" content="#15803d" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#052e16" media="(prefers-color-scheme: dark)" />
+
+<!-- Theme bootstrap (runs before paint to avoid flash) -->
+<script is:inline>
+  (function () {
+    try {
+      var stored = localStorage.getItem('theme');
+      var prefers = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var dark = stored ? stored === 'dark' : prefers;
+      if (dark) document.documentElement.classList.add('dark');
+    } catch (e) {}
+  })();
+</script>
+
+<ViewTransitions />
+</head>
+
+<body class="flex min-h-screen flex-col font-sans">
+  <a
+    href="#main"
+    class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-brand-700 focus:px-3 focus:py-2 focus:text-white"
+  >
+    Skip to content
+  </a>
+
+  <Nav />
+
+  <main id="main" class="flex-1">
+    <slot />
+  </main>
+
+  <Footer />
+
+  <!-- Scroll-reveal observer (re-runs on each Astro view transition) -->
+  <script>
+    function setupReveal() {
+      const els = document.querySelectorAll('.reveal:not(.is-visible)');
+      if (!('IntersectionObserver' in window)) {
+        els.forEach((el) => el.classList.add('is-visible'));
+        return;
+      }
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              io.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.12 },
+      );
+      els.forEach((el) => io.observe(el));
+    }
+    setupReveal();
+    document.addEventListener('astro:after-swap', setupReveal);
+  </script>
+</body>
+</html>
