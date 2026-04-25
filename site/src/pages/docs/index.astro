@@ -1,0 +1,57 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const docs = await getCollection('docs');
+docs.sort((a, b) => a.data.order - b.data.order);
+
+const grouped = new Map<string, typeof docs>();
+for (const d of docs) {
+  const cat = d.data.category;
+  if (!grouped.has(cat)) grouped.set(cat, []);
+  grouped.get(cat)!.push(d);
+}
+---
+
+<Base
+  title="Docs — Quantum Proof"
+  description="The complete Oathbreaker documentation: architecture, benchmarking, optimizations, ZK proof pipeline, NISQ roadmap, and limitations."
+>
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">Documentation</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      Read the framework, end to end
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      Every page below is rendered directly from <code>oathbreaker/docs/*.md</code> in the repo —
+      the source engineers actually edit. Links update automatically.
+    </p>
+  </div>
+
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose space-y-10">
+      {Array.from(grouped.entries()).map(([cat, list]) => (
+        <div>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-brand-700 dark:text-brand-300">
+            {cat}
+          </h2>
+          <div class="mt-4 grid gap-4 md:grid-cols-2">
+            {list.map((d) => (
+              <a href={`/docs/${d.slug}`} class="card card-hover reveal flex flex-col">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">{d.data.title}</h3>
+                {d.data.description && (
+                  <p class="mt-2 flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                    {d.data.description}
+                  </p>
+                )}
+                <p class="mt-4 font-mono text-xs text-slate-500 dark:text-slate-500">
+                  {d.data.sourceFile ?? `oathbreaker/docs/${d.slug}.md`}
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+</Base>

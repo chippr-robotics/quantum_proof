@@ -1,0 +1,133 @@
+---
+import Base from '../layouts/Base.astro';
+import StatCard from '../components/StatCard.astro';
+
+const tiers = [
+  { tier: 'Oath-4 (POC)', qubits: 12, toffoli: '~400', feasible: 'yes (validated)' },
+  { tier: 'Oath-8', qubits: 210, toffoli: '112 K', feasible: 'no' },
+  { tier: 'Oath-16', qubits: 402, toffoli: '929 K', feasible: 'no' },
+  { tier: 'Oath-32', qubits: '1,026', toffoli: '5.76 M', feasible: 'no' },
+  { tier: 'Oath-64', qubits: '~2,052', toffoli: '~35 M', feasible: 'no' },
+];
+---
+
+<Base
+  title="NISQ Roadmap — Quantum Proof"
+  description="The Qiskit / IBM execution path: Oath-4 proof-of-concept results, the constraints separating POC from real Oath-N, and the road to fault-tolerant execution."
+>
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">NISQ roadmap</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      From a working Oath-4 POC to fault-tolerant Oath-N
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      It is easy to write a quantum-looking circuit that "recovers" an ECDLP secret only because
+      the secret was classically pre-solved at compile time. That tells you nothing about real
+      quantum advantage. The Oathbreaker NISQ roadmap is explicit about what counts.
+    </p>
+  </div>
+
+  <!-- POC results -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Oath-4 proof of concept</span>
+      <h2 class="section-title mt-3">12 of 12 secrets recovered, noiseless AerSimulator</h2>
+      <p class="section-desc">
+        The POC at <code>oathbreaker/qiskit/poc/</code> compiles an Oath-4 Shor circuit and runs
+        it on Qiskit's AerSimulator. Across all 12 non-trivial Oath-4 secrets, the noiseless
+        simulator recovers the discrete log at ~70% peak vote.
+      </p>
+
+      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard value="12 / 12" label="Oath-4 secrets recovered" accent />
+        <StatCard value="~70%" label="Peak vote share" hint="Noiseless AerSimulator" />
+        <StatCard value="12" label="Logical qubits" hint="Oath-4 Shor circuit" />
+        <StatCard value="−14% / +37%" label="TKET vs Qiskit" hint="2q gate count vs depth" />
+      </div>
+
+      <p class="mt-6 text-sm text-slate-600 dark:text-slate-400">
+        The POC also compiles cleanly to IBM Eagle and Heron backends via SamplerV2. A pluggable
+        compiler strategy lets you swap Qiskit's transpiler for TKET / pytket; on Oath-4 TKET
+        wins ~14% on 2-qubit gate count in exchange for ~37% more depth.
+      </p>
+    </div>
+  </section>
+
+  <!-- POC vs real path -->
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">The boundary</span>
+      <h2 class="section-title mt-3">POC vs. the real Oath-N execution path</h2>
+      <p class="section-desc">
+        These constraints separate the POC zone from the real path. They exist to keep the
+        framework intellectually honest.
+      </p>
+
+      <div class="mt-8 grid gap-5 lg:grid-cols-2">
+        <div class="card border-l-4 border-l-amber-400 reveal">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">POC zone — allowed</h3>
+          <p class="mt-2 text-xs font-mono text-slate-500">oathbreaker/qiskit/poc/</p>
+          <ul class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+            <li>Pre-solving the target ECDLP at circuit-construction time.</li>
+            <li>Linear scans over the group (Oath-4 has 8 points).</li>
+            <li>Encoding EC points as their <code>[i]G</code> index.</li>
+            <li>Goal: validate the Qiskit / IBM software stack at tiny sizes.</li>
+          </ul>
+        </div>
+
+        <div class="card border-l-4 border-l-brand-500 reveal">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-brand-700 dark:text-brand-300">Real path — required</h3>
+          <p class="mt-2 text-xs font-mono text-slate-500">oathbreaker/qiskit/ (top level)</p>
+          <ul class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+            <li>No classical discrete-log oracles during construction.</li>
+            <li>No synthesis steps that scale with order or <code>p</code>.</li>
+            <li>No per-secret circuit regeneration — one circuit per bit width.</li>
+            <li>EC points carried as <code>(x, y)</code> or Jacobian <code>(X, Y, Z)</code>.</li>
+            <li>Built from reversible field arithmetic via the Rust framework's QASM export.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feasibility table -->
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">Feasibility today</span>
+      <h2 class="section-title mt-3">What hardware would actually run this?</h2>
+      <p class="section-desc">
+        Real-path Oath-N is <strong>not</strong> NISQ-feasible today. The resource counts make
+        that explicit.
+      </p>
+
+      <div class="mt-8 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-sm">
+          <thead class="bg-brand-100 text-left text-brand-800 dark:bg-brand-950/40 dark:text-brand-200">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Tier</th>
+              <th class="px-4 py-3 font-semibold">Logical qubits</th>
+              <th class="px-4 py-3 font-semibold">Toffoli</th>
+              <th class="px-4 py-3 font-semibold">NISQ-feasible?</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-slate-900">
+            {tiers.map((t) => (
+              <tr class="border-t border-slate-100 dark:border-slate-800">
+                <td class="px-4 py-3 font-mono">{t.tier}</td>
+                <td class="px-4 py-3 font-mono">{t.qubits}</td>
+                <td class="px-4 py-3 font-mono">{t.toffoli}</td>
+                <td class:list={['px-4 py-3', t.feasible.startsWith('yes') ? 'font-semibold text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400']}>
+                  {t.feasible}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="mt-6 text-sm text-slate-600 dark:text-slate-400">
+        Full constraints in <a class="text-brand-700 underline dark:text-brand-300" href="/docs/nisq-roadmap">docs/nisq-roadmap</a>.
+      </p>
+    </div>
+  </section>
+</Base>

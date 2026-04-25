@@ -1,0 +1,108 @@
+---
+import Base from '../layouts/Base.astro';
+
+const refs = [
+  {
+    title: 'Securing Elliptic Curve Cryptocurrencies against Quantum Vulnerabilities',
+    authors: 'Babbush, Zalcman, Gidney et al. (Google Quantum AI, 2026)',
+    href: 'https://quantumai.google/static/site-assets/downloads/cryptocurrency-whitepaper.pdf',
+  },
+  {
+    title: 'How to compute a 256-bit elliptic curve private key with only 50 million Toffoli gates',
+    authors: 'D. Litinski (2023)',
+    href: 'https://arxiv.org/abs/2306.08585',
+  },
+  {
+    title: 'Quantum resource estimates for computing elliptic curve discrete logarithms',
+    authors: 'M. Roetteler et al. (ASIACRYPT 2017)',
+    href: 'https://eprint.iacr.org/2017/598',
+  },
+  {
+    title: 'On the Size of Pairing-based Non-interactive Arguments',
+    authors: 'J. Groth (2016)',
+    href: 'https://eprint.iacr.org/2016/260',
+  },
+  {
+    title: 'A new quantum ripple-carry addition circuit',
+    authors: 'S. Cuccaro et al. (2004)',
+    href: 'https://arxiv.org/abs/quant-ph/0410184',
+  },
+  {
+    title: 'SP1 zkVM',
+    authors: 'Succinct Labs',
+    href: 'https://github.com/succinctlabs/sp1',
+  },
+];
+---
+
+<Base
+  title="About — Quantum Proof"
+  description="What this project is, why we built it, and the references behind every claim."
+>
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">About</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      Why this exists
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      Google Quantum AI's March 2026 whitepaper compressed the cost of breaking secp256k1 into
+      a regime that is now researchable. The framework should be too. <strong>quantum_proof</strong>
+      pairs an educational explainer with a working open-source implementation so the community
+      can independently study, verify, and extend the result.
+    </p>
+
+    <div class="prose-doc mt-10 max-w-3xl">
+      <h2>Two halves of one project</h2>
+      <ul>
+        <li>
+          <strong>The explainer.</strong> Originally a single static page; now a multi-route SPA
+          covering the threat model, the verification pipeline, the historical context, and the
+          interactive resource calculators.
+        </li>
+        <li>
+          <strong>The framework.</strong> <a href="/oathbreaker">Oathbreaker</a> — a complete
+          reversible Shor's ECDLP implementation in Rust, with measured Oath-8/16/32 results, a
+          NISQ Qiskit POC, SageMath SEA curve verification, and an SP1 Groth16 proof pipeline.
+        </li>
+      </ul>
+
+      <h2>Why open it up?</h2>
+      <p>
+        Withheld circuits cannot be examined for subtle bugs, optimization opportunities, or
+        downstream uses (post-quantum migration tooling, NIST-style benchmarks, hardware
+        commissioning). Open analogues like Oathbreaker fill that gap without publishing
+        attack-grade circuits at cryptographic scale.
+      </p>
+
+      <h2>Disclaimer</h2>
+      <p>
+        This repository is an independent educational and research resource. It is not affiliated
+        with or endorsed by Google Quantum AI. The educational content is based on the
+        publicly-available whitepaper linked in the references. Oath curves are toy curves
+        (≤64-bit fields, ≤32-bit security) intended for software verification, hardware
+        benchmarking, and pedagogy — not as cryptographic primitives.
+      </p>
+
+      <h2>License</h2>
+      <p>MIT — see <a href="https://github.com/chippr-robotics/quantum_proof/blob/main/oathbreaker/LICENSE" target="_blank" rel="noopener">LICENSE</a>.</p>
+    </div>
+  </div>
+
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <span class="section-eyebrow">References</span>
+      <h2 class="section-title mt-3">Sources behind the claims</h2>
+
+      <ul class="mt-8 space-y-3">
+        {refs.map((r) => (
+          <li class="card card-hover reveal">
+            <a class="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300" href={r.href} target="_blank" rel="noopener">
+              {r.title} ↗
+            </a>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{r.authors}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+</Base>

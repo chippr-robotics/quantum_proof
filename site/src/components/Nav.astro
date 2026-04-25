@@ -1,0 +1,121 @@
+---
+import ThemeToggle from './ThemeToggle.tsx';
+
+const links = [
+  { href: '/threat', label: 'The Threat' },
+  { href: '/oathbreaker', label: 'Oathbreaker' },
+  { href: '/results', label: 'Results' },
+  { href: '/zkp', label: 'ZK Proof' },
+  { href: '/nisq', label: 'NISQ' },
+  { href: '/docs', label: 'Docs' },
+];
+
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+---
+
+<header
+  class="sticky top-0 z-40 border-b border-brand-200/70 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/85"
+>
+  <div class="container-prose flex h-14 items-center justify-between gap-4">
+    <a
+      href="/"
+      class="flex items-center gap-2 text-base font-extrabold tracking-tight text-brand-800 hover:text-brand-900 dark:text-brand-300 dark:hover:text-brand-200"
+    >
+      <svg viewBox="0 0 32 32" class="h-7 w-7" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="currentColor" class="text-brand-700 dark:text-brand-500"/>
+        <circle cx="16" cy="16" r="9" stroke="white" stroke-opacity="0.6" stroke-width="1.5" fill="none"/>
+        <ellipse cx="16" cy="16" rx="9" ry="3.6" stroke="white" stroke-opacity="0.5" stroke-width="1.2" fill="none"/>
+        <ellipse cx="16" cy="16" rx="3.6" ry="9" stroke="white" stroke-opacity="0.5" stroke-width="1.2" fill="none"/>
+        <circle cx="16" cy="16" r="2.4" fill="white" fill-opacity="0.85"/>
+      </svg>
+      <span>quantum_proof</span>
+    </a>
+
+    <nav class="hidden items-center gap-1 md:flex" aria-label="Primary">
+      {links.map(({ href, label }) => {
+        const active = path === href || path.startsWith(href + '/');
+        return (
+          <a
+            href={href}
+            aria-current={active ? 'page' : undefined}
+            class:list={[
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              active
+                ? 'bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200'
+                : 'text-slate-600 hover:bg-brand-50 hover:text-brand-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-brand-200',
+            ]}
+          >
+            {label}
+          </a>
+        );
+      })}
+    </nav>
+
+    <div class="flex items-center gap-1">
+      <a
+        href="https://github.com/chippr-robotics/quantum_proof"
+        target="_blank"
+        rel="noopener"
+        class="hidden rounded-md p-2 text-slate-600 hover:bg-brand-50 hover:text-brand-800 sm:inline-flex dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-brand-200"
+        aria-label="GitHub repository"
+      >
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+          <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55 0-.27-.01-.99-.02-1.94-3.2.7-3.87-1.54-3.87-1.54-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.23-1.27-5.23-5.66 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.16 1.17.92-.26 1.9-.39 2.88-.39.98 0 1.96.13 2.88.39 2.2-1.48 3.16-1.17 3.16-1.17.62 1.58.23 2.75.11 3.04.74.8 1.18 1.82 1.18 3.07 0 4.4-2.69 5.36-5.25 5.65.41.35.78 1.05.78 2.11 0 1.52-.01 2.75-.01 3.13 0 .3.21.66.79.55C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/>
+        </svg>
+      </a>
+      <ThemeToggle client:load />
+      <button
+        id="mobile-menu-toggle"
+        class="inline-flex items-center rounded-md p-2 text-slate-600 hover:bg-brand-50 hover:text-brand-800 md:hidden dark:text-slate-400 dark:hover:bg-slate-800"
+        aria-label="Toggle menu"
+        aria-expanded="false"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
+          <path d="M3 6h18M3 12h18M3 18h18"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div
+    id="mobile-menu"
+    class="hidden border-t border-brand-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-950"
+  >
+    <nav class="flex flex-col gap-1" aria-label="Mobile">
+      {links.map(({ href, label }) => (
+        <a
+          href={href}
+          class="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-brand-50 hover:text-brand-800 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {label}
+        </a>
+      ))}
+      <a
+        href="/ci"
+        class="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-brand-50 hover:text-brand-800 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        CI
+      </a>
+      <a
+        href="/about"
+        class="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-brand-50 hover:text-brand-800 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        About
+      </a>
+    </nav>
+  </div>
+</header>
+
+<script>
+  function bindMenu() {
+    const btn = document.getElementById('mobile-menu-toggle');
+    const menu = document.getElementById('mobile-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', () => {
+      const open = menu.classList.toggle('hidden') === false;
+      btn.setAttribute('aria-expanded', String(open));
+    });
+  }
+  bindMenu();
+  document.addEventListener('astro:after-swap', bindMenu);
+</script>

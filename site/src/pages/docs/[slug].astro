@@ -1,0 +1,28 @@
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+import DocPage from '../../layouts/DocPage.astro';
+
+export async function getStaticPaths() {
+  const docs = await getCollection('docs');
+  return docs.map((doc) => ({
+    params: { slug: doc.slug },
+    props: { doc },
+  }));
+}
+
+interface Props {
+  doc: CollectionEntry<'docs'>;
+}
+
+const { doc } = Astro.props;
+const { Content } = await doc.render();
+---
+
+<DocPage
+  title={doc.data.title}
+  description={doc.data.description}
+  category={doc.data.category}
+  sourceFile={doc.data.sourceFile}
+>
+  <Content />
+</DocPage>

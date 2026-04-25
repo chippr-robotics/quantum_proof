@@ -1,0 +1,94 @@
+---
+import Base from '../layouts/Base.astro';
+import CIBadges from '../components/CIBadges.astro';
+---
+
+<Base
+  title="CI artifacts — Quantum Proof"
+  description="Six GitHub Actions workflows enforce correctness at every layer: tests, lints, benchmarks, curve verification, and Qiskit NISQ runs."
+>
+  <div class="container-prose py-14">
+    <span class="section-eyebrow">Continuous integration</span>
+    <h1 class="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-white">
+      Every claim on this site is enforced in CI
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+      Six GitHub Actions workflows run on every push and pull request. Each workflow includes a
+      summary gate job for branch-protection compatibility, and the benchmark + functional-tests
+      jobs publish PR-visible job summaries with the resource counts.
+    </p>
+  </div>
+
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose">
+      <CIBadges />
+    </div>
+  </section>
+
+  <section class="bg-white py-14 dark:bg-slate-950">
+    <div class="container-prose">
+      <span class="section-eyebrow">What CI produces</span>
+      <h2 class="section-title mt-3">Surfaced artifacts</h2>
+
+      <ul class="mt-8 space-y-3">
+        <li class="card reveal">
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">Resource summary on every PR</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            <code>benchmark.yml</code> writes a markdown summary into the GitHub Actions
+            <code>$GITHUB_STEP_SUMMARY</code> with current Toffoli/qubit counts for Oath-8/16/32
+            and the projected costs at 256/384/521 bits. Click into any benchmark check on a PR
+            to see the table inline.
+          </p>
+        </li>
+        <li class="card reveal">
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">QASM 3.0 export</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            The benchmark workflow runs <code>cargo run -p benchmark -- export-qasm</code> and
+            uploads the resulting OpenQASM 3.0 circuits as workflow artifacts so they can be
+            downloaded and re-targeted to other simulators.
+          </p>
+        </li>
+        <li class="card reveal">
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">Tamper-evident curve audit</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            <code>curve-verification.yml</code> runs the SageMath SEA point-counting script over
+            every Oath-N curve definition and writes a SHA-256 audit trail. Any change to a curve
+            parameter forces a fresh re-verification.
+          </p>
+        </li>
+        <li class="card reveal">
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">NISQ recovery sweep</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            <code>qiskit-nisq.yml</code> runs the Oath-4 Shor circuit over all 12 secrets on the
+            noiseless AerSimulator and asserts that the discrete log is recovered every time.
+          </p>
+        </li>
+        <li class="card reveal">
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">Property-based testing</h3>
+          <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            <code>unit-tests.yml</code> runs <code>proptest</code> with 1,024 random cases per
+            property — commutativity, associativity, distributivity, additive and multiplicative
+            inverses — for every push.
+          </p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="bg-brand-50/60 py-14 dark:bg-slate-900/40">
+    <div class="container-prose flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h2 class="section-title">Browse runs</h2>
+        <p class="section-desc">All six workflows publish run history on GitHub Actions.</p>
+      </div>
+      <a
+        href="https://github.com/chippr-robotics/quantum_proof/actions"
+        target="_blank"
+        rel="noopener"
+        class="btn btn-primary"
+      >
+        Open Actions tab →
+      </a>
+    </div>
+  </section>
+</Base>
