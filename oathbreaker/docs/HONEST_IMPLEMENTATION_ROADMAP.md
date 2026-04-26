@@ -199,12 +199,60 @@ sensible transpile footprint when run on Heron in dry-run mode.
 
 ## Status (commit-by-commit, updated as work lands)
 
-- [ ] Phase 1: prime field module + tests
-- [ ] Phase 2: CurveParams + ec-oath classical ops
-- [ ] Phase 3: generic reversible reduction
-- [ ] Phase 4: gate_log persistence + Q threading
-- [ ] Phase 5: Oath-4 integration test
-- [ ] Phase 6: CLI + workflow + docs
+- [x] **Phase 1**: prime field module + tests
+  (commit `45388f3`: `oath-field/src/prime_field.rs`, 28 tests)
+- [x] **Phase 2**: CurveParams + ec-oath classical ops
+  (commit `b495ddd`: `CurveParams::prime_modulus`, `point_ops_generic`,
+  Oath-4 reference table verified, 127 workspace tests green)
+- [ ] **Phase 3**: generic reversible reduction
+- [ ] **Phase 4**: gate_log persistence + Q threading
+- [ ] **Phase 5**: Oath-4 integration test
+- [ ] **Phase 6**: CLI + workflow + docs
+
+### Phase 3 design notes (handoff for the next session)
+
+The Goldilocks reduction at `multiplier.rs:127-235` exploits
+`2^64 ≡ 2^32 - 1 (mod p)` to fold the upper half of the unreduced
+product back into the lower half via a fixed pattern of CNOT + Toffoli
+chains. For arbitrary `p < 2^n`, the standard replacement is
+**compare-and-conditional-subtract**:
+
+1. Allocate one ancilla `cmp_flag`.
+2. Use a reversible comparator (e.g. CuccaroAdder fed `2^n - p` as a
+   classical constant) to set `cmp_flag = 1` iff `acc >= p`.
+3. Conditionally subtract `p` from `acc`, controlled on `cmp_flag`.
+4. Uncompute `cmp_flag` (it is now provably 0 since `acc < p`).
+
+For the post-multiplication case where `acc` is `2n` bits, this fold
+runs `n` times (once per high bit), or once on the entire low half
+if intermediate folds are pre-summed. The Goldilocks fast path stays
+in place for Oath-64; the generic path is selected when
+`curve.prime_modulus != GOLDILOCKS_PRIME`.
+
+Suggested module skeleton:
+
+```text
+reversible-arithmetic/src/mod_reduce.rs
+    pub fn compare_ge(reg, k_bits, p, ws, counter) -> Vec<Gate>
+        // sets ws[flag] = 1 iff (reg as integer) >= p
+    pub fn subtract_const_controlled(reg, n_bits, p, ctrl, ws, counter)
+        -> Vec<Gate>
+        // reg -= p when ctrl is 1
+    pub fn reduce_below_2p(reg[0..=n], p, ws, counter) -> Vec<Gate>
+        // composes the above; assumes reg is in [0, 2p)
+    pub fn reduce_after_multiplication(acc[0..2n], p, ws, counter)
+        -> Vec<Gate>
+        // generic version of the Goldilocks fold loop
+```
+
+Each function gets a property test that runs `Gate::apply` on random
+basis-state inputs and asserts the post-state matches `value % p`.
+This is the validation oracle that the existing tests never had.
+
+Once Phase 3 lands, Phases 4-6 are mechanical (refactor scalar muls
+to take `&AffinePoint`, persist `gate_log`, add the CLI subcommand,
+update the workflow). Estimated 2-4 days for Phase 3 done carefully,
+then ~1 day for Phases 4-6.
 
 This branch must NOT be merged until Phase 5 passes. Until then it is
 foundation work and the existing placeholder workflow on
