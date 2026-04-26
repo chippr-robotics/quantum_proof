@@ -350,7 +350,15 @@ jobs:
           fi
 
           echo "Invoking poc/run_ibm.py with: ${ARGS[*]}"
+          # Don't let a non-zero exit code (e.g. 2 = recovered k did not match
+          # ground truth -- a legitimate outcome we want to preserve) abort
+          # the step before we extract the IBM job id.
+          set +e
           python qiskit/poc/run_ibm.py "${ARGS[@]}" 2>&1 | tee results/runner.log
+          RUN_EXIT="${PIPESTATUS[0]}"
+          set -e
+          echo "run_ibm.py exit code: ${RUN_EXIT}"
+          echo "runner_exit_code=${RUN_EXIT}" >> "$GITHUB_OUTPUT"
 
           JOB_ID=$(grep -oE 'submitted job [^ ]+' results/runner.log | awk '{print $3}' | head -1 || true)
           if [[ -n "$JOB_ID" ]]; then
@@ -358,6 +366,16 @@ jobs:
             echo "$JOB_ID" > results/ibm_job_id.txt
             echo "Captured IBM job id: $JOB_ID"
           fi
+
+          # Surface recovered k (POC only) so the manifest captures it.
+          RECOVERED=$(grep -oE 'recovered k = [0-9]+' results/runner.log | awk '{print $4}' | head -1 || true)
+          if [[ -n "$RECOVERED" ]]; then
+            echo "recovered_k=${RECOVERED}" >> "$GITHUB_OUTPUT"
+            echo "${RECOVERED}" > results/recovered_k.txt
+            echo "Recovered k from hardware: ${RECOVERED}"
+          fi
+
+          exit "${RUN_EXIT}"
 
       - name: Run hardware deployment (Oath-8/16/32/64)
         if: ${{ inputs.tier != '4' }}
@@ -388,7 +406,12 @@ jobs:
           fi
 
           echo "Invoking oathN_hardware_runner.py with: ${ARGS[*]}"
+          set +e
           python qiskit/oathN_hardware_runner.py "${ARGS[@]}" 2>&1 | tee results/runner.log
+          RUN_EXIT="${PIPESTATUS[0]}"
+          set -e
+          echo "oathN_hardware_runner.py exit code: ${RUN_EXIT}"
+          echo "runner_exit_code=${RUN_EXIT}" >> "$GITHUB_OUTPUT"
 
           JOB_ID=$(grep -oE 'Submitted job [^ ]+' results/runner.log | awk '{print $3}' | head -1 || true)
           if [[ -n "$JOB_ID" ]]; then
@@ -397,14 +420,39 @@ jobs:
             echo "Captured IBM job id: $JOB_ID"
           fi
 
-      - name: Append job id to manifest
+          exit "${RUN_EXIT}"
+
+      - name: Finalise manifest with run outputs
         if: always()
         env:
           IBM_JOB_ID: ${{ steps.run-poc.outputs.ibm_job_id || steps.run-real.outputs.ibm_job_id }}
+          RECOVERED_K: ${{ steps.run-poc.outputs.recovered_k }}
+          RUNNER_EXIT: ${{ steps.run-poc.outputs.runner_exit_code || steps.run-real.outputs.runner_exit_code }}
+          INPUT_K: ${{ inputs.k }}
         run: |
-          if [[ -n "$IBM_JOB_ID" ]]; then
-            python -c "import json, os, pathlib; p = pathlib.Path('results/manifest.json'); m = json.loads(p.read_text()); m['ibm_job_id'] = os.environ['IBM_JOB_ID']; p.write_text(json.dumps(m, indent=2) + '\n')"
-          fi
+          python - <<'PY'
+          import json, os, pathlib
+          p = pathlib.Path('results/manifest.json')
+          if not p.exists():
+              raise SystemExit('manifest.json missing -- earlier step failed before it was written')
+          m = json.loads(p.read_text())
+          job_id = os.environ.get('IBM_JOB_ID') or ''
+          recovered = os.environ.get('RECOVERED_K') or ''
+          runner_exit = os.environ.get('RUNNER_EXIT') or ''
+          true_k = os.environ.get('INPUT_K') or ''
+          if job_id:
+              m['ibm_job_id'] = job_id
+          if runner_exit != '':
+              m['runner_exit_code'] = int(runner_exit)
+          if recovered:
+              m['shor_recovery'] = {
+                  'planted_k': int(true_k) if true_k else None,
+                  'recovered_k': int(recovered),
+                  'matched': bool(true_k) and int(recovered) == int(true_k),
+              }
+          p.write_text(json.dumps(m, indent=2) + '\n')
+          print(json.dumps(m, indent=2))
+          PY
 
       - name: Write run summary
         if: always()
@@ -417,6 +465,7 @@ jobs:
           INPUT_COMPILER: ${{ inputs.compiler }}
           SUBMIT: ${{ needs.preflight.outputs.submit }}
           IBM_JOB_ID: ${{ steps.run-poc.outputs.ibm_job_id || steps.run-real.outputs.ibm_job_id }}
+          RECOVERED_K: ${{ steps.run-poc.outputs.recovered_k }}
         run: |
           BACKEND_DISPLAY="${INPUT_BACKEND:-(least-busy)}"
           {
@@ -425,7 +474,7 @@ jobs:
             echo "| Property | Value |"
             echo "|----------|-------|"
             echo "| Tier | Oath-${INPUT_TIER} |"
-            echo "| k | ${INPUT_K} |"
+            echo "| Planted k | ${INPUT_K} |"
             echo "| Shots | ${INPUT_SHOTS} |"
             echo "| Backend | ${BACKEND_DISPLAY} |"
             echo "| Compiler | ${INPUT_COMPILER} |"
@@ -434,6 +483,13 @@ jobs:
             echo "| Commit | \`${GITHUB_SHA}\` |"
             if [[ -n "$IBM_JOB_ID" ]]; then
               echo "| IBM job id | \`${IBM_JOB_ID}\` |"
+            fi
+            if [[ -n "$RECOVERED_K" ]]; then
+              if [[ "$RECOVERED_K" == "$INPUT_K" ]]; then
+                echo "| Recovered k | **${RECOVERED_K}** ✓ matches planted secret |"
+              else
+                echo "| Recovered k | ${RECOVERED_K} (planted was ${INPUT_K}) |"
+              fi
             fi
             echo ""
             echo "### Runner log (last 50 lines)"
