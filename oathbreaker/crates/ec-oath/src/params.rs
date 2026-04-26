@@ -14,7 +14,6 @@ use std::path::Path;
 pub struct RawCurveParams {
     pub a: u64,
     pub b: u64,
-    #[allow(dead_code)]
     pub p: u64,
     pub order: u128,
     pub generator_x: u64,
@@ -54,6 +53,7 @@ impl RawCurveParams {
                 GoldilocksField::new(self.generator_y),
             ),
             field_bits: self.field_bits,
+            prime_modulus: self.p,
         }
     }
 }

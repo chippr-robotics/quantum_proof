@@ -458,6 +458,7 @@ fn hardcoded_oath64() -> ec_oath::CurveParams {
             GoldilocksField::new(4_519_977_769_586_765_578),
         ),
         field_bits: 64,
+        prime_modulus: GoldilocksField::P,
     }
 }
 

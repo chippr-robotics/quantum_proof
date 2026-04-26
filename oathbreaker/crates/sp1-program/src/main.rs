@@ -128,6 +128,12 @@ fn small_test_curve() -> CurveParams {
         order: 247, // #E(GF(241))
         generator: ec_oath::AffinePoint::new(GoldilocksField::new(2), GoldilocksField::new(75)),
         field_bits: 8,
+        // Historical placeholder: this self-test uses GoldilocksField storage
+        // even though the comment claims GF(241). Marking the modulus as
+        // Goldilocks preserves the prior behaviour exactly. See
+        // HONEST_IMPLEMENTATION_ROADMAP.md for the planned correction once
+        // the reversible-arithmetic crate accepts arbitrary primes.
+        prime_modulus: GoldilocksField::P,
     }
 }
 

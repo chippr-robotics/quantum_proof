@@ -557,6 +557,7 @@ mod shor_end_to_end_tests {
             order: GoldilocksField::P,
             generator,
             field_bits: 8, // Small for fast tests
+            prime_modulus: GoldilocksField::P,
         }
     }
 
@@ -681,6 +682,7 @@ mod export_tests {
             order: GoldilocksField::P,
             generator: AffinePoint::Finite { x: gx, y: gy },
             field_bits: 8,
+            prime_modulus: GoldilocksField::P,
         }
     }
 
@@ -744,6 +746,7 @@ mod group_action_integration_tests {
             order: GoldilocksField::P,
             generator: AffinePoint::Finite { x: gx, y: gy },
             field_bits: 8,
+            prime_modulus: GoldilocksField::P,
         }
     }
 

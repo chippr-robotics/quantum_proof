@@ -3,6 +3,7 @@ pub mod double_scalar_mul;
 pub mod ecdlp;
 pub mod params;
 pub mod point_ops;
+pub mod point_ops_generic;
 pub mod test_case;
 
 #[cfg(test)]
