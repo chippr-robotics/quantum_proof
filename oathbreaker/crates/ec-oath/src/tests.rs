@@ -35,6 +35,7 @@ mod ec_tests {
             order: 0,
             generator: AffinePoint::Infinity,
             field_bits: 64,
+            prime_modulus: GoldilocksField::P,
         }));
 
         // Order placeholder — real value from Sage's E.order().
@@ -47,6 +48,7 @@ mod ec_tests {
             order,
             generator,
             field_bits: 64,
+            prime_modulus: GoldilocksField::P,
         }
     }
 
@@ -66,6 +68,7 @@ mod ec_tests {
             order: 0,
             generator: AffinePoint::Infinity,
             field_bits: 64,
+            prime_modulus: GoldilocksField::P,
         };
 
         assert_eq!(point_add(&p, &inf, &curve), p);
@@ -85,6 +88,7 @@ mod ec_tests {
             order: 0,
             generator: AffinePoint::Infinity,
             field_bits: 64,
+            prime_modulus: GoldilocksField::P,
         };
 
         assert_eq!(scalar_mul(0, &p, &curve), AffinePoint::Infinity);

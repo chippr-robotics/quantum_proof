@@ -2,6 +2,18 @@ use oath_field::GoldilocksField;
 use serde::{Deserialize, Serialize};
 
 /// Parameters for an elliptic curve E: y^2 = x^3 + ax + b over GF(p).
+///
+/// Storage of `a`, `b`, and the generator's coordinates reuses the
+/// `GoldilocksField` u64 representation regardless of the actual prime --
+/// see `prime_modulus` for the prime that should actually be used to reduce
+/// arithmetic results. The historical Goldilocks-only path leaves
+/// `prime_modulus = GOLDILOCKS_PRIME`; sub-Goldilocks tiers (Oath-4, Oath-8,
+/// Oath-16, Oath-32) carry their actual prime here so the new generic
+/// classical-arithmetic path in `point_ops_generic` can reduce correctly.
+///
+/// All numeric values are still stored as canonical `u64`s in
+/// `[0, prime_modulus)`; only the *operations* differ between the Goldilocks
+/// fast path and the generic path.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CurveParams {
     /// Coefficient a in the Weierstrass equation.
@@ -14,6 +26,42 @@ pub struct CurveParams {
     pub generator: AffinePoint,
     /// Number of bits in the field (always 64 for Goldilocks).
     pub field_bits: usize,
+    /// The prime modulus `p` of the underlying field GF(p).
+    ///
+    /// Defaults to the Goldilocks prime (`2^64 − 2^32 + 1`) for backwards
+    /// compatibility with the existing benchmark suite. Sub-Goldilocks tiers
+    /// load this from the per-tier JSON (`oath4_params.json`, etc.).
+    #[serde(default = "default_prime_modulus")]
+    pub prime_modulus: u64,
+}
+
+fn default_prime_modulus() -> u64 {
+    oath_field::constants::GOLDILOCKS_PRIME
+}
+
+impl CurveParams {
+    /// Construct a [`oath_field::PrimeField`] context for this curve's actual
+    /// modulus -- use this when running the generic classical primitives in
+    /// [`crate::point_ops_generic`].
+    pub fn prime_field(&self) -> oath_field::PrimeField {
+        oath_field::PrimeField::new(self.prime_modulus)
+    }
+}
+
+impl Default for CurveParams {
+    /// Backwards-compatible default: `prime_modulus = GOLDILOCKS_PRIME`,
+    /// `field_bits = 64`. Used by the older test sites that constructed
+    /// `CurveParams` literals before `prime_modulus` was added.
+    fn default() -> Self {
+        Self {
+            a: GoldilocksField::ZERO,
+            b: GoldilocksField::ZERO,
+            order: 0,
+            generator: AffinePoint::Infinity,
+            field_bits: 64,
+            prime_modulus: GoldilocksField::P,
+        }
+    }
 }
 
 /// A point on the elliptic curve in affine coordinates.
