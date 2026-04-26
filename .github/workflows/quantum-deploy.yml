@@ -1,0 +1,453 @@
+name: Quantum Hardware Deployment
+
+# ---------------------------------------------------------------------------
+# Manual (human-in-the-loop) deployment of an Oathbreaker reversible-EC
+# circuit to a real IBM Quantum backend.
+#
+# This workflow is intentionally not triggered by push or pull request. A
+# maintainer dispatches it from the Actions tab, picks a tier, picks the
+# planted secret, and explicitly acknowledges that submission consumes
+# IBM Quantum credits. Every artifact required for third-party
+# reproduction -- the exact circuit (QASM for Oath-8+, the Python builder
+# commit for Oath-4), its SHA-256, the transpiler log, the IBM job id,
+# and a manifest tying everything back to the commit -- is uploaded with
+# 90-day retention so anyone can independently verify what ran.
+#
+# Routing:
+#   tier == 4   -> POC path: oathbreaker/qiskit/poc/run_ibm.py
+#                  (builds the 12-qubit Oath-4 Shor circuit in-process
+#                  from the Python module; classical post-processor
+#                  recovers k from the raw counts).
+#   tier in 8/16/32/64 -> Real path: cargo run -p benchmark -- export-all-qasm
+#                  produces the OpenQASM 3.0 artefact, which
+#                  oathN_hardware_runner.py loads, transpiles, and
+#                  submits via qiskit_ibm_runtime.SamplerV2. The runner
+#                  refuses to submit if the transpiled depth exceeds the
+#                  backend's coherence budget unless --force is given;
+#                  this workflow does not pass --force.
+#
+# Secrets:
+#   IBM_QUANTUM_API   IBM Quantum Platform API key (https://quantum.ibm.com).
+#                     The Python runners read it from IBM_QUANTUM_TOKEN, so
+#                     the hardware-run job re-exports it under that name.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Oath tier to deploy (4 = POC; 8/16/32/64 = real-path, currently exceeds NISQ budgets)"
+        required: true
+        default: "4"
+        type: choice
+        options:
+          - "4"
+          - "8"
+          - "16"
+          - "32"
+          - "64"
+      k:
+        description: "Planted secret scalar (used for ground-truth verification post hoc)"
+        required: true
+        default: "7"
+        type: string
+      shots:
+        description: "Number of shots to request"
+        required: true
+        default: "20000"
+        type: string
+      backend:
+        description: "IBM backend name (blank = least-busy that fits the qubit budget)"
+        required: false
+        default: ""
+        type: string
+      optimization_level:
+        description: "Transpiler optimization level"
+        required: true
+        default: "3"
+        type: choice
+        options:
+          - "0"
+          - "1"
+          - "2"
+          - "3"
+      compiler:
+        description: "Compiler strategy"
+        required: true
+        default: "qiskit"
+        type: choice
+        options:
+          - "qiskit"
+          - "tket"
+      dynamic_decoupling:
+        description: "Insert XY-4 dynamic decoupling (Oath-4 POC only; ignored for higher tiers)"
+        required: true
+        default: false
+        type: boolean
+      dry_run:
+        description: "Dry run: compile + transpile + report footprint, do NOT submit"
+        required: true
+        default: true
+        type: boolean
+      acknowledge_billing:
+        description: "I acknowledge that submitting will consume IBM Quantum credits on my account"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # One hardware submission at a time. Queueing prevents accidental
+  # double-submits; cancel-in-progress is OFF so a running job is not
+  # killed if a second dispatch arrives.
+  group: quantum-hardware-deploy
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Step 1: pre-flight. Refuse a wet submission if billing was not
+  # acknowledged. Dry runs may always proceed.
+  # ---------------------------------------------------------------------------
+  preflight:
+    name: "deploy / preflight"
+    runs-on: ubuntu-latest
+    outputs:
+      submit: ${{ steps.gate.outputs.submit }}
+    steps:
+      - name: Gate on billing acknowledgement
+        id: gate
+        env:
+          DRY: ${{ inputs.dry_run }}
+          ACK: ${{ inputs.acknowledge_billing }}
+        run: |
+          if [[ "$DRY" != "true" && "$ACK" != "true" ]]; then
+            echo "::error::Wet submission requested but billing was not acknowledged."
+            echo "Re-dispatch with 'acknowledge_billing' checked, or with 'dry_run' enabled."
+            exit 1
+          fi
+          if [[ "$DRY" == "true" ]]; then
+            echo "submit=false" >> "$GITHUB_OUTPUT"
+            echo "Dry run mode — no hardware submission will occur."
+          else
+            echo "submit=true" >> "$GITHUB_OUTPUT"
+            echo "Wet submission mode — billing acknowledged."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Step 2 (Oath-8/16/32/64 only): compile the OpenQASM 3.0 artifact via
+  # the Rust benchmark binary and upload it as an artifact.
+  # ---------------------------------------------------------------------------
+  compile-qasm:
+    name: "deploy / compile QASM (tier ${{ inputs.tier }})"
+    needs: preflight
+    if: ${{ inputs.tier != '4' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oathbreaker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            oathbreaker/target
+          key: deploy-${{ runner.os }}-cargo-${{ hashFiles('oathbreaker/**/Cargo.toml') }}
+          restore-keys: |
+            deploy-${{ runner.os }}-cargo-
+
+      - name: Build benchmark binary (release)
+        run: cargo build --release -p benchmark
+
+      - name: Export QASM for every tier
+        run: cargo run --release -p benchmark -- export-all-qasm
+
+      - name: Locate QASM for tier ${{ inputs.tier }}
+        env:
+          TIER: ${{ inputs.tier }}
+        run: |
+          QASM="oathbreaker_oath${TIER}.qasm"
+          if [[ ! -f "$QASM" ]]; then
+            echo "::error::Expected QASM file $QASM not produced by export-all-qasm."
+            ls -la oathbreaker_oath*.qasm || true
+            exit 1
+          fi
+          SHA=$(sha256sum "$QASM" | awk '{print $1}')
+          LINES=$(wc -l < "$QASM")
+          BYTES=$(wc -c < "$QASM")
+          {
+            echo "## QASM compiled for Oath-${TIER}"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| File | \`$QASM\` |"
+            echo "| Lines | $LINES |"
+            echo "| Size | $BYTES bytes |"
+            echo "| SHA-256 | \`$SHA\` |"
+            echo "| Commit | \`$GITHUB_SHA\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload QASM + stats artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qasm-oath${{ inputs.tier }}-${{ github.run_id }}
+          path: |
+            oathbreaker/oathbreaker_oath${{ inputs.tier }}.qasm
+            oathbreaker/oathbreaker_oath${{ inputs.tier }}.stats.json
+          retention-days: 90
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Step 3: transpile against the live backend and (optionally) submit.
+  # Branches on tier between the POC and real-path runners.
+  # ---------------------------------------------------------------------------
+  hardware-run:
+    name: "deploy / hardware run (tier ${{ inputs.tier }})"
+    needs: [preflight, compile-qasm]
+    # `needs` skips a downstream job if any upstream is skipped. We want
+    # tier=4 to proceed even though compile-qasm is skipped, so override
+    # with `always()` and explicitly require preflight to have succeeded.
+    if: ${{ always() && needs.preflight.result == 'success' && (inputs.tier == '4' || needs.compile-qasm.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: oathbreaker
+    env:
+      # The Python runners read the API key from IBM_QUANTUM_TOKEN; the
+      # repo secret is named IBM_QUANTUM_API per the maintainer's setup.
+      IBM_QUANTUM_TOKEN: ${{ secrets.IBM_QUANTUM_API }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify secret is present
+        run: |
+          if [[ -z "${IBM_QUANTUM_TOKEN}" ]]; then
+            echo "::error::Repo secret IBM_QUANTUM_API is empty or missing."
+            exit 1
+          fi
+          echo "IBM Quantum API key is configured."
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: oathbreaker/qiskit/poc/requirements.txt
+
+      - name: Install Qiskit + IBM Runtime
+        working-directory: oathbreaker/qiskit/poc
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -c "import qiskit, qiskit_ibm_runtime; print('qiskit', qiskit.__version__, 'ibm_runtime', qiskit_ibm_runtime.__version__)"
+
+      - name: Download QASM artifact (Oath-8/16/32/64)
+        if: ${{ inputs.tier != '4' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: qasm-oath${{ inputs.tier }}-${{ github.run_id }}
+          path: oathbreaker
+
+      - name: Prepare results directory
+        run: mkdir -p results
+
+      - name: Write run manifest
+        env:
+          TIER: ${{ inputs.tier }}
+          SUBMIT: ${{ needs.preflight.outputs.submit }}
+          INPUT_K: ${{ inputs.k }}
+          INPUT_SHOTS: ${{ inputs.shots }}
+          INPUT_BACKEND: ${{ inputs.backend }}
+          INPUT_OPT: ${{ inputs.optimization_level }}
+          INPUT_COMPILER: ${{ inputs.compiler }}
+          INPUT_DD: ${{ inputs.dynamic_decoupling }}
+          INPUT_DRY: ${{ inputs.dry_run }}
+        run: |
+          if [[ "$TIER" == "4" ]]; then
+            export QASM=""
+            export QASM_SHA=""
+            export CIRCUIT_SOURCE="oathbreaker/qiskit/poc/oath4_circuit.py (Python builder)"
+          else
+            export QASM="oathbreaker_oath${TIER}.qasm"
+            export QASM_SHA=$(sha256sum "$QASM" | awk '{print $1}')
+            export CIRCUIT_SOURCE="oathbreaker/crates/group-action-circuit (Rust)"
+            cp "$QASM" "results/$QASM"
+            if [[ -f "oathbreaker_oath${TIER}.stats.json" ]]; then
+              cp "oathbreaker_oath${TIER}.stats.json" "results/"
+            fi
+          fi
+          export DISPATCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python - > results/manifest.json <<'PY'
+          import json, os
+          manifest = {
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_run_url": f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              "commit_sha": os.environ["GITHUB_SHA"],
+              "ref": os.environ["GITHUB_REF"],
+              "actor": os.environ["GITHUB_ACTOR"],
+              "dispatched_at": os.environ["DISPATCHED_AT"],
+              "inputs": {
+                  "tier": os.environ["TIER"],
+                  "k": os.environ["INPUT_K"],
+                  "shots": os.environ["INPUT_SHOTS"],
+                  "backend": os.environ["INPUT_BACKEND"],
+                  "optimization_level": os.environ["INPUT_OPT"],
+                  "compiler": os.environ["INPUT_COMPILER"],
+                  "dynamic_decoupling": os.environ["INPUT_DD"],
+                  "dry_run": os.environ["INPUT_DRY"],
+                  "submit": os.environ["SUBMIT"],
+              },
+              "circuit": {
+                  "source": os.environ["CIRCUIT_SOURCE"],
+                  "qasm_filename": os.environ["QASM"],
+                  "qasm_sha256": os.environ["QASM_SHA"],
+              },
+          }
+          print(json.dumps(manifest, indent=2))
+          PY
+          cat results/manifest.json
+
+      - name: Run hardware deployment (Oath-4 POC)
+        if: ${{ inputs.tier == '4' }}
+        id: run-poc
+        env:
+          INPUT_K: ${{ inputs.k }}
+          INPUT_SHOTS: ${{ inputs.shots }}
+          INPUT_BACKEND: ${{ inputs.backend }}
+          INPUT_OPT: ${{ inputs.optimization_level }}
+          INPUT_COMPILER: ${{ inputs.compiler }}
+          INPUT_DD: ${{ inputs.dynamic_decoupling }}
+          SUBMIT: ${{ needs.preflight.outputs.submit }}
+        run: |
+          set -o pipefail
+          ARGS=(
+            --k "$INPUT_K"
+            --shots "$INPUT_SHOTS"
+            --optimization-level "$INPUT_OPT"
+            --compiler "$INPUT_COMPILER"
+          )
+          if [[ -n "$INPUT_BACKEND" ]]; then
+            ARGS+=(--backend "$INPUT_BACKEND")
+          fi
+          if [[ "$INPUT_DD" == "true" ]]; then
+            ARGS+=(--dynamic-decoupling)
+          fi
+          if [[ "$SUBMIT" != "true" ]]; then
+            ARGS+=(--dry-run)
+          fi
+
+          echo "Invoking poc/run_ibm.py with: ${ARGS[*]}"
+          python qiskit/poc/run_ibm.py "${ARGS[@]}" 2>&1 | tee results/runner.log
+
+          JOB_ID=$(grep -oE 'submitted job [^ ]+' results/runner.log | awk '{print $3}' | head -1 || true)
+          if [[ -n "$JOB_ID" ]]; then
+            echo "ibm_job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+            echo "$JOB_ID" > results/ibm_job_id.txt
+            echo "Captured IBM job id: $JOB_ID"
+          fi
+
+      - name: Run hardware deployment (Oath-8/16/32/64)
+        if: ${{ inputs.tier != '4' }}
+        id: run-real
+        env:
+          INPUT_TIER: ${{ inputs.tier }}
+          INPUT_K: ${{ inputs.k }}
+          INPUT_SHOTS: ${{ inputs.shots }}
+          INPUT_BACKEND: ${{ inputs.backend }}
+          INPUT_OPT: ${{ inputs.optimization_level }}
+          INPUT_COMPILER: ${{ inputs.compiler }}
+          SUBMIT: ${{ needs.preflight.outputs.submit }}
+        run: |
+          set -o pipefail
+          ARGS=(
+            --qasm "oathbreaker_oath${INPUT_TIER}.qasm"
+            --tier "$INPUT_TIER"
+            --k "$INPUT_K"
+            --shots "$INPUT_SHOTS"
+            --optimization-level "$INPUT_OPT"
+            --compiler "$INPUT_COMPILER"
+          )
+          if [[ -n "$INPUT_BACKEND" ]]; then
+            ARGS+=(--backend "$INPUT_BACKEND")
+          fi
+          if [[ "$SUBMIT" != "true" ]]; then
+            ARGS+=(--dry-run)
+          fi
+
+          echo "Invoking oathN_hardware_runner.py with: ${ARGS[*]}"
+          python qiskit/oathN_hardware_runner.py "${ARGS[@]}" 2>&1 | tee results/runner.log
+
+          JOB_ID=$(grep -oE 'Submitted job [^ ]+' results/runner.log | awk '{print $3}' | head -1 || true)
+          if [[ -n "$JOB_ID" ]]; then
+            echo "ibm_job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+            echo "$JOB_ID" > results/ibm_job_id.txt
+            echo "Captured IBM job id: $JOB_ID"
+          fi
+
+      - name: Append job id to manifest
+        if: always()
+        env:
+          IBM_JOB_ID: ${{ steps.run-poc.outputs.ibm_job_id || steps.run-real.outputs.ibm_job_id }}
+        run: |
+          if [[ -n "$IBM_JOB_ID" ]]; then
+            python -c "import json, os, pathlib; p = pathlib.Path('results/manifest.json'); m = json.loads(p.read_text()); m['ibm_job_id'] = os.environ['IBM_JOB_ID']; p.write_text(json.dumps(m, indent=2) + '\n')"
+          fi
+
+      - name: Write run summary
+        if: always()
+        env:
+          INPUT_TIER: ${{ inputs.tier }}
+          INPUT_K: ${{ inputs.k }}
+          INPUT_SHOTS: ${{ inputs.shots }}
+          INPUT_BACKEND: ${{ inputs.backend }}
+          INPUT_OPT: ${{ inputs.optimization_level }}
+          INPUT_COMPILER: ${{ inputs.compiler }}
+          SUBMIT: ${{ needs.preflight.outputs.submit }}
+          IBM_JOB_ID: ${{ steps.run-poc.outputs.ibm_job_id || steps.run-real.outputs.ibm_job_id }}
+        run: |
+          BACKEND_DISPLAY="${INPUT_BACKEND:-(least-busy)}"
+          {
+            echo "## Hardware run summary"
+            echo ""
+            echo "| Property | Value |"
+            echo "|----------|-------|"
+            echo "| Tier | Oath-${INPUT_TIER} |"
+            echo "| k | ${INPUT_K} |"
+            echo "| Shots | ${INPUT_SHOTS} |"
+            echo "| Backend | ${BACKEND_DISPLAY} |"
+            echo "| Compiler | ${INPUT_COMPILER} |"
+            echo "| Optimization | ${INPUT_OPT} |"
+            echo "| Submitted to hardware | ${SUBMIT} |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            if [[ -n "$IBM_JOB_ID" ]]; then
+              echo "| IBM job id | \`${IBM_JOB_ID}\` |"
+            fi
+            echo ""
+            echo "### Runner log (last 50 lines)"
+            echo ""
+            echo '```'
+            tail -n 50 results/runner.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardware-run-oath${{ inputs.tier }}-${{ github.run_id }}
+          path: oathbreaker/results/
+          retention-days: 90
+          if-no-files-found: error
