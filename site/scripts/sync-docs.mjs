@@ -74,8 +74,14 @@ const DOC_META = {
     description: 'POC vs. real-path constraints on the Qiskit/IBM execution stack.',
     category: 'Hardware',
   },
-  'LIMITATIONS.md': {
+  'HARDWARE_DEPLOYMENT.md': {
     order: 10,
+    title: 'Hardware Deployment',
+    description: 'How to clone the repo and submit the circuits to real IBM Quantum hardware via the manual GitHub Action — every artifact preserved for public verification.',
+    category: 'Hardware',
+  },
+  'LIMITATIONS.md': {
+    order: 11,
     title: 'Limitations',
     description: 'What this project is — and is not.',
     category: 'Hardware',
